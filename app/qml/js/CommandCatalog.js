@@ -251,8 +251,8 @@ function charging(s)   { return nearlyCharging(s) }
 function notCharging(s){ return !nearlyCharging(s) }
 function portOpen(s)   { return !!s.chargePortOpen }
 function portClosed(s) { return !s.chargePortOpen }
-function lockedState(s)  { return s.locked === true }
-function unlockedState(s){ return s.locked !== true }
+function lockedState(s)  { return s.locked !== false }
+function unlockedState(s){ return s.locked === false }
 function windowsOpen(s)  { return !!s.windowsOpen }
 function windowsClosed(s){ return !s.windowsOpen }
 function trunkOpen(s)  { return !!s.trunkRearOpen }

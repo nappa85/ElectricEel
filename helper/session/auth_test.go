@@ -60,6 +60,23 @@ func TestParseAuthenticationRequestInsideRoutableMessage(t *testing.T) {
 	}
 }
 
+func TestParseAuthenticationRequestOmittedLevelIsIgnored(t *testing.T) {
+	// Identification-style AuthenticationRequest with a token and no
+	// requestedLevel must not parse as a grantable NONE request. Treating
+	// it as NONE made the responder send AuthenticationResponse{NONE} and
+	// broke refresh+handle-pull.
+	tokenInner := protowire.AppendTag(nil, 1, protowire.BytesType)
+	tokenInner = protowire.AppendBytes(tokenInner, []byte{0x00, 0x01, 0x0f, 0x2c})
+	authReq := protowire.AppendTag(nil, 2, protowire.BytesType)
+	authReq = protowire.AppendBytes(authReq, tokenInner)
+	from := protowire.AppendTag(nil, 3, protowire.BytesType)
+	from = protowire.AppendBytes(from, authReq)
+
+	if _, ok := parseAuthenticationRequest(from); ok {
+		t.Fatal("omitted requestedLevel must not parse as a grantable request")
+	}
+}
+
 func TestParseAuthenticationRequestUnlockLevel(t *testing.T) {
 	// FromVCSECMessage { authenticationRequest { requestedLevel = UNLOCK } }
 	authReq := protowire.AppendTag(nil, 3, protowire.VarintType)

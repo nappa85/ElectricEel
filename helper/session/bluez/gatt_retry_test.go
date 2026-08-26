@@ -90,3 +90,63 @@ func TestIsAdapterError(t *testing.T) {
 		}
 	}
 }
+
+func TestConnectStopsDiscoveryBeforeDeviceConnect(t *testing.T) {
+	bus := newFakeBluez()
+	vin := "5YJ3E1EA0PF000000"
+	bus.dev = &fakeDevice{path: bus.devPath(), name: vehicleBeaconName(vin)}
+	bus.deviceVisible = true
+	bus.servicesResolved = true
+	bus.gattReady = true
+	bus.discovering = true
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	if _, err := connect(ctx, bus, "hci0", vin, &ScanResult{Path: bus.dev.path}); err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	stopAt, connectAt := -1, -1
+	for i, c := range bus.calls {
+		switch c {
+		case adapterIface + ".StopDiscovery":
+			if stopAt < 0 {
+				stopAt = i
+			}
+		case deviceIface + ".Connect":
+			if connectAt < 0 {
+				connectAt = i
+			}
+		}
+	}
+	if stopAt < 0 {
+		t.Fatal("expected StopDiscovery before Device.Connect (scanning during connect causes le-connection-abort-by-local)")
+	}
+	if connectAt < 0 {
+		t.Fatal("expected Device.Connect")
+	}
+	if stopAt > connectAt {
+		t.Errorf("StopDiscovery at call %d after Connect at %d", stopAt, connectAt)
+	}
+	if bus.discovering {
+		t.Error("discovery should stay off after a successful connect")
+	}
+}
+
+func TestConnectAbortsPendingLinkOnFailure(t *testing.T) {
+	bus := newFakeBluez()
+	vin := "5YJ3E1EA0PF000000"
+	bus.dev = &fakeDevice{path: bus.devPath(), name: vehicleBeaconName(vin)}
+	bus.deviceVisible = true
+	bus.connectErr = errors.New("org.bluez.Error.Failed: le-connection-abort-by-local")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 800*time.Millisecond)
+	defer cancel()
+
+	if _, err := connect(ctx, bus, "hci0", vin, &ScanResult{Path: bus.dev.path}); err == nil {
+		t.Fatal("expected connect to fail")
+	}
+	if n := countCalls(bus.calls, deviceIface+".Disconnect"); n == 0 {
+		t.Fatal("failed Connect must Disconnect so the next attempt is not aborted-by-local")
+	}
+}

@@ -9,6 +9,6 @@ Comment=Control your Tesla over Bluetooth
 Comment[en]=Control your Tesla over Bluetooth
 
 [X-Sailjail]
-Permissions=Bluetooth
+Permissions=Bluetooth;Documents
 OrganizationName=org.electriceel
 ApplicationName=harbour-electric-eel

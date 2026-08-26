@@ -2,6 +2,7 @@ package bluez
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -46,13 +47,20 @@ type Connection struct {
 	// that's on its way out. nil (left unset) when no rxLoop was ever
 	// started, e.g. connection_test.go's newTestConnection - Close() must
 	// not block forever waiting for a close that will never come.
-	loopDone chan struct{}
-	match    []dbus.MatchOption
+	loopDone    chan struct{}
+	match       []dbus.MatchOption
+	deviceMatch []dbus.MatchOption
 
 	// observerMu protects inboundObserver. Separate from mu so the RX path
 	// can fan out copies without contending with Send.
 	observerMu      sync.Mutex
 	inboundObserver InboundObserver
+
+	// dropped is closed once when BlueZ reports the GATT link is gone (or
+	// Close runs). Presence mode selects on Dropped() so it can rebuild the
+	// authenticated session instead of sitting on a zombie Connection.
+	dropped     chan struct{}
+	droppedOnce sync.Once
 
 	// RX reassembly state. Touched only by the rxLoop goroutine (the single
 	// writer), so it needs no lock of its own.
@@ -78,6 +86,49 @@ func (c *Connection) Receive() <-chan []byte {
 
 func (c *Connection) VIN() string {
 	return c.vin
+}
+
+// DevicePath returns the org.bluez Device1 object path for this link.
+func (c *Connection) DevicePath() dbus.ObjectPath {
+	return c.devPath
+}
+
+// Dropped is closed when BlueZ reports Connected=false or Close runs.
+func (c *Connection) Dropped() <-chan struct{} {
+	return c.dropped
+}
+
+func (c *Connection) notifyDropped() {
+	if c.dropped == nil {
+		return
+	}
+	c.droppedOnce.Do(func() { close(c.dropped) })
+}
+
+// DeviceConnected reports whether BlueZ still considers the GATT link up.
+func (c *Connection) DeviceConnected(ctx context.Context) (bool, error) {
+	v, err := c.bus.object(bluezService, c.devPath).getProp(ctx, deviceIface, "Connected")
+	if err != nil {
+		return false, err
+	}
+	connected, ok := variantBool(v)
+	if !ok {
+		return false, fmt.Errorf("bluez: decode device Connected: got %T", v.Value())
+	}
+	return connected, nil
+}
+
+// SetTrusted marks the vehicle as a trusted BlueZ device so reconnects do
+// not require interactive pairing prompts.
+func (c *Connection) SetTrusted(trusted bool) error {
+	return c.bus.object(bluezService, c.devPath).setProp(context.Background(), deviceIface, "Trusted", trusted)
+}
+
+// SetAutoConnect asks bluetoothd to reconnect when the vehicle advertises.
+// Uses Properties.Set (Device1 has no SetProperty method). Presence mode
+// still watches Dropped() and re-runs StartSession after a reconnect.
+func (c *Connection) SetAutoConnect(enabled bool) error {
+	return c.bus.object(bluezService, c.devPath).setProp(context.Background(), deviceIface, "AutoConnect", enabled)
 }
 
 func (c *Connection) PreferredAuthMethod() connector.AuthMethod {
@@ -145,6 +196,7 @@ func (c *Connection) writeChunk(b []byte) error {
 // rxLoop for the shared signal channel.
 func (c *Connection) Close() {
 	c.closeOnce.Do(func() {
+		c.notifyDropped()
 		close(c.done)
 		if c.loopDone != nil {
 			<-c.loopDone
@@ -155,6 +207,9 @@ func (c *Connection) Close() {
 		_, _ = c.bus.object(bluezService, c.rxPath).call(ctx, gattChrIface+".StopNotify")
 		_, _ = c.bus.object(bluezService, c.devPath).call(ctx, deviceIface+".Disconnect")
 		_ = c.bus.removeMatch(c.match...)
+		if len(c.deviceMatch) > 0 {
+			_ = c.bus.removeMatch(c.deviceMatch...)
+		}
 	})
 }
 
@@ -175,6 +230,10 @@ func (c *Connection) rxLoop() {
 }
 
 func (c *Connection) handleSignal(sig *dbus.Signal) {
+	if sig.Path == c.devPath {
+		c.handleDeviceSignal(sig)
+		return
+	}
 	if sig.Path != c.rxPath {
 		return
 	}
@@ -198,6 +257,28 @@ func (c *Connection) handleSignal(sig *dbus.Signal) {
 		return
 	}
 	c.rx(b)
+}
+
+func (c *Connection) handleDeviceSignal(sig *dbus.Signal) {
+	if len(sig.Body) < 2 {
+		return
+	}
+	iface, ok := sig.Body[0].(string)
+	if !ok || iface != deviceIface {
+		return
+	}
+	changed, ok := sig.Body[1].(map[string]dbus.Variant)
+	if !ok {
+		return
+	}
+	v, ok := changed["Connected"]
+	if !ok {
+		return
+	}
+	connected, ok := variantBool(v)
+	if ok && !connected {
+		c.notifyDropped()
+	}
 }
 
 // rx appends inbound bytes to the reassembly buffer and flushes any complete

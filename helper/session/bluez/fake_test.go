@@ -18,16 +18,24 @@ type fakeBluez struct {
 	powered     bool
 	discovering bool
 
-	dev              *fakeDevice
-	deviceVisible    bool // device present in GetManagedObjects (turn on after discovery)
-	deviceAppearCall int  // 0 = ignore; when >0, include dev after this many GetManagedObjects calls
-	managedCalls     int
-	servicesResolved bool
-	connected        bool
-	gattReady        bool
-	startedNotify    bool
-	stoppedNotify    bool
-	failLargeWrites  bool // fail WriteValue when the chunk exceeds 20 bytes (ATT MTU 23)
+	dev               *fakeDevice
+	deviceVisible     bool // device present in GetManagedObjects (turn on after discovery)
+	deviceAppearCall  int  // 0 = ignore; when >0, include dev after this many GetManagedObjects calls
+	managedCalls      int
+	servicesResolved  bool
+	connected         bool
+	gattReady         bool
+	startedNotify     bool
+	stoppedNotify     bool
+	failLargeWrites   bool  // fail WriteValue when the chunk exceeds 20 bytes (ATT MTU 23)
+	startDiscoveryErr error // when set, StartDiscovery returns this error
+	connectErr        error // when set, Device1.Connect returns this error
+	setPoweredErr     error // when set, Properties.Set(Powered) returns this error
+	// extraAdapters are additional Adapter1 objects keyed by id ("hci1").
+	// The value is the Powered flag. Used to test powered-adapter preference.
+	extraAdapters map[string]bool
+	autoConnect   bool
+	trusted       bool
 
 	writes       [][]byte
 	calls        []string
@@ -37,9 +45,10 @@ type fakeBluez struct {
 }
 
 type fakeDevice struct {
-	path dbus.ObjectPath
-	name string
-	rssi int16
+	path     dbus.ObjectPath
+	name     string
+	rssi     int16
+	omitRSSI bool // when true, RSSI property is absent (BlueZ cache after ads stop)
 }
 
 func newFakeBluez() *fakeBluez {
@@ -103,21 +112,37 @@ func (f *fakeBluez) managedObjects() map[dbus.ObjectPath]map[string]map[string]d
 	f.managedCalls++
 	m := map[dbus.ObjectPath]map[string]map[string]dbus.Variant{
 		dbus.ObjectPath("/org/bluez/" + f.adapterID): {
-			adapterIface: {"Powered": dbus.MakeVariant(f.powered)},
+			adapterIface: {
+				"Powered":     dbus.MakeVariant(f.powered),
+				"Discovering": dbus.MakeVariant(f.discovering),
+			},
 		},
+	}
+	for id, powered := range f.extraAdapters {
+		m[dbus.ObjectPath("/org/bluez/"+id)] = map[string]map[string]dbus.Variant{
+			adapterIface: {
+				"Powered":     dbus.MakeVariant(powered),
+				"Discovering": dbus.MakeVariant(false),
+			},
+		}
 	}
 	visible := f.deviceVisible
 	if f.deviceAppearCall > 0 && f.managedCalls >= f.deviceAppearCall {
 		visible = true
 	}
 	if f.dev != nil && visible {
+		props := map[string]dbus.Variant{
+			"Name":             dbus.MakeVariant(f.dev.name),
+			"Connected":        dbus.MakeVariant(f.connected),
+			"ServicesResolved": dbus.MakeVariant(f.servicesResolved),
+			"Trusted":          dbus.MakeVariant(f.trusted),
+			"AutoConnect":      dbus.MakeVariant(f.autoConnect),
+		}
+		if !f.dev.omitRSSI {
+			props["RSSI"] = dbus.MakeVariant(f.dev.rssi)
+		}
 		m[f.dev.path] = map[string]map[string]dbus.Variant{
-			deviceIface: {
-				"Name":             dbus.MakeVariant(f.dev.name),
-				"RSSI":             dbus.MakeVariant(f.dev.rssi),
-				"Connected":        dbus.MakeVariant(f.connected),
-				"ServicesResolved": dbus.MakeVariant(f.servicesResolved),
-			},
+			deviceIface: props,
 		}
 		if f.gattReady {
 			svc := f.svcPath()
@@ -149,12 +174,21 @@ func (fc *fakeCaller) call(ctx context.Context, method string, args ...interface
 	case adapterIface + ".SetDiscoveryFilter":
 		return nil, nil
 	case adapterIface + ".StartDiscovery":
+		if fc.b.startDiscoveryErr != nil {
+			return nil, fc.b.startDiscoveryErr
+		}
+		if fc.b.discovering {
+			return nil, errors.New("org.bluez.Error.InProgress")
+		}
 		fc.b.discovering = true
 		return nil, nil
 	case adapterIface + ".StopDiscovery":
 		fc.b.discovering = false
 		return nil, nil
 	case deviceIface + ".Connect":
+		if fc.b.connectErr != nil {
+			return nil, fc.b.connectErr
+		}
 		if fc.b.dev == nil || !fc.b.deviceVisible {
 			return nil, errors.New("org.bluez.Error.Failed: no such device")
 		}
@@ -195,10 +229,18 @@ func (fc *fakeCaller) getProp(ctx context.Context, iface, prop string) (dbus.Var
 	switch prop {
 	case "Powered":
 		return dbus.MakeVariant(fc.b.powered), nil
+	case "Discovering":
+		return dbus.MakeVariant(fc.b.discovering), nil
 	case "Power":
 		return dbus.Variant{}, fmt.Errorf("org.freedesktop.DBus.Error.InvalidArgs: No such property '%s'", prop)
 	case "ServicesResolved":
 		return dbus.MakeVariant(fc.b.servicesResolved), nil
+	case "Connected":
+		return dbus.MakeVariant(fc.b.connected), nil
+	case "Trusted":
+		return dbus.MakeVariant(fc.b.trusted), nil
+	case "AutoConnect":
+		return dbus.MakeVariant(fc.b.autoConnect), nil
 	}
 	return dbus.Variant{}, fmt.Errorf("unexpected property %q", prop)
 }
@@ -206,11 +248,28 @@ func (fc *fakeCaller) getProp(ctx context.Context, iface, prop string) (dbus.Var
 func (fc *fakeCaller) setProp(ctx context.Context, iface, prop string, value interface{}) error {
 	switch prop {
 	case "Powered":
+		if fc.b.setPoweredErr != nil {
+			return fc.b.setPoweredErr
+		}
 		b, ok := value.(bool)
 		if !ok {
 			return fmt.Errorf("Powered: expected bool, got %T", value)
 		}
 		fc.b.powered = b
+		return nil
+	case "Trusted":
+		b, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("Trusted: expected bool, got %T", value)
+		}
+		fc.b.trusted = b
+		return nil
+	case "AutoConnect":
+		b, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("AutoConnect: expected bool, got %T", value)
+		}
+		fc.b.autoConnect = b
 		return nil
 	}
 	return fmt.Errorf("unexpected property %q", prop)

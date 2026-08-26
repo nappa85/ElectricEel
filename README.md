@@ -108,7 +108,7 @@ docker cp app electric-eel-build:/home/mersdk/app
 docker exec -u root electric-eel-build chown -R mersdk:mersdk /home/mersdk/app
 docker exec -w /home/mersdk/app electric-eel-build \
   mb2 --target SailfishOS-5.2.0.15-aarch64 build
-docker cp electric-eel-build:/home/mersdk/app/RPMS/harbour-electric-eel-0.2.8-1.aarch64.rpm app/RPMS/
+docker cp electric-eel-build:/home/mersdk/app/RPMS/harbour-electric-eel-0.2.9-1.aarch64.rpm app/RPMS/
 
 docker rm -f electric-eel-build
 ```
@@ -123,9 +123,9 @@ One package, no helper service to install or configure (devel-su only for
 `pkcon` itself):
 
 ```sh
-scp app/RPMS/harbour-electric-eel-0.2.8-1.aarch64.rpm defaultuser@<phone-ip>:~/
+scp app/RPMS/harbour-electric-eel-0.2.9-1.aarch64.rpm defaultuser@<phone-ip>:~/
 ssh defaultuser@<phone-ip>
-devel-su pkcon install-local ~/harbour-electric-eel-0.2.8-1.aarch64.rpm
+devel-su pkcon install-local ~/harbour-electric-eel-0.2.9-1.aarch64.rpm
 ```
 
 Renamed from `harbour-teslacontrol` - the two package names don't collide
@@ -138,8 +138,8 @@ installed: `devel-su pkcon remove harbour-teslacontrol`.
 tag to trigger it:
 
 ```sh
-git tag v0.2.8
-git push origin v0.2.8
+git tag v0.2.9
+git push origin v0.2.9
 ```
 
 - The RPM version is taken from the tag (leading `v` stripped); the spec,

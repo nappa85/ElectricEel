@@ -24,6 +24,19 @@ const (
 	authLevelDrive  = 2
 )
 
+func authLevelName(level int) string {
+	switch level {
+	case authLevelNone:
+		return "NONE"
+	case authLevelUnlock:
+		return "UNLOCK"
+	case authLevelDrive:
+		return "DRIVE"
+	default:
+		return fmt.Sprintf("LEVEL_%d", level)
+	}
+}
+
 // authenticationRequest is the subset of VCSEC.AuthenticationRequest we need
 // for passive entry: the level the vehicle is asking the phone key to grant.
 type authenticationRequest struct {
@@ -98,6 +111,11 @@ func parseAuthRequestFromFromVCSEC(b []byte) (authenticationRequest, bool) {
 //
 //	sessionInfo (field 2) = AuthenticationRequestToken { token (field 1) }
 //	requestedLevel (field 3) = AuthenticationLevel_E
+//
+// requestedLevel is required. Treating a missing level as NONE made the
+// responder answer identification/status traffic with AuthenticationResponse
+// NONE, which poisoned the VCSEC session so even a dashboard refresh could
+// not unlock.
 func parseAuthRequestMessage(b []byte) (authenticationRequest, bool) {
 	var req authenticationRequest
 	haveLevel := false
@@ -182,6 +200,10 @@ func encodeAuthenticationResponse(level int) []byte {
 // sendAuthenticationResponse transmits a signed/encrypted AuthenticationResponse
 // for level through the existing authenticated VCSEC session via the public
 // vehicle.Send API (same path RKE lock/unlock uses for GCM auth).
+//
+// Only UNLOCK/DRIVE are sent: those are the handle-pull grants. Unsolicited
+// NONE (teslabtapi's legacy ToVCSEC Authenticating step) sent via Universal
+// Message poisoned the live session so refresh+handle-pull stopped working.
 func sendAuthenticationResponse(ctx context.Context, car *vehicle.Vehicle, level int) error {
 	switch level {
 	case authLevelUnlock, authLevelDrive:

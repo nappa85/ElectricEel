@@ -211,8 +211,9 @@ impl SessionClient {
         connect_timeout_sec: i32,
         command_timeout_sec: i32,
     ) -> Result<ChildHandle, SessionError> {
-        // this is made unsafe by libc::prctl
-        let mut child = Command::new(&self.bin_path)
+        let log_dir = crate::keylog::log_dir();
+        let mut command = Command::new(&self.bin_path);
+        command
             .arg("-vin")
             .arg(vin)
             .arg("-key-file")
@@ -225,15 +226,29 @@ impl SessionClient {
             .arg(format!("{command_timeout_sec}s"))
             .arg("-idle-timeout")
             .arg(format!("{IDLE_TIMEOUT_SEC}s"))
+            .arg("-log-dir")
+            .arg(&log_dir)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             // Inherited, not discarded: tesla-session's own startup
             // failures (bad flags, an unexpected panic) should land in
             // the app's own journal tag, same place run_binary's captured
             // tesla-control stderr effectively ends up via Run()'s reply.
-            .stderr(Stdio::inherit())
-            .spawn()
-            .map_err(SessionError::Spawn)?;
+            .stderr(Stdio::inherit());
+        // Linux: SIGTERM the child if the app dies, so a killed UI cannot
+        // leak tesla-session holding the BLE radio. prctl is Linux-only.
+        #[cfg(target_os = "linux")]
+        {
+            use std::os::unix::process::CommandExt;
+            // SAFETY: pre_exec runs in the child after fork, before exec.
+            unsafe {
+                command.pre_exec(|| {
+                    libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGTERM as usize, 0, 0, 0);
+                    Ok(())
+                });
+            }
+        }
+        let mut child = command.spawn().map_err(SessionError::Spawn)?;
 
         let stdin = child.stdin.take().expect("piped stdin");
         let stdout = child.stdout.take().expect("piped stdout");
@@ -241,11 +256,32 @@ impl SessionClient {
         Ok(ChildHandle { child, stdin, rx })
     }
 
-    /// Kills the given handle outright rather than dropping it - Child's
-    /// Drop impl does not send a signal, so an abandoned handle would
-    /// otherwise leak a running tesla-session (and its BLE session) for
-    /// every timeout/error, not just close our end of the pipe.
+    /// Kills the given handle. On Unix, sends SIGTERM first so tesla-session's
+    /// signal handler can stop discovery and disconnect GATT cleanly before
+    /// exit - an immediate SIGKILL (`Child::kill`) leaves org.bluez discovery
+    /// running and has been observed to destabilize Sailfish's bluetoothd.
+    /// Waits up to 5s for exit, then SIGKILL if still alive.
     fn kill(mut handle: ChildHandle) {
+        #[cfg(unix)]
+        {
+            use std::time::Duration;
+            const SIGTERM: i32 = 15;
+            let pid = handle.child.id();
+            // SAFETY: kill(2) with SIGTERM is the standard graceful-shutdown
+            // signal; pid comes from our own child process.
+            let term_sent = unsafe { libc::kill(pid.cast_signed(), SIGTERM) == 0 };
+            if term_sent {
+                let deadline = Duration::from_secs(5);
+                let start = std::time::Instant::now();
+                while start.elapsed() < deadline {
+                    match handle.child.try_wait() {
+                        Ok(Some(_)) => return,
+                        Ok(None) => std::thread::sleep(Duration::from_millis(100)),
+                        Err(_) => break,
+                    }
+                }
+            }
+        }
         let _ = handle.child.kill();
         let _ = handle.child.wait();
     }

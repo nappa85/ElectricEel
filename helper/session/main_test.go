@@ -81,11 +81,12 @@ func TestSessionDomainsScopesBodyControllerState(t *testing.T) {
 		want []protocol.Domain
 	}{
 		{"body-controller-state", []protocol.Domain{protocol.DomainVCSEC}},
+		{"state", []protocol.Domain{protocol.DomainInfotainment}},
 		{"session-info", nil},
 		{"lock", nil},
 		{"unlock", nil},
 		{"add-key-request", nil}, // skips StartSession entirely - see commandsWithoutSession
-		{"", nil},
+		{"", []protocol.Domain{protocol.DomainVCSEC}}, // presence mode: VCSEC only
 		{"not-a-real-command", nil},
 	}
 	for _, c := range cases {
@@ -271,15 +272,15 @@ func TestPresenceStepArrivalRequiresConsecutiveNearSamples(t *testing.T) {
 	cfg := presenceConfig{nearRSSI: -70, nearConfirm: 3, farTimeout: 30 * time.Second, scanInterval: time.Second}
 	now := time.Now()
 
-	near, consecNear, _, action := presenceStep(cfg, false, 0, time.Time{}, now, true, -60)
+	near, consecNear, _, action := presenceStep(cfg, false, 0, time.Time{}, now, true, -60, false)
 	if near || action != presenceActionNone {
 		t.Fatalf("1st near sample: near=%v action=%v, want near=false action=None", near, action)
 	}
-	near, consecNear, _, action = presenceStep(cfg, near, consecNear, time.Time{}, now, true, -60)
+	near, consecNear, _, action = presenceStep(cfg, near, consecNear, time.Time{}, now, true, -60, false)
 	if near || action != presenceActionNone {
 		t.Fatalf("2nd near sample: near=%v action=%v, want near=false action=None", near, action)
 	}
-	near, _, _, action = presenceStep(cfg, near, consecNear, time.Time{}, now, true, -60)
+	near, _, _, action = presenceStep(cfg, near, consecNear, time.Time{}, now, true, -60, false)
 	if !near || action != presenceActionArrive {
 		t.Fatalf("3rd near sample: near=%v action=%v, want near=true action=Arrive", near, action)
 	}
@@ -292,9 +293,9 @@ func TestPresenceStepArrivalResetsOnWeakSample(t *testing.T) {
 	cfg := presenceConfig{nearRSSI: -70, nearConfirm: 2, farTimeout: 30 * time.Second, scanInterval: time.Second}
 	now := time.Now()
 
-	near, consecNear, _, _ := presenceStep(cfg, false, 0, time.Time{}, now, true, -60)
-	near, consecNear, _, _ = presenceStep(cfg, near, consecNear, time.Time{}, now, false, 0) // weak sample resets
-	near, _, _, action := presenceStep(cfg, near, consecNear, time.Time{}, now, true, -60)
+	near, consecNear, _, _ := presenceStep(cfg, false, 0, time.Time{}, now, true, -60, false)
+	near, consecNear, _, _ = presenceStep(cfg, near, consecNear, time.Time{}, now, false, 0, false) // weak sample resets
+	near, _, _, action := presenceStep(cfg, near, consecNear, time.Time{}, now, true, -60, false)
 	if near || action != presenceActionNone {
 		t.Fatalf("after reset + 1 near sample: near=%v action=%v, want near=false action=None (needs 2 consecutive)", near, action)
 	}
@@ -308,12 +309,12 @@ func TestPresenceStepStaysNearOnEverySeenSample(t *testing.T) {
 	cfg := presenceConfig{nearRSSI: -70, nearConfirm: 1, farTimeout: 30 * time.Second, scanInterval: time.Second}
 	now := time.Now()
 
-	near, consecNear, lastSeen, action := presenceStep(cfg, false, 0, time.Time{}, now, true, -60)
+	near, consecNear, lastSeen, action := presenceStep(cfg, false, 0, time.Time{}, now, true, -60, false)
 	if !near || action != presenceActionArrive {
 		t.Fatalf("initial arrival: near=%v action=%v", near, action)
 	}
 	later := now.Add(5 * time.Second)
-	near, _, lastSeen, action = presenceStep(cfg, near, consecNear, lastSeen, later, true, -55)
+	near, _, lastSeen, action = presenceStep(cfg, near, consecNear, lastSeen, later, true, -55, false)
 	if !near || action != presenceActionStayNear {
 		t.Fatalf("still-near tick: near=%v action=%v, want near=true action=StayNear", near, action)
 	}
@@ -329,23 +330,77 @@ func TestPresenceStepDepartsAfterFarTimeout(t *testing.T) {
 	cfg := presenceConfig{nearRSSI: -70, nearConfirm: 1, farTimeout: 10 * time.Second, scanInterval: time.Second}
 	now := time.Now()
 
-	near, consecNear, lastSeen, action := presenceStep(cfg, false, 0, time.Time{}, now, true, -60)
+	near, consecNear, lastSeen, action := presenceStep(cfg, false, 0, time.Time{}, now, true, -60, false)
 	if !near || action != presenceActionArrive {
 		t.Fatalf("initial arrival: near=%v action=%v", near, action)
 	}
 
-	// Beacon vanishes but not for long enough yet.
+	// Beacon vanishes but not for long enough yet: keep trying to reconnect
+	// rather than idling (Tesla often stops advertising after a GATT drop).
 	soon := now.Add(5 * time.Second)
-	near, consecNear, lastSeen, action = presenceStep(cfg, near, consecNear, lastSeen, soon, false, 0)
-	if !near || action != presenceActionNone {
-		t.Fatalf("brief dropout: near=%v action=%v, want near=true action=None (still within farTimeout)", near, action)
+	near, consecNear, lastSeen, action = presenceStep(cfg, near, consecNear, lastSeen, soon, false, 0, false)
+	if !near || action != presenceActionStayNear {
+		t.Fatalf("brief dropout: near=%v action=%v, want near=true action=StayNear (still within farTimeout)", near, action)
 	}
 
 	// Now past farTimeout since lastSeen.
 	later := now.Add(11 * time.Second)
-	near, _, _, action = presenceStep(cfg, near, consecNear, lastSeen, later, false, 0)
+	near, _, _, action = presenceStep(cfg, near, consecNear, lastSeen, later, false, 0, false)
 	if near || action != presenceActionDepart {
 		t.Fatalf("after farTimeout: near=%v action=%v, want near=false action=Depart", near, action)
+	}
+}
+
+// TestPresenceStepLiveGATTHoldsNearWithoutAdvertisement is the regression
+// for the "robust" rewrite: after connect Tesla stops advertising, BlueZ
+// drops RSSI, and treating that as unseen departed a working phone key.
+func TestPresenceStepLiveGATTHoldsNearWithoutAdvertisement(t *testing.T) {
+	cfg := presenceConfig{nearRSSI: -90, nearConfirm: 1, farTimeout: 10 * time.Second, scanInterval: time.Second}
+	now := time.Now()
+
+	near, consecNear, lastSeen, action := presenceStep(cfg, false, 0, time.Time{}, now, true, -70, false)
+	if !near || action != presenceActionArrive {
+		t.Fatalf("arrival: near=%v action=%v", near, action)
+	}
+
+	later := now.Add(30 * time.Second)
+	near, _, lastSeen, action = presenceStep(cfg, near, consecNear, lastSeen, later, false, 0, true)
+	if !near || action != presenceActionStayNear {
+		t.Fatalf("GATT up, no ad: near=%v action=%v, want StayNear", near, action)
+	}
+	if !lastSeen.Equal(later) {
+		t.Errorf("lastSeen = %v, want it advanced to %v while GATT is up", lastSeen, later)
+	}
+}
+
+// TestPresenceLiveNearRejectsWeakAndCachedBeacons is the regression for
+// connecting at RSSI -97..-100 (and to leftover Device1 cache) after a GATT
+// drop: those attempts hang bluetoothd with deadline exceeded / abort-by-local.
+func TestPresenceLiveNearRejectsWeakAndCachedBeacons(t *testing.T) {
+	if !presenceLiveNear(true, -90, -90) {
+		t.Fatal("RSSI at the near threshold must be a connect signal")
+	}
+	if !presenceLiveNear(true, -70, -90) {
+		t.Fatal("strong RSSI must be a connect signal")
+	}
+	if presenceLiveNear(true, -97, -90) {
+		t.Fatal("weak live RSSI must not start GATT")
+	}
+	if presenceLiveNear(false, 0, -90) {
+		t.Fatal("cached Device1 without RSSI must not start GATT")
+	}
+}
+
+// TestPresenceStepExistingGATTCountsAsArrival covers a leftover authenticated
+// session (manual command) so presence attaches the auth tap without waiting
+// for a fresh advertisement.
+func TestPresenceStepExistingGATTCountsAsArrival(t *testing.T) {
+	cfg := presenceConfig{nearRSSI: -90, nearConfirm: 2, farTimeout: 10 * time.Second, scanInterval: time.Second}
+	now := time.Now()
+
+	near, _, _, action := presenceStep(cfg, false, 0, time.Time{}, now, false, 0, true)
+	if !near || action != presenceActionArrive {
+		t.Fatalf("existing GATT: near=%v action=%v, want Arrive", near, action)
 	}
 }
 
@@ -363,6 +418,24 @@ func TestPresenceDepartActionDoesNotImplyLock(t *testing.T) {
 	}
 }
 
+func TestVCSECPrimeDue(t *testing.T) {
+	s := &session{}
+	now := time.Now()
+	if !s.vcsecPrimeDueLocked(now) {
+		t.Fatal("never-primed session must be due")
+	}
+	s.lastVCSECPrime = now
+	if s.vcsecPrimeDueLocked(now) {
+		t.Fatal("just-primed session must not be due")
+	}
+	if s.vcsecPrimeDueLocked(now.Add(vcsecPrimeInterval - time.Second)) {
+		t.Fatal("prime must not be due before the interval")
+	}
+	if !s.vcsecPrimeDueLocked(now.Add(vcsecPrimeInterval)) {
+		t.Fatal("prime must be due at the interval")
+	}
+}
+
 // TestParsePresenceArgsDefaults verifies presence-start with no args gets
 // sane hysteresis defaults rather than zero values (a zero nearConfirm, for
 // instance, would disable the arrival debounce entirely).
@@ -374,6 +447,15 @@ func TestParsePresenceArgsDefaults(t *testing.T) {
 	want := defaultPresenceConfig()
 	if cfg != want {
 		t.Errorf("parsePresenceArgs(nil) = %+v, want defaults %+v", cfg, want)
+	}
+	if cfg.nearRSSI != -90 || cfg.nearConfirm != 1 {
+		t.Errorf("defaults nearRSSI=%d nearConfirm=%d, want -90 / 1 (connect on first live beacon)", cfg.nearRSSI, cfg.nearConfirm)
+	}
+	if cfg.farTimeout != 15*time.Second {
+		t.Errorf("default farTimeout = %v, want 15s", cfg.farTimeout)
+	}
+	if cfg.scanInterval != 2*time.Second {
+		t.Errorf("default scanInterval = %v, want 2s", cfg.scanInterval)
 	}
 }
 
@@ -400,6 +482,55 @@ func TestParsePresenceArgsOverrides(t *testing.T) {
 func TestParsePresenceArgsRejectsUnknownFlag(t *testing.T) {
 	if _, err := parsePresenceArgs([]string{"-near-rssi-typo", "-80"}); err == nil {
 		t.Fatal("expected an error for an unrecognized flag")
+	}
+}
+
+// TestConnectBackoffDoubles verifies failed presence connects back off
+// exponentially so a flaky link cannot hammer bluetoothd.
+func TestConnectBackoffDoubles(t *testing.T) {
+	s := &session{}
+	now := time.Now()
+	s.scheduleConnectBackoffLocked()
+	first := s.connectBackoffUntil
+	if !s.connectBackoffActive(now) {
+		t.Fatal("expected backoff to be active immediately after scheduling")
+	}
+	s.scheduleConnectBackoffLocked()
+	second := s.connectBackoffUntil
+	if !second.After(first) {
+		t.Errorf("second backoff %v should be after first %v", second, first)
+	}
+	s.clearConnectBackoffLocked()
+	if s.connectBackoffActive(now) {
+		t.Error("backoff should be cleared after successful connect")
+	}
+}
+
+func TestConnectBackoffDoublesAfterExpiry(t *testing.T) {
+	s := &session{}
+	s.scheduleConnectBackoffLocked()
+	first := s.connectBackoff
+	if first != time.Second {
+		t.Fatalf("first backoff = %v, want 1s", first)
+	}
+	s.connectBackoffUntil = time.Now().Add(-time.Millisecond)
+	s.scheduleConnectBackoffLocked()
+	if s.connectBackoff != first*2 {
+		t.Fatalf("backoff after expiry = %v, want %v (must not reset to 1s)", s.connectBackoff, first*2)
+	}
+}
+
+// TestEnqueueAuthDatagramKeepsLatest verifies the auth inbox drops the oldest
+// item when full so a handle-pull AuthenticationRequest is not lost.
+func TestEnqueueAuthDatagramKeepsLatest(t *testing.T) {
+	inbox := make(chan []byte, 2)
+	enqueueAuthDatagram(inbox, []byte("first"))
+	enqueueAuthDatagram(inbox, []byte("second"))
+	enqueueAuthDatagram(inbox, []byte("third"))
+	got1 := <-inbox
+	got2 := <-inbox
+	if string(got1) != "second" || string(got2) != "third" {
+		t.Errorf("drop-oldest queue = %q, %q; want second, third", got1, got2)
 	}
 }
 

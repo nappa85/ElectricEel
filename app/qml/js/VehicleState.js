@@ -158,6 +158,37 @@ function clone(status) {
     return copy
 }
 
+function closureIsOpen(state) {
+    return state === "CLOSURESTATE_OPEN"
+        || state === "CLOSURESTATE_AJAR"
+        || state === "CLOSURESTATE_OPENING"
+}
+
+// Parses `body-controller-state` (VCSEC VehicleStatus). This is the lock
+// and door readout that works while infotainment is asleep, so the lock
+// toggle can send unlock/lock correctly without a prior `state closures`
+// query. protojson enum names are the generated VCSEC constants.
+function mergeBodyControllerState(status, jsonText) {
+    var s = clone(status)
+    try {
+        var obj = JSON.parse(jsonText) || {}
+        var lock = obj.vehicleLockState || ""
+        if (lock === "VEHICLELOCKSTATE_LOCKED" || lock === "VEHICLELOCKSTATE_INTERNAL_LOCKED")
+            s.locked = true
+        else if (lock === "VEHICLELOCKSTATE_UNLOCKED" || lock === "VEHICLELOCKSTATE_SELECTIVE_UNLOCKED")
+            s.locked = false
+        var c = obj.closureStatuses || {}
+        s.doorsOpen = closureIsOpen(c.frontDriverDoor) || closureIsOpen(c.frontPassengerDoor)
+            || closureIsOpen(c.rearDriverDoor) || closureIsOpen(c.rearPassengerDoor)
+        s.trunkFrontOpen = closureIsOpen(c.frontTrunk)
+        s.trunkRearOpen = closureIsOpen(c.rearTrunk)
+        s.updatedAt = Date.now()
+    } catch (e) {
+        console.log("VehicleState: body-controller-state parse failed:", e, jsonText)
+    }
+    return s
+}
+
 function mergeClosuresState(status, jsonText) {
     var s = clone(status)
     try {

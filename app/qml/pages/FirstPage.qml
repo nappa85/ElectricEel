@@ -11,19 +11,18 @@ Page {
     property string model: ""
     property bool hasKey: false
 
-    // Live dashboard state, fetched over BLE via three chained "state"
-    // subcommand calls (see refreshStatus() - chained rather than parallel
-    // because each is its own BLE connect+handshake and hammering the
-    // adapter with three concurrent ones is a worse idea than a ~1s longer
-    // sequential refresh). statusStage tracks which leg is in flight so the
-    // UI can show a single busy indicator and refuse to stack requests.
+    // Live dashboard state. refreshStatus() starts with body-controller-state
+    // (VCSEC: lock/doors while the car sleeps), then chains the three
+    // Infotainment `state` categories. Sequential because each is its own
+    // BLE round-trip. statusStage tracks which leg is in flight so the UI
+    // can show a single busy indicator and refuse to stack requests.
     property var vehicleStatus: VState.emptyStatus()
     property string statusStage: ""
-    // Set from stdErr when a status leg fails. All three legs go through
-    // the Infotainment domain (unlike lock/unlock and body-controller-state,
-    // which use VCSEC and work even while the car sleeps - see
-    // VehicleState.js), so a sleeping vehicle is the expected way for this
-    // to fail even with everything else configured correctly.
+    // Set from stdErr when a status leg fails. Climate/charge/closures go
+    // through Infotainment and fail on a sleeping vehicle; lock/unlock and
+    // body-controller-state use VCSEC and still work then (see
+    // VehicleState.js). A sleeping vehicle is the expected way for the
+    // Infotainment legs to fail even with everything else configured.
     property string statusError: ""
     // Monotonic tick bumped by statusAgeTimer below. The dashboard's "Updated
     // Xm ago" label is computed from status.updatedAt, which only changes when
@@ -66,8 +65,8 @@ Page {
         if (!teslaClient.helperAvailable || !page.hasKey || page.vin.length === 0 || page.statusStage.length > 0)
             return
         page.statusError = ""
-        page.statusStage = "closures"
-        teslaClient.runCommand("status:closures", "state", ["closures"])
+        page.statusStage = "body"
+        teslaClient.runCommand("status:body", "body-controller-state", [])
     }
 
     // Flips field to !field's current value on a clone of vehicleStatus and
@@ -91,10 +90,14 @@ Page {
     function toggleLock() {
         if (page.statusStage.length > 0)
             return
-        var wasLocked = page.vehicleStatus.locked
+        // The padlock icon shows locked unless we *know* the car is unlocked
+        // (`locked === false`). Match that: unknown/null used to be falsy and
+        // sent lock, so the first tap did nothing until Refresh Status filled
+        // in `locked`. Unlock unless we know the doors are already open.
+        var sendLock = page.vehicleStatus.locked === false
         optimistic("locked")
         page.statusStage = "toggle"
-        teslaClient.runCommand("status:toggle", wasLocked ? "unlock" : "lock", [])
+        teslaClient.runCommand("status:toggle", sendLock ? "lock" : "unlock", [])
     }
 
     function toggleClimate() {
@@ -152,10 +155,17 @@ Page {
     Connections {
         target: teslaClient
         onCommandFinished: {
-            if (requestId === "status:closures") {
+            if (requestId === "status:body") {
+                if (ok)
+                    page.vehicleStatus = VState.mergeBodyControllerState(page.vehicleStatus, stdOut)
+                else
+                    page.statusError = stdErr.length ? stdErr : ("exit code " + exitCode)
+                page.statusStage = "closures"
+                teslaClient.runCommand("status:closures", "state", ["closures"])
+            } else if (requestId === "status:closures") {
                 if (ok)
                     page.vehicleStatus = VState.mergeClosuresState(page.vehicleStatus, stdOut)
-                else
+                else if (page.statusError.length === 0)
                     page.statusError = stdErr.length ? stdErr : ("exit code " + exitCode)
                 page.statusStage = "climate"
                 teslaClient.runCommand("status:climate", "state", ["climate"])

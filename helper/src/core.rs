@@ -81,20 +81,27 @@ impl Core {
                 config_path.display()
             ))
         })?;
-        // Older schema versions are migrated up to CURRENT and persisted at that
-        // version. V0 (pre-phone-key) has no pairing state at all; existing key
-        // files in those installs came from the old pairing page, so retain their
-        // pairing instead of forcing every upgraded user through NFC enrollment
-        // again. Later versions already carry an explicit `vin_state`.
+        // Older schema versions are migrated up to CURRENT and persisted at
+        // that version. Pairing is also healed whenever a VIN is configured
+        // and both key files are already on disk: V0 installs never had
+        // `vin_state`, and later files can still say `unpaired` after a
+        // Settings save or a Generate Key reuse that used to wipe the flag.
+        // Either way the key was enrolled through the pairing page, so do
+        // not force another NFC tap just to start phone-key presence.
+        let mut dirty = false;
         if cfg.version < ConfigVersion::CURRENT {
-            if cfg.version == ConfigVersion::V0 {
-                let has_key = Path::new(&state_dir).join("private_key.pem").is_file()
-                    && Path::new(&state_dir).join("public_key.pem").is_file();
-                if has_key {
-                    cfg.vin_state = VinState::Paired;
-                }
-            }
             cfg.version = ConfigVersion::CURRENT;
+            dirty = true;
+        }
+        if cfg.vin_state == VinState::Unpaired
+            && !cfg.vin.is_empty()
+            && Self::key_files_in(&state_dir)
+        {
+            cfg.vin_state = VinState::Paired;
+            dirty = true;
+            crate::keylog::log("core", "vin_state healed to paired (key files present)");
+        }
+        if dirty {
             if let Err(e) = cfg.save(&config_path) {
                 eprintln!("Core: could not persist config migration: {e}");
             }
@@ -119,6 +126,11 @@ impl Core {
 
     pub(crate) fn public_key_path(&self) -> PathBuf {
         Path::new(&self.state_dir).join("public_key.pem")
+    }
+
+    fn key_files_in(state_dir: &str) -> bool {
+        Path::new(state_dir).join("private_key.pem").is_file()
+            && Path::new(state_dir).join("public_key.pem").is_file()
     }
 
     /// Builds the -ble/-vin/-key-file/... flags shared by every tesla-control
@@ -258,7 +270,23 @@ impl Core {
     /// isn't exec'd at all. Without a session it falls back to exec'ing
     /// tesla-keygen, the pre-session behavior.
     pub(crate) fn generate_key(&self, force: bool) -> Result<String, OperationError> {
-        self.stop_phone_key();
+        let private_existed = self.private_key_path().is_file();
+        let replacing = force || !private_existed;
+        // tesla-session reprints an existing key when force is unset. That
+        // is not a new key, so keep vin_state and the live phone-key session.
+        if !replacing {
+            if let Ok(pubkey) = std::fs::read_to_string(self.public_key_path()) {
+                let pubkey = pubkey.trim();
+                if !pubkey.is_empty() {
+                    eprintln!("Core: generate_key reused existing key");
+                    return Ok(pubkey.to_string());
+                }
+            }
+        }
+
+        if replacing {
+            self.stop_phone_key();
+        }
         // Holds the config mutex for the whole call, same as the original -
         // GenerateKey doesn't read Config, but this still serializes
         // concurrent key generation against writing the same key files.
@@ -327,15 +355,17 @@ impl Core {
             }
         };
 
-        cfg.vin_state = VinState::Unpaired;
-        if let Err(e) = cfg.save(&self.config_path()) {
-            return Err(OperationError::Persist(e));
-        }
-        // A live persistent session (if any) loaded the private key into
-        // memory at connect time - the file on disk just changed under it,
-        // so it must reconnect rather than keep signing with a stale key.
-        if let Some(session) = &self.session {
-            session.invalidate();
+        if replacing {
+            cfg.vin_state = VinState::Unpaired;
+            if let Err(e) = cfg.save(&self.config_path()) {
+                return Err(OperationError::Persist(e));
+            }
+            // A live persistent session (if any) loaded the private key into
+            // memory at connect time - the file on disk just changed under it,
+            // so it must reconnect rather than keep signing with a stale key.
+            if let Some(session) = &self.session {
+                session.invalidate();
+            }
         }
         Ok(pubkey)
     }
@@ -491,12 +521,15 @@ impl Core {
             )
         };
         if !eligible {
+            crate::keylog::log("core", "phone-key start refused: not paired");
             return Err(OperationError::NotPaired);
         }
         let Some(session) = &self.session else {
+            crate::keylog::log("core", "phone-key start refused: no session client");
             return Err(OperationError::NoSession);
         };
         if session.ble_backend() != "bluez" {
+            crate::keylog::log("core", "phone-key start refused: requires bluez");
             return Err(OperationError::RequiresBluez);
         }
         // Claim the flag before the (blocking) start so a second concurrent
@@ -508,6 +541,10 @@ impl Core {
         {
             return Ok(());
         }
+        crate::keylog::log(
+            "core",
+            &format!("phone-key start vin={vin} connect={connect_timeout_sec}s"),
+        );
         match session.start_presence(
             &vin,
             &key_path,
@@ -515,15 +552,23 @@ impl Core {
             command_timeout_sec,
             Duration::from_secs(10),
         ) {
-            Ok(outcome) if outcome.ok => Ok(()),
+            Ok(outcome) if outcome.ok => {
+                crate::keylog::log("core", "phone-key presence started");
+                Ok(())
+            }
             Ok(outcome) => {
                 self.phone_key_started.store(false, Ordering::SeqCst);
+                crate::keylog::log(
+                    "core",
+                    &format!("phone-key start failed: {}", outcome.stderr.trim()),
+                );
                 Err(OperationError::PresenceFailed(
                     outcome.stderr.trim().to_string(),
                 ))
             }
             Err(e) => {
                 self.phone_key_started.store(false, Ordering::SeqCst);
+                crate::keylog::log("core", &format!("phone-key start error: {e}"));
                 Err(OperationError::PresenceFailed(e.to_string()))
             }
         }
@@ -534,6 +579,7 @@ impl Core {
         if !self.phone_key_started.load(Ordering::SeqCst) {
             return;
         }
+        crate::keylog::log("core", "phone-key stop");
         if let Some(session) = &self.session {
             let cfg = self.cfg.lock().unwrap();
             let result = session.stop_presence(
@@ -552,6 +598,20 @@ impl Core {
 
     pub(crate) fn poll_phone_key_event(&self) -> Option<SessionEvent> {
         let mut event = self.session.as_ref().and_then(SessionClient::poll_event);
+        if let Some(event) = &event {
+            crate::keylog::log(
+                "core",
+                &format!(
+                    "event kind={} err={}",
+                    event.kind,
+                    if event.error.is_empty() {
+                        "-"
+                    } else {
+                        &event.error
+                    }
+                ),
+            );
+        }
         if event.as_ref().is_some_and(|e| e.kind == "presence_stopped") {
             self.phone_key_started.store(false, Ordering::SeqCst);
             match self.start_phone_key() {
@@ -584,6 +644,7 @@ impl Core {
     /// timeout. Idempotent and safe to call even when no child exists or no
     /// session is configured.
     pub(crate) fn handle_resume(&self) {
+        crate::keylog::log("core", "resume from suspend - recycling BLE session");
         eprintln!("Core: handle_resume - device woke from suspend, recycling stale BLE session");
         // Allow `start_phone_key` to claim the flag again after we killed its
         // old presenceLoop. Without this a stale `true` would make the restart
@@ -910,6 +971,19 @@ mod tests {
         );
     }
 
+    fn assert_eligible_but_no_session(core: &Core) {
+        let result = core.start_phone_key();
+        assert!(
+            result.is_err(),
+            "no persistent session must still refuse to start"
+        );
+        let reason = result.unwrap_err();
+        assert!(
+            reason.to_string().contains("persistent BLE session"),
+            "key should pass pairing eligibility: {reason}"
+        );
+    }
+
     #[test]
     fn test_legacy_paired_key_is_migrated() {
         let dir = tempfile::tempdir().unwrap();
@@ -926,15 +1000,72 @@ mod tests {
             None,
         )
         .unwrap();
+        assert_eligible_but_no_session(&core);
+    }
+
+    #[test]
+    fn test_v2_unpaired_with_key_files_is_healed() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("private_key.pem"), "private").unwrap();
+        std::fs::write(dir.path().join("public_key.pem"), "public").unwrap();
+        std::fs::write(
+            dir.path().join("config.json"),
+            r#"{"version":2,"vin":"5YJ3E1EA0PF000000","model":"","key_name":"harbour-electric-eel","connect_timeout_sec":20,"command_timeout_sec":5,"vin_state":"unpaired"}"#,
+        )
+        .unwrap();
+        let core = Core::new(
+            dir.path().to_string_lossy().into_owned(),
+            dir.path().to_string_lossy().into_owned(),
+            None,
+        )
+        .unwrap();
+        assert_eligible_but_no_session(&core);
+        let cfg = crate::config::Config::load(&dir.path().join("config.json")).unwrap();
+        assert_eq!(cfg.vin_state, crate::config::VinState::Paired);
+    }
+
+    #[test]
+    fn test_key_files_without_vin_stay_unpaired() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("private_key.pem"), "private").unwrap();
+        std::fs::write(dir.path().join("public_key.pem"), "public").unwrap();
+        let core = Core::new(
+            dir.path().to_string_lossy().into_owned(),
+            dir.path().to_string_lossy().into_owned(),
+            None,
+        )
+        .unwrap();
         let result = core.start_phone_key();
         assert!(
-            result.is_err(),
-            "no persistent session must still refuse to start"
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("completed pairing"),
+            "no VIN means phone-key must still wait for pairing"
         );
-        let reason = result.unwrap_err();
-        assert!(
-            reason.to_string().contains("persistent BLE session"),
-            "legacy key should pass pairing eligibility: {reason}"
-        );
+    }
+
+    #[test]
+    fn test_generate_key_reuse_keeps_pairing() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("private_key.pem"), "private").unwrap();
+        std::fs::write(dir.path().join("public_key.pem"), "existing-pem\n").unwrap();
+        std::fs::write(
+            dir.path().join("config.json"),
+            r#"{"version":2,"vin":"5YJ3E1EA0PF000000","model":"","key_name":"harbour-electric-eel","connect_timeout_sec":20,"command_timeout_sec":5,"vin_state":"paired"}"#,
+        )
+        .unwrap();
+        let core = Core::new(
+            dir.path().to_string_lossy().into_owned(),
+            dir.path().to_string_lossy().into_owned(),
+            None,
+        )
+        .unwrap();
+        let pubkey = core
+            .generate_key(false)
+            .expect("reuse must not invoke tesla-keygen");
+        assert_eq!(pubkey, "existing-pem");
+        let cfg = crate::config::Config::load(&dir.path().join("config.json")).unwrap();
+        assert_eq!(cfg.vin_state, crate::config::VinState::Paired);
     }
 }

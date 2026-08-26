@@ -84,6 +84,16 @@ Page {
                        : Theme.secondaryHighlightColor
             }
 
+            Label {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.margins: Theme.horizontalPageMargin
+                wrapMode: Text.Wrap
+                text: "Phone-key logs: Documents/ElectricEel/phone-key-YYYY-MM-DD.log"
+                font.pixelSize: Theme.fontSizeExtraSmall
+                color: Theme.secondaryColor
+            }
+
             BusyIndicator {
                 anchors.horizontalCenter: parent.horizontalCenter
                 // Spins until the first GetConfig reply lands (configReady

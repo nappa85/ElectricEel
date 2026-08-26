@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/godbus/dbus"
 	"github.com/teslamotors/vehicle-command/pkg/connector"
 )
 
@@ -22,6 +23,7 @@ func newTestConnection(bus *fakeBluez) *Connection {
 		inbox:       make(chan []byte, connector.BufferSize),
 		blockLength: maxExpectedMTU - 3,
 		done:        make(chan struct{}),
+		dropped:     make(chan struct{}),
 	}
 }
 
@@ -56,8 +58,8 @@ func TestConnectFromScanResult(t *testing.T) {
 	if c.VIN() != vin {
 		t.Errorf("VIN() = %q, want %q", c.VIN(), vin)
 	}
-	if bus.matches != 1 {
-		t.Errorf("match rules registered = %d, want 1", bus.matches)
+	if bus.matches != 2 {
+		t.Errorf("match rules registered = %d, want 2 (RX + Device Connected)", bus.matches)
 	}
 }
 
@@ -278,5 +280,62 @@ func TestCloseIsIdempotent(t *testing.T) {
 		}
 	case <-time.After(100 * time.Millisecond):
 		t.Error("done channel should be closed after Close")
+	}
+}
+
+func TestDeviceConnectedAndAutoConnect(t *testing.T) {
+	bus := newFakeBluez()
+	c := newTestConnection(bus)
+	ctx := context.Background()
+
+	bus.connected = true
+	connected, err := c.DeviceConnected(ctx)
+	if err != nil || !connected {
+		t.Fatalf("DeviceConnected = %v, %v; want true, nil", connected, err)
+	}
+	if err := c.SetTrusted(true); err != nil {
+		t.Fatalf("SetTrusted: %v", err)
+	}
+	if !bus.trusted {
+		t.Fatal("expected Trusted=true on fake")
+	}
+	if err := c.SetAutoConnect(true); err != nil {
+		t.Fatalf("SetAutoConnect: %v", err)
+	}
+	if !bus.autoConnect {
+		t.Fatal("expected AutoConnect=true on fake")
+	}
+}
+
+func TestDroppedClosesOnDeviceDisconnectSignal(t *testing.T) {
+	bus := newFakeBluez()
+	vin := "5YJ3E1EA0PF000000"
+	bus.dev = &fakeDevice{path: bus.devPath(), name: vehicleBeaconName(vin), rssi: -55}
+	bus.deviceVisible = true
+	bus.servicesResolved = true
+	bus.gattReady = true
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	cc, err := connect(ctx, bus, "hci0", vin, &ScanResult{Path: bus.dev.path, HasRSSI: true, RSSI: -55})
+	if err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	c := cc.(*Connection)
+	defer c.Close()
+
+	bus.sig <- &dbus.Signal{
+		Name: propsIface + ".PropertiesChanged",
+		Path: bus.devPath(),
+		Body: []interface{}{
+			deviceIface,
+			map[string]dbus.Variant{"Connected": dbus.MakeVariant(false)},
+			[]string{},
+		},
+	}
+	select {
+	case <-c.Dropped():
+	case <-time.After(time.Second):
+		t.Fatal("expected Dropped() after Connected=false signal")
 	}
 }

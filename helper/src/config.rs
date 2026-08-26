@@ -114,11 +114,12 @@ impl From<ConfigVersion> for u8 {
     }
 }
 
-/// Pairing state of the current VIN's local key. `Paired` means the key has
-/// completed the NFC pairing flow with the configured VIN and so is eligible
-/// for automatic phone-key presence; `Unpaired` (the serde default) means it
-/// hasn't. This replaces the old `paired_vin: Option<String>` field, which
-/// stored a duplicate copy of the VIN just to say "this VIN is paired".
+/// Pairing state of the current VIN's local key. `Paired` means the key is
+/// eligible for automatic phone-key presence (NFC enrollment completed, or
+/// `Core::new` healed it because the VIN is set and both key files are on
+/// disk); `Unpaired` (the serde default) means it hasn't. This replaces the
+/// old `paired_vin: Option<String>` field, which stored a duplicate copy of
+/// the VIN just to say "this VIN is paired".
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub(crate) enum VinState {

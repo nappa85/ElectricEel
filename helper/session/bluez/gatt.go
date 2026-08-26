@@ -10,12 +10,18 @@ import (
 	"github.com/teslamotors/vehicle-command/pkg/connector"
 )
 
+const (
+	connectRetryInitial = 500 * time.Millisecond
+	connectRetryMax     = 3 * time.Second
+)
+
 // connect connects to the vehicle and returns a live connector. If target is
 // nil the vehicle's beacon is scanned for first. Like upstream
 // NewConnectionFromScanResult, transient link/scan failures are retried until
 // ctx expires; adapter-level failures (no controller) are not.
 func connect(ctx context.Context, bus dbusBus, adapterID, vin string, target *ScanResult) (connector.Connector, error) {
 	var lastErr error
+	backoff := connectRetryInitial
 	for {
 		cc, retry, err := tryConnect(ctx, bus, adapterID, vin, target)
 		if err == nil {
@@ -31,10 +37,14 @@ func connect(ctx context.Context, bus dbusBus, adapterID, vin string, target *Sc
 				return nil, lastErr
 			}
 			return nil, ctx.Err()
-		case <-time.After(100 * time.Millisecond):
-			// Back off between retries so a persistently-failing call (e.g.
-			// a malformed property name surfacing as an instant error) can't
-			// hammer bluetoothd or leak a dbus call goroutine per iteration.
+		case <-time.After(backoff):
+			// Exponential backoff so a persistently-failing connect can't
+			// hammer bluetoothd (observed to crash Sailfish BT when retried
+			// every 100ms for a full connect timeout).
+			backoff *= 2
+			if backoff > connectRetryMax {
+				backoff = connectRetryMax
+			}
 		}
 	}
 }
@@ -56,15 +66,23 @@ func tryConnect(ctx context.Context, bus dbusBus, adapterID, vin string, target 
 	if err != nil {
 		return nil, true, err
 	}
+	// Device.Connect while Discovering is the Sailfish/BlueZ source of
+	// le-connection-abort-by-local: the adapter cancels the LE create-
+	// connection when the scanner is still running. Presence's Watcher
+	// restarts discovery on the next Peek if this attempt fails.
+	stopDiscovery(ctx, bus, adapterPath)
 	if err := connectDevice(ctx, bus, devPath); err != nil {
+		abortDeviceConnect(bus, devPath)
 		return nil, true, err
 	}
 	// GATT objects only materialize once the remote services are resolved.
 	if err := waitServicesResolved(ctx, bus, devPath); err != nil {
+		abortDeviceConnect(bus, devPath)
 		return nil, true, err
 	}
 	svcPath, txPath, rxPath, err := discoverGATT(ctx, bus, devPath)
 	if err != nil {
+		abortDeviceConnect(bus, devPath)
 		return nil, true, err
 	}
 
@@ -75,9 +93,23 @@ func tryConnect(ctx context.Context, bus dbusBus, adapterID, vin string, target 
 		dbus.WithMatchPathNamespace(dbus.ObjectPath(string(rxPath))),
 	}
 	if err := bus.addMatch(match...); err != nil {
+		abortDeviceConnect(bus, devPath)
 		return nil, true, fmt.Errorf("bluez: subscribe to vehicle RX characteristic: %w", err)
 	}
+	deviceMatch := []dbus.MatchOption{
+		dbus.WithMatchSender(bluezService),
+		dbus.WithMatchInterface(propsIface),
+		dbus.WithMatchMember("PropertiesChanged"),
+		dbus.WithMatchObjectPath(devPath),
+	}
+	// Best-effort: without this we still detect disconnects by polling
+	// DeviceConnected from the presence loop.
+	_ = bus.addMatch(deviceMatch...)
+
 	if _, err := bus.object(bluezService, rxPath).call(ctx, gattChrIface+".StartNotify"); err != nil {
+		_ = bus.removeMatch(match...)
+		_ = bus.removeMatch(deviceMatch...)
+		abortDeviceConnect(bus, devPath)
 		return nil, true, fmt.Errorf("bluez: subscribe to vehicle RX characteristic: %w", err)
 	}
 
@@ -93,6 +125,8 @@ func tryConnect(ctx context.Context, bus dbusBus, adapterID, vin string, target 
 		done:        make(chan struct{}),
 		loopDone:    make(chan struct{}),
 		match:       match,
+		deviceMatch: deviceMatch,
+		dropped:     make(chan struct{}),
 	}
 	go c.rxLoop()
 	return c, false, nil
@@ -119,6 +153,15 @@ func connectDevice(ctx context.Context, bus dbusBus, devPath dbus.ObjectPath) er
 		return fmt.Errorf("bluez: connect to vehicle: %w", err)
 	}
 	return nil
+}
+
+// abortDeviceConnect cancels a pending or partial LE connection. BlueZ
+// Device.Connect often keeps the kernel attempt alive after the D-Bus call
+// times out; the next Connect then fails with le-connection-abort-by-local.
+func abortDeviceConnect(bus dbusBus, devPath dbus.ObjectPath) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	_, _ = bus.object(bluezService, devPath).call(ctx, deviceIface+".Disconnect")
 }
 
 // waitServicesResolved polls Device1.ServicesResolved until the remote GATT

@@ -45,6 +45,9 @@ ui_*.h
 /helper/session/electric-eel-session
 /helper/session/tesla-session
 
+# Local build counter: "<version> <release>"
+.build-release
+
 # Editor / OS cruft
 .vscode/
 .idea/

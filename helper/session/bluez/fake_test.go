@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/godbus/dbus"
 )
@@ -30,12 +31,23 @@ type fakeBluez struct {
 	failLargeWrites   bool  // fail WriteValue when the chunk exceeds 20 bytes (ATT MTU 23)
 	startDiscoveryErr error // when set, StartDiscovery returns this error
 	connectErr        error // when set, Device1.Connect returns this error
+	connectHang       time.Duration // when >0, Device1.Connect blocks this long (or until ctx ends)
 	setPoweredErr     error // when set, Properties.Set(Powered) returns this error
 	// extraAdapters are additional Adapter1 objects keyed by id ("hci1").
 	// The value is the Powered flag. Used to test powered-adapter preference.
 	extraAdapters map[string]bool
 	autoConnect   bool
 	trusted       bool
+	// removedUntilDiscovery is set by Adapter1.RemoveDevice. The next
+	// StartDiscovery makes the vehicle Device1 visible again, matching
+	// BlueZ re-creating the object from a fresh advertisement.
+	removedUntilDiscovery bool
+	// reappearAfterManaged delays that reappearance by N GetManagedObjects
+	// calls when discovery was already running, so a leftover-device check
+	// right after RemoveDevice still sees the object gone.
+	reappearAfterManaged int
+	removeDeviceErr      error // when set, Adapter1.RemoveDevice fails and keeps the Device1
+	mtu                  uint16 // GattCharacteristic1.MTU; 0 = property absent
 
 	writes         [][]byte
 	calls          []string
@@ -45,6 +57,7 @@ type fakeBluez struct {
 	addMatchErrAt  int
 	removedMatches int
 	removedMatch   bool
+	removeDeviceN  int
 }
 
 type fakeDevice struct {
@@ -207,6 +220,12 @@ func (f *fakeBluez) rxPath() dbus.ObjectPath {
 // managedObjects builds an object tree reflecting the fake's current state.
 func (f *fakeBluez) managedObjects() map[dbus.ObjectPath]map[string]map[string]dbus.Variant {
 	f.managedCalls++
+	if f.reappearAfterManaged > 0 {
+		f.reappearAfterManaged--
+	} else if f.removedUntilDiscovery && f.discovering {
+		f.deviceVisible = true
+		f.removedUntilDiscovery = false
+	}
 	m := map[dbus.ObjectPath]map[string]map[string]dbus.Variant{
 		dbus.ObjectPath("/org/bluez/" + f.adapterID): {
 			adapterIface: {
@@ -273,9 +292,38 @@ func (fc *fakeCaller) call(ctx context.Context, method string, args ...interface
 		return []interface{}{fc.b.managedObjects()}, nil
 	case adapterIface + ".SetDiscoveryFilter":
 		return nil, nil
+	case adapterIface + ".RemoveDevice":
+		fc.b.removeDeviceN++
+		if fc.b.removeDeviceErr != nil {
+			return nil, fc.b.removeDeviceErr
+		}
+		wasVisible := fc.b.deviceVisible
+		fc.b.connected = false
+		fc.b.deviceVisible = false
+		fc.b.servicesResolved = false
+		fc.b.gattReady = false
+		// Only a previously-visible Device1 comes back from the next
+		// advertisement. RemoveDevice on a missing path must not invent one.
+		if wasVisible {
+			fc.b.removedUntilDiscovery = true
+			if fc.b.dev != nil {
+				// A Device1 recreated from a fresh advertisement has RSSI.
+				fc.b.dev.omitRSSI = false
+			}
+			if fc.b.discovering {
+				// Stay hidden for the next GetManagedObjects so
+				// tryConnect's leftover check sees a successful drop.
+				fc.b.reappearAfterManaged = 1
+			}
+		}
+		return nil, nil
 	case adapterIface + ".StartDiscovery":
 		if fc.b.startDiscoveryErr != nil {
 			return nil, fc.b.startDiscoveryErr
+		}
+		if fc.b.removedUntilDiscovery {
+			fc.b.removedUntilDiscovery = false
+			fc.b.deviceVisible = true
 		}
 		if fc.b.discovering {
 			return nil, errors.New("org.bluez.Error.InProgress")
@@ -286,6 +334,15 @@ func (fc *fakeCaller) call(ctx context.Context, method string, args ...interface
 		fc.b.discovering = false
 		return nil, nil
 	case deviceIface + ".Connect":
+		if fc.b.connectHang > 0 {
+			timer := time.NewTimer(fc.b.connectHang)
+			defer timer.Stop()
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-timer.C:
+			}
+		}
 		if fc.b.connectErr != nil {
 			return nil, fc.b.connectErr
 		}
@@ -293,6 +350,11 @@ func (fc *fakeCaller) call(ctx context.Context, method string, args ...interface
 			return nil, errors.New("org.bluez.Error.Failed: no such device")
 		}
 		fc.b.connected = true
+		// A fresh Device1 after RemoveDevice resolves GATT only once
+		// Connect succeeds - mirror that so tests that forget+rescan still
+		// find the Tesla service.
+		fc.b.servicesResolved = true
+		fc.b.gattReady = true
 		return nil, nil
 	case deviceIface + ".Disconnect":
 		fc.b.connected = false
@@ -346,6 +408,11 @@ func (fc *fakeCaller) getProp(ctx context.Context, iface, prop string) (dbus.Var
 			return dbus.Variant{}, fmt.Errorf("org.freedesktop.DBus.Error.InvalidArgs: No such property 'RSSI'")
 		}
 		return dbus.MakeVariant(fc.b.dev.rssi), nil
+	case "MTU":
+		if fc.b.mtu == 0 {
+			return dbus.Variant{}, fmt.Errorf("org.freedesktop.DBus.Error.InvalidArgs: No such property 'MTU'")
+		}
+		return dbus.MakeVariant(fc.b.mtu), nil
 	}
 	return dbus.Variant{}, fmt.Errorf("unexpected property %q", prop)
 }

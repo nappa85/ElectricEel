@@ -2,6 +2,7 @@ import QtQuick 2.6
 import Sailfish.Silica 1.0
 import "../js/CommandCatalog.js" as Catalog
 import "../js/VehicleState.js" as VState
+import "../js/PhoneKeyStatus.js" as PhoneKey
 
 Page {
     id: page
@@ -11,6 +12,18 @@ Page {
     property string model: ""
     property bool hasKey: false
 
+    readonly property bool isPaired: page.hasKey && page.vin.length > 0
+    // Same connectionKind as CoverPage — single source in PhoneKeyStatus.js.
+    readonly property string phoneKeyKind: {
+        var status = teslaClient ? teslaClient.phoneKeyStatus : ""
+        return PhoneKey.connectionKind(status, page.isPaired)
+    }
+    readonly property bool phoneKeyConnected: phoneKeyKind === "connected"
+    onPhoneKeyConnectedChanged: {
+        if (page.phoneKeyConnected)
+            page.refreshBodyStatus()
+    }
+
     // Live dashboard state. refreshStatus() starts with body-controller-state
     // (VCSEC: lock/doors while the car sleeps), then chains the three
     // Infotainment `state` categories. Sequential because each is its own
@@ -18,6 +31,10 @@ Page {
     // can show a single busy indicator and refuse to stack requests.
     property var vehicleStatus: VState.emptyStatus()
     property string statusStage: ""
+    // Pull-down Refresh Status asks for climate/charge/closures too.
+    // Auto-refresh after the phone key connects does not: those legs
+    // talk Infotainment and can drop the VCSEC link.
+    property bool statusWantInfotainment: false
     // Set from stdErr when a status leg fails. Climate/charge/closures go
     // through Infotainment and fail on a sleeping vehicle; lock/unlock and
     // body-controller-state use VCSEC and still work then (see
@@ -62,8 +79,19 @@ Page {
     }
 
     function refreshStatus() {
+        startStatusRefresh(true)
+    }
+
+    // Body-controller-state only. Infotainment `state` against a sleeping
+    // car drops the GATT link the phone key just opened (2026-08-29 log).
+    function refreshBodyStatus() {
+        startStatusRefresh(false)
+    }
+
+    function startStatusRefresh(infotainment) {
         if (!teslaClient.helperAvailable || !page.hasKey || page.vin.length === 0 || page.statusStage.length > 0)
             return
+        page.statusWantInfotainment = infotainment
         page.statusError = ""
         page.statusStage = "body"
         teslaClient.runCommand("status:body", "body-controller-state", [])
@@ -148,7 +176,9 @@ Page {
             page.vin = vin
             page.model = model
             page.hasKey = hasKey
-            page.refreshStatus()
+            // Do not start a GATT connect here. On 2026-09-07 and
+            // 2026-09-09 this raced presence-start (target=false) and
+            // chained three more 20s connects while the key did nothing.
         }
     }
 
@@ -158,22 +188,37 @@ Page {
             if (requestId === "status:body") {
                 if (ok)
                     page.vehicleStatus = VState.mergeBodyControllerState(page.vehicleStatus, stdOut)
-                else
+                else {
                     page.statusError = stdErr.length ? stdErr : ("exit code " + exitCode)
+                    page.statusStage = ""
+                    return
+                }
+                if (!page.statusWantInfotainment) {
+                    page.statusStage = ""
+                    return
+                }
                 page.statusStage = "closures"
                 teslaClient.runCommand("status:closures", "state", ["closures"])
             } else if (requestId === "status:closures") {
                 if (ok)
                     page.vehicleStatus = VState.mergeClosuresState(page.vehicleStatus, stdOut)
-                else if (page.statusError.length === 0)
-                    page.statusError = stdErr.length ? stdErr : ("exit code " + exitCode)
+                else {
+                    if (page.statusError.length === 0)
+                        page.statusError = stdErr.length ? stdErr : ("exit code " + exitCode)
+                    page.statusStage = ""
+                    return
+                }
                 page.statusStage = "climate"
                 teslaClient.runCommand("status:climate", "state", ["climate"])
             } else if (requestId === "status:climate") {
                 if (ok)
                     page.vehicleStatus = VState.mergeClimateState(page.vehicleStatus, stdOut)
-                else if (page.statusError.length === 0)
-                    page.statusError = stdErr.length ? stdErr : ("exit code " + exitCode)
+                else {
+                    if (page.statusError.length === 0)
+                        page.statusError = stdErr.length ? stdErr : ("exit code " + exitCode)
+                    page.statusStage = ""
+                    return
+                }
                 page.statusStage = "charge"
                 teslaClient.runCommand("status:charge", "state", ["charge"])
             } else if (requestId === "status:charge") {
@@ -294,6 +339,20 @@ Page {
                         font.pixelSize: Theme.fontSizeExtraSmall
                         color: page.hasKey ? Theme.secondaryHighlightColor : Theme.secondaryColor
                     }
+                    Label {
+                        visible: page.isPaired
+                        width: parent.width
+                        wrapMode: Text.Wrap
+                        font.pixelSize: Theme.fontSizeExtraSmall
+                        color: {
+                            if (page.phoneKeyKind === "connected")
+                                return Theme.secondaryHighlightColor
+                            if (page.phoneKeyKind === "error" || page.phoneKeyKind === "bluetooth-off")
+                                return Theme.highlightColor
+                            return Theme.secondaryColor
+                        }
+                        text: PhoneKey.label(teslaClient ? teslaClient.phoneKeyStatus : "", page.isPaired)
+                    }
                 }
             }
 
@@ -371,7 +430,19 @@ Page {
                             wrapMode: Text.Wrap
                             horizontalAlignment: Text.AlignHCenter
                             font.pixelSize: Theme.fontSizeTiny
-                            color: page.statusError.length > 0 && page.statusStage.length === 0 ? Theme.highlightColor : Theme.secondaryColor
+                            color: {
+                                // Phone-key link is the cover's source of truth.
+                                // Infotainment telemetry can fail on a sleeping
+                                // car while the key session is still live — don't
+                                // paint that as a hard failure when connected.
+                                if (page.statusStage.length > 0)
+                                    return Theme.secondaryColor
+                                if (page.phoneKeyConnected)
+                                    return Theme.secondaryColor
+                                if (page.statusError.length > 0 && VState.minutesAgo(page.vehicleStatus.updatedAt) < 0)
+                                    return Theme.highlightColor
+                                return Theme.secondaryColor
+                            }
                             text: {
                                 // Read the periodic tick so elapsed time recomputes
                                 // between refreshes (see statusAgeTimer above).
@@ -379,13 +450,20 @@ Page {
                                 var age = VState.minutesAgo(page.vehicleStatus.updatedAt)
                                 if (page.statusStage.length > 0)
                                     return "Updating..."
-                                if (page.statusError.length > 0 && age < 0)
-                                    return "Status unavailable (" + page.statusError + "). Vehicle may be asleep - try Wake Vehicle (Attention), then Refresh Status."
-                                if (age < 0)
+                                if (age >= 0) {
+                                    if (age === 0)
+                                        return "Updated just now"
+                                    return "Updated " + age + "m ago"
+                                }
+                                if (page.phoneKeyConnected) {
+                                    // Cover is green; telemetry alone is missing.
+                                    if (page.statusError.length > 0)
+                                        return "Vehicle telemetry unavailable (may be asleep). Pull down to refresh."
                                     return "Pull down to refresh status"
-                                if (age === 0)
-                                    return "Updated just now"
-                                return "Updated " + age + "m ago"
+                                }
+                                if (page.statusError.length > 0)
+                                    return "Status unavailable (" + page.statusError + "). Vehicle may be asleep - try Wake Vehicle (Attention), then Refresh Status."
+                                return "Pull down to refresh status"
                             }
                         }
                     }

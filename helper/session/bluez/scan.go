@@ -69,7 +69,11 @@ func scan(ctx context.Context, bus dbusBus, adapterID, vin string) (*ScanResult,
 		if err != nil {
 			return nil, err
 		}
-		if result != nil {
+		// A cached Device1 without a live RSSI is leftover after ads stop.
+		// Device.Connect to that object is the 2026-09-09 morning hang:
+		// bluetoothd sits on Connect until our deadline, then
+		// GetManagedObjects itself times out.
+		if result != nil && result.HasRSSI {
 			return result, nil
 		}
 		select {
@@ -341,8 +345,15 @@ func (w *Watcher) Pause() {
 
 func (w *Watcher) Resume() {
 	w.mu.Lock()
+	wasPaused := w.paused
 	w.paused = false
 	w.mu.Unlock()
+	if wasPaused {
+		// PropertiesChanged from the previous GATT session (including a
+		// leftover RSSI) sits on this buffer and would look like a live
+		// arrival the moment Wait runs after a drop.
+		drainSignalChan(w.sigs)
+	}
 }
 
 // ensureDiscovering powers the adapter and starts LE discovery if BlueZ
@@ -492,6 +503,11 @@ func dbusDetail(err error) string {
 		return s
 	}
 	return fmt.Sprintf("%T", err)
+}
+
+// DBusDetail is the exported form of dbusDetail for session-level logs.
+func DBusDetail(err error) string {
+	return dbusDetail(err)
 }
 
 func dbusErrorParts(err error) (name, msg string) {

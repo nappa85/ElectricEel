@@ -220,8 +220,9 @@ func (c *Conn) Watch(ctx context.Context, adapterID, vin string) (*Watcher, erro
 	return newWatcher(ctx, c.bus, adapterID, vin)
 }
 
-// Connect connects to the vehicle. If target is nil, the vehicle's beacon is
-// scanned for first. It returns a live connector.Connector.
+// Connect connects to the vehicle. A live target (HasRSSI) is Connected
+// directly, matching Tesla Android's reconnect-to-known-MAC. A stale
+// Device1 without RSSI is forgotten first so bluetoothd does not hang.
 func (c *Conn) Connect(ctx context.Context, adapterID, vin string, target *ScanResult) (connector.Connector, error) {
 	return connect(ctx, c.bus, adapterID, vin, target)
 }

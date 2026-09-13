@@ -1,5 +1,6 @@
 import QtQuick 2.6
 import Sailfish.Silica 1.0
+import "../js/PhoneKeyStatus.js" as PhoneKey
 
 Page {
     id: page
@@ -14,6 +15,9 @@ Page {
     // Gates the Generate Key button: clicking it before the load finished
     // would run with no knowledge of an already-enrolled key.
     property bool configReady: false
+
+    readonly property string phoneKeyKind: PhoneKey.connectionKind(
+            teslaClient ? teslaClient.phoneKeyStatus : "", true)
 
     Connections {
         target: teslaClient
@@ -75,13 +79,16 @@ Page {
                 anchors.right: parent.right
                 anchors.margins: Theme.horizontalPageMargin
                 wrapMode: Text.Wrap
-                text: teslaClient.phoneKeyStatus.length > 0
-                      ? teslaClient.phoneKeyStatus
-                      : "Phone key starting..."
+                text: PhoneKey.label(teslaClient ? teslaClient.phoneKeyStatus : "", true)
+                      || "Phone key starting..."
                 font.pixelSize: Theme.fontSizeSmall
-                color: teslaClient.phoneKeyStatus.indexOf("error") >= 0
-                       ? Theme.highlightColor
-                       : Theme.secondaryHighlightColor
+                color: {
+                    if (page.phoneKeyKind === "connected")
+                        return Theme.secondaryHighlightColor
+                    if (page.phoneKeyKind === "error" || page.phoneKeyKind === "bluetooth-off")
+                        return Theme.highlightColor
+                    return Theme.secondaryHighlightColor
+                }
             }
 
             Label {

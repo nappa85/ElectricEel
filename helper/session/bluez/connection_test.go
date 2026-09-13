@@ -82,20 +82,15 @@ func TestConnectScansWhenNoTarget(t *testing.T) {
 	}
 }
 
-// TestConnectDoesNotScanWithTarget locks in the assumption
-// electric-eel-session/main.go's ensureConnectedLocked depends on: passing
-// a target skips connect()'s own scan entirely. Without this, a caller that
-// already holds its own long-lived discovery session (presenceLoop's
-// Watcher) and then calls Connect with a target would still be safe from
-// self-collision; if this ever regressed to scanning regardless, that
-// caller would silently start colliding with itself again - confirmed live
-// as "bluez: start discovery: Operation already in progress" before
-// ensureConnectedLocked was fixed to pass its Watcher's last Peek() result
-// through instead of nil.
-func TestConnectDoesNotScanWithTarget(t *testing.T) {
+// TestConnectUsesLiveAdvertisementWithoutRemoveDevice locks in the
+// Tesla-Android reconnect contract: a Device1 that is advertising (HasRSSI)
+// is Connected in place. RemoveDevice+rescan was dropping the live object
+// (Sailfish RemoveDevice returns AuthFailed) and then refusing to Connect
+// the leftover — the 2026-09-13 phone-key hang.
+func TestConnectUsesLiveAdvertisementWithoutRemoveDevice(t *testing.T) {
 	bus := newFakeBluez()
 	vin := "5YJ3E1EA0PF000000"
-	bus.dev = &fakeDevice{path: bus.devPath(), name: vehicleBeaconName(vin)}
+	bus.dev = &fakeDevice{path: bus.devPath(), name: vehicleBeaconName(vin), rssi: -55}
 	bus.deviceVisible = true
 	bus.servicesResolved = true
 	bus.gattReady = true
@@ -103,11 +98,17 @@ func TestConnectDoesNotScanWithTarget(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	if _, err := connect(ctx, bus, "", vin, &ScanResult{Path: bus.dev.path}); err != nil {
-		t.Fatalf("connect(with target): %v", err)
+	if _, err := connect(ctx, bus, "", vin, &ScanResult{Path: bus.dev.path, HasRSSI: true, RSSI: -55}); err != nil {
+		t.Fatalf("connect(with live target): %v", err)
+	}
+	if bus.removeDeviceN != 0 {
+		t.Fatalf("live advertisement must not RemoveDevice, got %d", bus.removeDeviceN)
 	}
 	if hasCall(bus.calls, adapterIface+".StartDiscovery") {
-		t.Error("connect with a target must not scan - it would collide with a caller's own already-open discovery session")
+		t.Fatal("live advertisement must Connect without a new scan")
+	}
+	if !bus.connected {
+		t.Fatal("expected Device1.Connect on the live advertisement")
 	}
 }
 
@@ -264,6 +265,9 @@ func TestCloseIsIdempotent(t *testing.T) {
 	}
 	if bus.connected {
 		t.Error("expected Disconnect on Close")
+	}
+	if bus.removeDeviceN != 0 {
+		t.Error("Close must Disconnect, not RemoveDevice — Tesla Android reconnects to the same MAC")
 	}
 	if bus.matches != 0 {
 		t.Errorf("match rule not removed: matches = %d", bus.matches)

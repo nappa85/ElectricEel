@@ -177,6 +177,51 @@ func TestEnsureConnectedMissingKeyFile(t *testing.T) {
 	}
 }
 
+func TestDispatchDefersToPresenceWhenDisconnected(t *testing.T) {
+	s := &session{
+		vin:            "5YJ3E1EA0PF000000",
+		keyFile:        "/nonexistent/path/private_key.pem",
+		bleBackend:     "bluez",
+		connectTimeout: 20 * time.Second,
+	}
+	_, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	s.presenceCancel = cancel
+
+	start := time.Now()
+	resp := s.dispatch(request{ID: "t1", Cmd: "body-controller-state"})
+	if elapsed := time.Since(start); elapsed > 200*time.Millisecond {
+		t.Fatalf("deferred connect took %v, want fail-fast (must not start a 20s GATT connect)", elapsed)
+	}
+	if resp.OK {
+		t.Fatal("expected dashboard command to defer while presence has no session")
+	}
+	if !strings.Contains(resp.Stderr, "phone key is still connecting") {
+		t.Fatalf("stderr = %q, want phone-key deferral", resp.Stderr)
+	}
+}
+
+func TestDispatchPresenceAllowsAddKeyWithoutSession(t *testing.T) {
+	s := &session{
+		vin:            "5YJ3E1EA0PF000000",
+		keyFile:        "/nonexistent/path/private_key.pem",
+		bleBackend:     "bluez",
+		connectTimeout: 500 * time.Millisecond,
+		commandTimeout: 500 * time.Millisecond,
+	}
+	_, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	s.presenceCancel = cancel
+
+	resp := s.dispatch(request{ID: "t1", Cmd: "add-key-request"})
+	if resp.OK {
+		t.Fatal("expected add-key-request to attempt its own connect")
+	}
+	if strings.Contains(resp.Stderr, "phone key is still connecting") {
+		t.Fatal("pairing must not be deferred to presence")
+	}
+}
+
 func TestDispatchReportsConnectFailure(t *testing.T) {
 	// No real adapter/vehicle in this environment - this is exactly the
 	// "can't verify without hardware" boundary. What *is* verifiable here:
@@ -425,6 +470,9 @@ func TestPresenceLiveNearRejectsWeakAndCachedBeacons(t *testing.T) {
 	if presenceLiveNear(true, -97, -90) {
 		t.Fatal("weak live RSSI must not start GATT")
 	}
+	if presenceLiveNear(true, teslaMinConnectRSSI, -100) {
+		t.Fatal("Tesla Android skips RSSI <= -95 even if nearRSSI is weaker")
+	}
 	if presenceLiveNear(false, 0, -90) {
 		t.Fatal("cached Device1 without RSSI must not start GATT")
 	}
@@ -578,12 +626,27 @@ func TestConnectBackoffDoubles(t *testing.T) {
 	}
 }
 
+func TestScheduleReconnectQuietExtendsGate(t *testing.T) {
+	s := &session{}
+	s.scheduleReconnectQuietLocked(reconnectQuietAfterDrop)
+	if !s.connectBackoffActive(time.Now()) {
+		t.Fatal("drop quiet must gate reconnect (Tesla 500ms after disconnect)")
+	}
+	if remaining := time.Until(s.connectBackoffUntil); remaining > reconnectQuietAfterDrop {
+		t.Fatalf("drop quiet remaining %v, want <= %v", remaining, reconnectQuietAfterDrop)
+	}
+	s.scheduleReconnectQuietLocked(reconnectQuietAfterError)
+	if remaining := time.Until(s.connectBackoffUntil); remaining < time.Second {
+		t.Fatalf("longer quiet must extend the gate, remaining %v", remaining)
+	}
+}
+
 func TestConnectBackoffDoublesAfterExpiry(t *testing.T) {
 	s := &session{}
 	s.scheduleConnectBackoffLocked()
 	first := s.connectBackoff
-	if first != time.Second {
-		t.Fatalf("first backoff = %v, want 1s", first)
+	if first != reconnectQuietAfterError {
+		t.Fatalf("first backoff = %v, want %v (Tesla DELAY_AFTER_ERROR)", first, reconnectQuietAfterError)
 	}
 	s.connectBackoffUntil = time.Now().Add(-time.Millisecond)
 	s.scheduleConnectBackoffLocked()

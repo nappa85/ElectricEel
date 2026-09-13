@@ -200,6 +200,20 @@ func TestScanIgnoresOtherDevices(t *testing.T) {
 	}
 }
 
+func TestScanIgnoresCachedDeviceWithoutRSSI(t *testing.T) {
+	bus := newFakeBluez()
+	vin := "5YJ3E1EA0PF000000"
+	bus.dev = &fakeDevice{path: bus.devPath(), name: vehicleBeaconName(vin), omitRSSI: true}
+	bus.deviceVisible = true
+
+	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
+	defer cancel()
+
+	if _, err := scan(ctx, bus, "", vin); err == nil {
+		t.Fatal("scan must not return a leftover Device1 that has no live RSSI")
+	}
+}
+
 func TestFindBeaconReportsMissingRSSI(t *testing.T) {
 	bus := newFakeBluez()
 	vin := "5YJ3E1EA0PF000000"

@@ -211,13 +211,7 @@ func (c *Connection) Close() {
 		defer cancel()
 		// Best-effort: the link is going away regardless.
 		_, _ = c.bus.object(bluezService, c.rxPath).call(ctx, gattChrIface+".StopNotify")
-		_, _ = c.bus.object(bluezService, c.devPath).call(ctx, deviceIface+".Disconnect")
-		// Device.Disconnect returns before the HCI link is gone. Connecting
-		// in that window is the 0.2.15 on/off loop: the late Connected=false
-		// lands on the new session and presence tears it down.
-		waitCtx, waitCancel := context.WithTimeout(context.Background(), time.Second)
-		waitDeviceDisconnected(waitCtx, c.bus, c.devPath)
-		waitCancel()
+		releaseDevice(c.bus, c.devPath)
 		_ = c.bus.removeMatch(c.match...)
 		if len(c.deviceMatch) > 0 {
 			_ = c.bus.removeMatch(c.deviceMatch...)

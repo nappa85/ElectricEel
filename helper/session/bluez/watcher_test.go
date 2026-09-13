@@ -424,6 +424,35 @@ func TestWatcherPauseStopsDiscovery(t *testing.T) {
 	}
 }
 
+func TestWatcherResumeDrainsStaleSignals(t *testing.T) {
+	bus := newFakeBluez()
+	vin := "5YJ3E1EA0PF000000"
+	bus.dev = &fakeDevice{path: bus.devPath(), name: vehicleBeaconName(vin), rssi: -55}
+	bus.deviceVisible = true
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	w, err := newWatcher(ctx, bus, "", vin)
+	if err != nil {
+		t.Fatalf("newWatcher: %v", err)
+	}
+	defer w.Stop(ctx)
+
+	w.Pause()
+	bus.advertiseRSSI(-40) // buffered while paused; must not count as a fresh arrival
+	w.Resume()
+
+	waitCtx, waitCancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
+	defer waitCancel()
+	res, err := w.Wait(waitCtx)
+	if err != nil {
+		t.Fatalf("Wait: %v", err)
+	}
+	if res != nil {
+		t.Fatalf("Resume must drain pre-Resume RSSI signals, got %+v", res)
+	}
+}
+
 func TestWatcherWaitMatchesAliasWhenNameIsAddress(t *testing.T) {
 	bus := newFakeBluez()
 	vin := "5YJ3E1EA0PF000000"

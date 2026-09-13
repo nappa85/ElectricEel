@@ -1,6 +1,7 @@
 import QtQuick 2.6
 import Sailfish.Silica 1.0
 import "../js/VehicleState.js" as VState
+import "../js/PhoneKeyStatus.js" as PhoneKey
 
 CoverBackground {
     id: cover
@@ -11,29 +12,13 @@ CoverBackground {
     property bool hasKey: false
     property bool commandBusy: false
 
-    function phoneKeyStatusIsBluetoothOff(status) {
-        return status.indexOf("NotPowered") >= 0
-            || status.indexOf("RFKILL") >= 0
-            || status.indexOf("power on adapter") >= 0
-    }
-
-    function phoneKeyStatusIsConnected(status) {
-        return status === "Phone key connected"
-            || status === "Phone key authorized"
-    }
-
     readonly property bool isPaired: cover.hasKey && cover.vin.length > 0
 
-    // unpaired | bluetooth-off | connected | disconnected
+    // unpaired | bluetooth-off | connected | disconnected | error
+    // Same mapping as FirstPage — keep them in PhoneKeyStatus.js.
     readonly property string connectionKind: {
         var status = teslaClient ? teslaClient.phoneKeyStatus : ""
-        if (phoneKeyStatusIsBluetoothOff(status))
-            return "bluetooth-off"
-        if (!isPaired)
-            return "unpaired"
-        if (phoneKeyStatusIsConnected(status))
-            return "connected"
-        return "disconnected"
+        return PhoneKey.connectionKind(status, cover.isPaired)
     }
 
     readonly property bool isConnected: connectionKind === "connected"
@@ -149,6 +134,8 @@ CoverBackground {
                             return Qt.resolvedUrl("../../img/icons/wifi.svg")
                         if (cover.connectionKind === "bluetooth-off")
                             return Qt.resolvedUrl("../../img/icons/bluetooth_disabled.svg")
+                        // disconnected and error both use the off icon; color
+                        // already flags failure via the red disc.
                         return Qt.resolvedUrl("../../img/icons/wifi_off.svg")
                     }
                 }

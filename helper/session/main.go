@@ -132,7 +132,8 @@ func (s *session) teardownLocked() {
 		s.idleTimer = nil
 	}
 	s.stopAuthTapLocked()
-	if s.car != nil || s.conn != nil {
+	hadLink := s.car != nil || s.conn != nil
+	if hadLink {
 		keylog("link", "teardown session")
 	}
 	if s.car != nil {
@@ -143,7 +144,14 @@ func (s *session) teardownLocked() {
 		s.conn.Close()
 		s.conn = nil
 	}
+	s.lastBeacon = nil
 	s.lastVCSECPrime = time.Time{}
+	// Tesla Android waits DELAY_AFTER_NORMAL_DISCONNECT (500ms) before
+	// gatt.connect() on the same MAC. Immediate Device.Connect after
+	// Disconnect is the Sailfish abort-by-local / leftover path.
+	if hadLink {
+		s.scheduleReconnectQuietLocked(reconnectQuietAfterDrop)
+	}
 }
 
 // closeBluezLocked releases the system-bus connection held for the bluez
@@ -217,15 +225,13 @@ func sessionDomains(cmd string) []protocol.Domain {
 // ordinary command silently reuse a connection that never authenticated,
 // instead of the failure that command needs to see.
 //
-// target, if non-nil, is passed straight through to bluez.Conn.Connect
-// instead of letting it scan for the vehicle itself. presenceLoop passes
-// its own Watcher's last Peek() result here: without it, an arrival-
-// triggered connect would call bluez's own scan()/startDiscovery() while
-// presenceLoop's Watcher already has discovery open for RSSI polling,
-// colliding with itself - confirmed live ("bluez: start discovery:
-// Operation already in progress", repeatedly, since each failed attempt
-// reset presenceStep back to "away" and immediately re-triggered arrival).
-// Every other caller passes nil (nothing to reuse). Caller holds mu.
+// target, if it is a live advertisement, is the Device1 to Connect.
+// presenceLoop passes its Watcher's last Wait() result so the bluez
+// backend reconnects to that MAC (Tesla Android does the same) instead of
+// RemoveDevice+rescan. A leftover Device1 with no RSSI is still forgotten
+// first — that is the object that hangs Sailfish bluetoothd. Discovery
+// collisions are avoided by pauseDiscoveryLocked(). Every other caller
+// passes nil. Caller holds mu.
 func (s *session) ensureConnectedLocked(ctx context.Context, cmd string, target *bluez.ScanResult) error {
 	if s.car != nil {
 		if !commandsWithoutSession[cmd] {
@@ -392,10 +398,10 @@ func (s *session) enableTrustedLocked() {
 		return
 	}
 	if err := bzConn.SetTrusted(true); err != nil {
-		keylog("link", "SetTrusted failed: %v", err)
+		keylog("link", "SetTrusted failed: %s", bluez.DBusDetail(err))
 	}
 	if err := bzConn.SetAutoConnect(false); err != nil {
-		keylog("link", "SetAutoConnect(false) failed: %v", err)
+		keylog("link", "SetAutoConnect(false) failed: %s", bluez.DBusDetail(err))
 	}
 }
 
@@ -464,14 +470,32 @@ func (s *session) connectTargetLocked(peek *bluez.ScanResult) *bluez.ScanResult 
 	return s.lastBeacon
 }
 
+// Tesla Android Peripheral reconnect delays (4.59.5).
+const (
+	reconnectQuietAfterDrop  = 500 * time.Millisecond // DELAY_AFTER_NORMAL_DISCONNECT
+	reconnectQuietAfterError = 2 * time.Second        // DELAY_AFTER_ERROR (GATT 0x85 / hung Connect)
+	teslaMinConnectRSSI      = -95                    // background scan skips RSSI <= -95
+)
+
+// scheduleReconnectQuietLocked stretches the reconnect gate to at least d
+// without resetting the failure backoff multiplier. Caller holds mu.
+func (s *session) scheduleReconnectQuietLocked(d time.Duration) {
+	until := time.Now().Add(d)
+	if s.connectBackoffUntil.IsZero() || until.After(s.connectBackoffUntil) {
+		s.connectBackoffUntil = until
+	}
+	keylog("connect", "quiet until %s", s.connectBackoffUntil.Format("15:04:05.000"))
+}
+
 // scheduleConnectBackoffLocked sets a reconnect quiet period after a failed
-// presence connect. Backoff doubles on repeated failures up to one minute.
+// presence connect. First wait matches Tesla's 2s error delay; then it
+// doubles up to one minute so a hung Connect cannot hammer bluetoothd.
 // Caller holds mu.
 func (s *session) scheduleConnectBackoffLocked() {
 	const maxBackoff = time.Minute
 	backoff := s.connectBackoff * 2
-	if backoff < time.Second {
-		backoff = time.Second
+	if backoff < reconnectQuietAfterError {
+		backoff = reconnectQuietAfterError
 	}
 	if backoff > maxBackoff {
 		backoff = maxBackoff
@@ -694,7 +718,15 @@ func presenceStep(cfg presenceConfig, near bool, consecNear int, lastSeen, now t
 // RSSI must not connect: BlueZ keeps Device1 objects forever, and connecting
 // at -97 dBm wedges bluetoothd (deadline exceeded / le-connection-abort-by-local).
 func presenceLiveNear(live bool, rssi, nearRSSI int16) bool {
-	return live && rssi >= nearRSSI
+	if !live {
+		return false
+	}
+	// Tesla Android: "BG Scan; NOT re-initializing … RSSI: %s" when
+	// rssi <= -95. Connecting that weak leftover hangs Sailfish bluetoothd.
+	if rssi <= teslaMinConnectRSSI {
+		return false
+	}
+	return rssi >= nearRSSI
 }
 
 // presencePace waits until interval has elapsed since started, so a Wait that
@@ -1209,6 +1241,16 @@ func (s *session) dispatch(req request) response {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	// Presence owns Device.Connect. A dashboard refresh 200ms after
+	// presence-start (FirstPage onConfigLoaded) used to start its own
+	// 20s target=false scan while the watcher had no beacon yet, then
+	// chain three more `state` connects. That is the 2026-09-07/09
+	// morning failure: the key did nothing while bluetoothd wedged.
+	if s.car == nil && s.presenceActiveLocked() && !commandsWithoutSession[req.Cmd] {
+		keylog("connect", "defer cmd=%q to presence (no live session)", req.Cmd)
+		return response{ID: req.ID, OK: false, Stderr: "phone key is still connecting\n", ExitCode: 1}
+	}
 
 	connectTarget := s.presenceBeaconTargetLocked()
 	connectCtx, cancel := context.WithTimeout(context.Background(), s.connectTimeout)

@@ -1,6 +1,6 @@
 Name:       harbour-electric-eel
 Summary:    Control your Tesla over Bluetooth
-Version:    0.2.16
+Version:    0.2.17
 Release:    1
 License:    ASL 2.0
 URL:        https://github.com/nappa85/ElectricEel
@@ -46,6 +46,10 @@ desktop-file-install --delete-original \
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
 
 %changelog
+* Sun Sep 13 2026 Pauli Kettunen <pauligrinder@gmail.com> - 0.2.17-1
+- Connect phone-key to a live BlueZ advertisement instead of RemoveDevice
+- Quiet period, -95 RSSI floor, and negotiated MTU after GATT drop (Tesla Android)
+- Stop dashboard refresh from racing phone-key connect and wedging bluetoothd
 * Sat Aug 29 2026 Pauli Kettunen <pauligrinder@gmail.com> - 0.2.16-1
 - Ignore stale BlueZ disconnects so phone-key does not flap after auth
 * Sat Aug 29 2026 Pauli Kettunen <pauligrinder@gmail.com> - 0.2.15-1

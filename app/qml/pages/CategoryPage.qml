@@ -40,17 +40,21 @@ Page {
         if (categoryId === "climate") {
             if (vehicleStatus.insideTemp === null)
                 return ""
-            return (vehicleStatus.isClimateOn ? "Climate on" : "Climate off") + " • " + vehicleStatus.insideTemp.toFixed(0) + "°C inside"
+            return qsTr("%1 • %2°C inside")
+                .arg(vehicleStatus.isClimateOn ? qsTr("Climate on") : qsTr("Climate off"))
+                .arg(vehicleStatus.insideTemp.toFixed(0))
         }
         if (categoryId === "charging") {
             if (vehicleStatus.batteryLevel === null)
                 return ""
-            return vehicleStatus.batteryLevel + "% battery" + (vehicleStatus.chargingState === "Charging" ? " • Charging" : "")
+            return qsTr("%1% battery%2")
+                .arg(vehicleStatus.batteryLevel)
+                .arg(vehicleStatus.chargingState === "Charging" ? qsTr(" • Charging") : "")
         }
         if (categoryId === "security") {
             if (vehicleStatus.locked === null)
                 return ""
-            return vehicleStatus.locked ? "Doors locked" : "Doors unlocked"
+            return vehicleStatus.locked ? qsTr("Doors locked") : qsTr("Doors unlocked")
         }
         return ""
     }
@@ -62,7 +66,7 @@ Page {
                 return
             page.pendingCmd = ""
             page.lastOk = ok
-            page.lastResult = ok ? (stdOut.length ? stdOut : "OK") : (stdErr.length ? stdErr : ("exit code " + exitCode))
+            page.lastResult = ok ? (stdOut.length ? stdOut : qsTr("OK")) : (stdErr.length ? stdErr : qsTr("exit code %1").arg(exitCode))
         }
         onCommandError: {
             if (requestId !== page.pendingCmd)
@@ -160,7 +164,7 @@ Page {
                         wrapMode: Text.Wrap
                         font.pixelSize: Theme.fontSizeExtraSmall
                         color: page.lastOk ? Theme.primaryColor : Theme.highlightColor
-                        text: page.pendingCmd.length > 0 ? ("Running " + page.pendingCmd + "...") : page.lastResult
+                        text: page.pendingCmd.length > 0 ? qsTr("Running %1...").arg(page.pendingCmd) : page.lastResult
                     }
                 }
             }

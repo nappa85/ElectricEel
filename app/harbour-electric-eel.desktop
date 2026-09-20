@@ -12,3 +12,13 @@ Comment[en]=Control your Tesla over Bluetooth
 Permissions=Bluetooth;Documents
 OrganizationName=org.electriceel
 ApplicationName=harbour-electric-eel
+
+# Sailfish Share target for navigation destinations (see
+# docs/navigation-share.md §2a). Sharing permission is granted by
+# default — do NOT add a Share permission, Harbour QA rejects it.
+X-Share-Methods=destination
+
+[X-Share Method destination]
+Description=Send to car navigation
+Capabilities=text/plain;text/x-url;
+SupportsMultipleFiles=no

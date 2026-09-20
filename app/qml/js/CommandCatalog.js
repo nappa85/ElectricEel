@@ -30,91 +30,91 @@
 var CATEGORIES = [
   {
     id: "attention",
-    title: "Attention",
+    title: qsTr("Attention"),
     icon: "../../img/icons/power.svg",
     commands: [
-      cmd("honk", "Honk Horn"),
-      cmd("flash-lights", "Flash Lights"),
-      cmd("wake", "Wake Vehicle"),
+      cmd("honk", qsTr("Honk Horn")),
+      cmd("flash-lights", qsTr("Flash Lights")),
+      cmd("wake", qsTr("Wake Vehicle")),
     ]
   },
   {
     id: "climate",
-    title: "Climate",
+    title: qsTr("Climate"),
     icon: "../../img/icons/fan1.svg",
     commands: [
-      cmd("climate-on", "Climate On", [], climateOff),
-      cmd("climate-off", "Climate Off", [], climateOn),
+      cmd("climate-on", qsTr("Climate On"), [], climateOff),
+      cmd("climate-off", qsTr("Climate Off"), [], climateOn),
       // sendSuffix "C": tesla-control's climate-set-temp expects the unit
       // glued directly onto the number (22C or 72F) - a bare number always
       // failed to parse. See ArgumentDialog.qml's sliderField.
-      cmd("climate-set-temp", "Set Temperature", [
+      cmd("climate-set-temp", qsTr("Set Temperature"), [
         arg("TEMP", "float", { min: 15, max: 28, step: 0.5, unit: "°C", sendSuffix: "C", def: 21, stateDefault: "driverTempSetting" })
       ]),
       // SEAT/LEVEL values are commands_vendor.go's own seats/levels map
       // keys verbatim - hyphenated positions, off|low|medium|high levels
       // (not the Fleet-API-flavored underscore names or a numeric level
       // this previously guessed).
-      cmd("seat-heater", "Seat Heater", [
+      cmd("seat-heater", qsTr("Seat Heater"), [
         arg("SEAT", "enum", { values: ["front-left","front-right","2nd-row-left","2nd-row-center","2nd-row-right","3rd-row-left","3rd-row-right"] }),
         arg("LEVEL", "enum", { values: ["off","low","medium","high"] })
       ]),
-      cmd("steering-wheel-heater", "Steering Wheel Heater", [
+      cmd("steering-wheel-heater", qsTr("Steering Wheel Heater"), [
         arg("STATE", "enum", { values: ["on","off"] })
       ]),
       // POSITIONS is 'L', 'R', or 'LR' verbatim (commands_vendor.go checks
       // strings.Contains for each letter) - not a comma-separated seat list.
-      cmd("auto-seat-and-climate", "Auto Seat & Climate", [
+      cmd("auto-seat-and-climate", qsTr("Auto Seat & Climate"), [
         arg("POSITIONS", "enum", { values: ["L","R","LR"] }),
         arg("STATE", "enum", { values: ["on","off"], optional: true })
       ]),
-      cmd("precondition-schedule-add", "Add Preconditioning Schedule", preconditionScheduleAddArgs()),
-      cmd("precondition-schedule-remove", "Remove Preconditioning Schedule", scheduleRemoveArgs()),
+      cmd("precondition-schedule-add", qsTr("Add Preconditioning Schedule"), preconditionScheduleAddArgs()),
+      cmd("precondition-schedule-remove", qsTr("Remove Preconditioning Schedule"), scheduleRemoveArgs()),
     ]
   },
   {
     id: "charging",
-    title: "Charging",
+    title: qsTr("Charging"),
     icon: "../../img/icons/bolt.svg",
     commands: [
-      cmd("charging-start", "Start Charging", [], notCharging),
-      cmd("charging-stop", "Stop Charging", [], charging),
-      cmd("charge-port-open", "Open Charge Port", [], portClosed),
-      cmd("charge-port-close", "Close Charge Port", [], portOpen),
-      cmd("charging-set-limit", "Set Charge Limit", [
+      cmd("charging-start", qsTr("Start Charging"), [], notCharging),
+      cmd("charging-stop", qsTr("Stop Charging"), [], charging),
+      cmd("charge-port-open", qsTr("Open Charge Port"), [], portClosed),
+      cmd("charge-port-close", qsTr("Close Charge Port"), [], portOpen),
+      cmd("charging-set-limit", qsTr("Set Charge Limit"), [
         arg("PERCENT", "int", { min: 50, max: 100, unit: "%", def: 80, stateDefault: "chargeLimitSoc" })
       ]),
-      cmd("charging-set-amps", "Set Charge Current", [
+      cmd("charging-set-amps", qsTr("Set Charge Current"), [
         arg("AMPS", "int", { min: 1, max: 48, unit: "A", def: 16, stateDefault: "chargeCurrent" })
       ]),
-      cmd("charging-schedule", "Schedule Charging", [
+      cmd("charging-schedule", qsTr("Schedule Charging"), [
         arg("MINS", "int", { min: 0, max: 1439, unit: "min after midnight", def: 0 })
       ]),
-      cmd("charging-schedule-cancel", "Cancel Scheduled Charging"),
-      cmd("charging-schedule-add", "Add Charge Schedule", chargeScheduleAddArgs()),
-      cmd("charging-schedule-remove", "Remove Charge Schedule", scheduleRemoveArgs()),
+      cmd("charging-schedule-cancel", qsTr("Cancel Scheduled Charging")),
+      cmd("charging-schedule-add", qsTr("Add Charge Schedule"), chargeScheduleAddArgs()),
+      cmd("charging-schedule-remove", qsTr("Remove Charge Schedule"), scheduleRemoveArgs()),
     ]
   },
   {
     id: "security",
-    title: "Locks & Security",
+    title: qsTr("Locks & Security"),
     icon: "../../img/icons/security.svg",
     commands: [
-      cmd("lock", "Lock", [], unlockedState),
-      cmd("unlock", "Unlock", [], lockedState),
+      cmd("lock", qsTr("Lock"), [], unlockedState),
+      cmd("unlock", qsTr("Unlock"), [], lockedState),
       // drive = remote start / keyless drive (RKE_ACTION_REMOTE_DRIVE): lets
       // a keyless driver drive for a short window after unlock. Distinct from
       // phone-key driving, which needs no command at all - the car authorizes
       // it from an authenticated VCSEC session with a valid key. Kept in
       // Locks & Security as it's a drive-authorization action.
-      cmd("drive", "Remote Start (Keyless Drive)", []),
-      cmd("sentry-mode", "Sentry Mode", [ arg("STATE", "enum", { values: ["on","off"] }) ]),
-      cmd("valet-mode-on", "Valet Mode On", [ arg("PIN", "pin", {}) ]),
-      cmd("valet-mode-off", "Valet Mode Off"),
-      cmd("guest-mode-on", "Guest Mode On"),
-      cmd("guest-mode-off", "Guest Mode Off"),
-      cmd("erase-guest-data", "Erase Guest Data"),
-      cmd("autosecure-modelx", "Auto-Secure (Model X)"),
+      cmd("drive", qsTr("Remote Start (Keyless Drive)"), []),
+      cmd("sentry-mode", qsTr("Sentry Mode"), [ arg("STATE", "enum", { values: ["on","off"] }) ]),
+      cmd("valet-mode-on", qsTr("Valet Mode On"), [ arg("PIN", "pin", {}) ]),
+      cmd("valet-mode-off", qsTr("Valet Mode Off")),
+      cmd("guest-mode-on", qsTr("Guest Mode On")),
+      cmd("guest-mode-off", qsTr("Guest Mode Off")),
+      cmd("erase-guest-data", qsTr("Erase Guest Data")),
+      cmd("autosecure-modelx", qsTr("Auto-Secure (Model X)")),
       // parental-controls-* commands used to be listed here, but they don't
       // exist in cmd/tesla-control/commands.go at the pinned v0.4.1 tag -
       // "parental-controls" is only a `state` CATEGORY name (read-only
@@ -124,77 +124,77 @@ var CATEGORIES = [
   },
   {
     id: "body",
-    title: "Trunk, Frunk & Windows",
+    title: qsTr("Trunk, Frunk & Windows"),
     icon: "../../img/icons/window.svg",
     commands: [
-      cmd("trunk-open", "Open Rear Trunk", [], trunkClosed),
-      cmd("trunk-move", "Move Rear Trunk"),
-      cmd("trunk-close", "Close Rear Trunk", [], trunkOpen),
-      cmd("frunk-open", "Open Front Trunk"),
-      cmd("tonneau-open", "Open Tonneau (Cybertruck)"),
-      cmd("tonneau-close", "Close Tonneau (Cybertruck)"),
-      cmd("tonneau-stop", "Stop Tonneau (Cybertruck)"),
-      cmd("windows-vent", "Vent Windows", [], windowsClosed),
-      cmd("windows-close", "Close Windows", [], windowsOpen),
+      cmd("trunk-open", qsTr("Open Rear Trunk"), [], trunkClosed),
+      cmd("trunk-move", qsTr("Move Rear Trunk")),
+      cmd("trunk-close", qsTr("Close Rear Trunk"), [], trunkOpen),
+      cmd("frunk-open", qsTr("Open Front Trunk")),
+      cmd("tonneau-open", qsTr("Open Tonneau (Cybertruck)")),
+      cmd("tonneau-close", qsTr("Close Tonneau (Cybertruck)")),
+      cmd("tonneau-stop", qsTr("Stop Tonneau (Cybertruck)")),
+      cmd("windows-vent", qsTr("Vent Windows"), [], windowsClosed),
+      cmd("windows-close", qsTr("Close Windows"), [], windowsOpen),
     ]
   },
   {
     id: "media",
-    title: "Media",
+    title: qsTr("Media"),
     icon: "../../img/icons/navigation.svg",
     commands: [
-      cmd("media-toggle-playback", "Play / Pause"),
-      cmd("media-next-track", "Next Track"),
-      cmd("media-previous-track", "Previous Track"),
-      cmd("media-next-favorite", "Next Favorite"),
-      cmd("media-previous-favorite", "Previous Favorite"),
-      cmd("media-volume-up", "Volume Up"),
-      cmd("media-volume-down", "Volume Down"),
-      cmd("media-set-volume", "Set Volume", [
+      cmd("media-toggle-playback", qsTr("Play / Pause")),
+      cmd("media-next-track", qsTr("Next Track")),
+      cmd("media-previous-track", qsTr("Previous Track")),
+      cmd("media-next-favorite", qsTr("Next Favorite")),
+      cmd("media-previous-favorite", qsTr("Previous Favorite")),
+      cmd("media-volume-up", qsTr("Volume Up")),
+      cmd("media-volume-down", qsTr("Volume Down")),
+      cmd("media-set-volume", qsTr("Set Volume"), [
         arg("VOLUME", "float", { min: 0, max: 10, step: 0.5, def: 5 })
       ]),
     ]
   },
   {
     id: "software",
-    title: "Software",
+    title: qsTr("Software"),
     icon: "../../img/icons/upgrades.svg",
     commands: [
       // sendSuffix "s": upstream parses DELAY with Go's time.ParseDuration,
       // which requires a unit (10m, 2h, ...) - a bare integer only ever
       // worked by accident at DELAY=0, the one value ParseDuration accepts
       // unitless.
-      cmd("software-update-start", "Start Software Update", [
+      cmd("software-update-start", qsTr("Start Software Update"), [
         arg("DELAY", "int", { min: 0, max: 3600, unit: "s", sendSuffix: "s", def: 0 })
       ]),
-      cmd("software-update-cancel", "Cancel Software Update"),
+      cmd("software-update-cancel", qsTr("Cancel Software Update")),
     ]
   },
   {
     id: "keys",
-    title: "Keys",
+    title: qsTr("Keys"),
     icon: "../../img/icons/lock.svg",
     commands: [
-      cmd("list-keys", "List Enrolled Keys"),
+      cmd("list-keys", qsTr("List Enrolled Keys")),
       // FORM_FACTOR is vcsec.KeyFormFactor's own value names (minus the
       // KEY_FORM_FACTOR_ prefix, case-insensitive) - "phone_key" isn't one
       // of them. This app's own pairing (helper/src/core.rs) enrolls as
       // android_device, a phone form factor the vehicle treats as a real
       // drive-authorizing key (cloud_key would remote-control but not
       // authorize driving).
-      cmd("add-key", "Add Key", [
+      cmd("add-key", qsTr("Add Key"), [
         arg("PUBLIC_KEY", "string", { placeholder: "path to public_key.pem" }),
         arg("ROLE", "enum", { values: ["owner","driver"] }),
         arg("FORM_FACTOR", "enum", { values: ["nfc_card","ios_device","android_device","cloud_key"] }),
       ]),
-      cmd("remove-key", "Remove Key", [
+      cmd("remove-key", qsTr("Remove Key"), [
         arg("PUBLIC_KEY", "string", { placeholder: "path to public_key.pem" }),
       ]),
       // rename-key omitted: requiresFleetAPI is true
       // (commands_vendor.go:438) and this app is BLE-only, so it always
       // fails with "command requires a FleetAPI OAuth token" - no point
       // offering a button guaranteed to error.
-      cmd("session-info", "Session Info", [
+      cmd("session-info", qsTr("Session Info"), [
         arg("PUBLIC_KEY", "string", { placeholder: "path to public_key.pem" }),
         arg("DOMAIN", "enum", { values: ["vcsec","infotainment"] }),
       ]),
@@ -202,26 +202,26 @@ var CATEGORIES = [
   },
   {
     id: "diagnostics",
-    title: "Diagnostics",
+    title: qsTr("Diagnostics"),
     icon: "../../img/icons/service.svg",
     commands: [
-      cmd("ping", "Ping Vehicle"),
+      cmd("ping", qsTr("Ping Vehicle")),
       // CATEGORY values are cmd/tesla-control's own categoriesByName keys
       // (pkg/vehicle/state.go's StateCategory constants), not the Fleet
       // API's vehicle_data JSON section names - short/hyphenated, not
       // "_state"-suffixed. Verified against the v0.4.1 tag this project
-      // pins (see KNOWN_ISSUES.md); a previous guess here used the wrong
+      // pins (see docs/limitations.md); a previous guess here used the wrong
       // (Fleet API) names and made every "state" call fail before it ever
       // reached BLE.
-      cmd("state", "Get Vehicle State", [
+      cmd("state", qsTr("Get Vehicle State"), [
         arg("CATEGORY", "enum", { values: ["charge","climate","drive","location","closures","charge-schedule","precondition-schedule","tire-pressure","media","media-detail","software-update","parental-controls"] })
       ]),
-      cmd("body-controller-state", "Body Controller State"),
+      cmd("body-controller-state", qsTr("Body Controller State")),
       // product-info omitted: requiresFleetAPI is true
       // (commands_vendor.go:963), always fails the same way rename-key
       // does in this BLE-only app.
-      cmd("keep-accessory-power", "Keep Accessory Power", [ arg("STATE", "enum", { values: ["on","off"] }) ]),
-      cmd("low-power-mode", "Low Power Mode", [ arg("STATE", "enum", { values: ["on","off"] }) ]),
+      cmd("keep-accessory-power", qsTr("Keep Accessory Power"), [ arg("STATE", "enum", { values: ["on","off"] }) ]),
+      cmd("low-power-mode", qsTr("Low Power Mode"), [ arg("STATE", "enum", { values: ["on","off"] }) ]),
     ]
   },
 ]

@@ -6,6 +6,8 @@ name: CI
 # not mean "tests pass"). Gates mirror the local dev commands:
 #   Rust: cargo fmt --check, cargo clippy -- -D warnings, cargo test
 #   Go  : gofmt -l, go vet ./..., go test ./...
+#   QML : qmllint syntax over app/qml
+#   i18n: tools/build-qm.sh --check (catalogs in sync)
 #
 # Cross-compilation for the staticlib / app RPM (aarch64) is deliberately not
 # part of this job: that's the release workflow's concern, and testing the
@@ -51,3 +53,35 @@ jobs:
       - run: gofmt -l .
       - run: go vet ./...
       - run: go test ./...
+
+  qml:
+    name: QML lint (qmllint syntax)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Qt QML tools
+        run: sudo apt-get update && sudo apt-get install -y qtdeclarative5-dev-tools
+      - name: qmllint syntax check
+        # Qt 5.15 qmllint is a pure syntax verifier: it parses QML with
+        # QQmlJS and never resolves imports, so the Sailfish-only modules
+        # (Sailfish.Silica, Sailfish.Share, Nemo.*) cannot cause false
+        # positives. Non-zero exit means a real syntax error.
+        run: |
+          export PATH="$PATH:/usr/lib/qt5/bin:/usr/lib/x86_64-linux-gnu/qt5/bin"
+          command -v qmllint
+          qmllint app/qml/harbour-electric-eel.qml app/qml/cover/*.qml app/qml/pages/*.qml
+
+  i18n:
+    name: Translations freshness (lupdate/lrelease)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Rebuild catalogs and fail on drift
+        # tools/build-qm.sh bootstraps Qt linguist tools from the PySide6
+        # wheel (no system Qt needed) and fails when the committed
+        # app/translations/*.ts/*.qm differ from a fresh extraction — so UI
+        # string changes can never ship without updated catalogs.
+        run: bash tools/build-qm.sh --check

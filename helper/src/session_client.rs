@@ -38,7 +38,7 @@ use serde::{Deserialize, Serialize};
 
 /// How long a BLE session may sit idle before tesla-session tears it down
 /// and lets the vehicle/adapter go back to sleep. Not user-configurable
-/// (see `KNOWN_ISSUES.md`: shipped as an invisible optimization, not a
+/// (see `docs/limitations.md`: shipped as an invisible optimization, not a
 /// Settings toggle).
 pub(crate) const IDLE_TIMEOUT_SEC: u32 = 90;
 
@@ -183,7 +183,7 @@ impl SessionClient {
     /// `SetConfig`/`GenerateKey` call invoking this concurrently blocks on
     /// that same lock until the in-flight command finishes, not just until
     /// the child is idle. Harmless today (the feature this guards is off
-    /// by default and unverified on real hardware - see `KNOWN_ISSUES.md`),
+    /// by default and unverified on real hardware - see `docs/limitations.md`),
     /// but worth knowing before relying on `SetConfig` feeling instant
     /// while a command is running.
     pub(crate) fn invalidate(&self) {

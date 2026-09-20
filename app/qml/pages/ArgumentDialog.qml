@@ -38,7 +38,7 @@ Dialog {
 
     DialogHeader {
         title: commandDef ? commandDef.label : ""
-        acceptText: "Run"
+        acceptText: qsTr("Run")
     }
 
     SilicaFlickable {
@@ -89,11 +89,11 @@ Dialog {
             // has *some* selected value (menus have no "nothing selected"
             // state) and so was never actually skippable.
             property var choices: argSpec ? (argSpec.optional ? [""].concat(argSpec.values) : argSpec.values) : []
-            label: argSpec ? (argSpec.name + (argSpec.optional ? " (optional)" : "")) : ""
+            label: argSpec ? (argSpec.name + (argSpec.optional ? qsTr(" (optional)") : "")) : ""
             menu: ContextMenu {
                 Repeater {
                     model: choices
-                    MenuItem { text: modelData === "" ? "(not set)" : modelData }
+                    MenuItem { text: modelData === "" ? qsTr("(not set)") : modelData }
                 }
             }
             onCurrentIndexChanged: {
@@ -168,7 +168,7 @@ Dialog {
         id: textField
         TextField {
             property var argSpec
-            label: argSpec ? (argSpec.name + (argSpec.optional ? " (optional)" : "")) : ""
+            label: argSpec ? (argSpec.name + (argSpec.optional ? qsTr(" (optional)") : "")) : ""
             placeholderText: argSpec && argSpec.placeholder ? argSpec.placeholder : ""
             text: argSpec && argSpec.def !== undefined ? String(argSpec.def) : ""
             onTextChanged: {

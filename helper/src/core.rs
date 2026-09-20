@@ -1,4 +1,4 @@
-//! In-process control core for harbour-electric-eel (see `BLUEZ_BACKEND_PLAN.md`
+//! In-process control core for harbour-electric-eel (see `docs/architecture.md`
 //! for why): everything `helper.rs`'s D-Bus daemon did, minus
 //! the D-Bus surface, the caller authorization, and the system-bus
 //! connection. The app links this as a staticlib and drives it through the C
@@ -25,6 +25,7 @@ use crate::commands::{is_known_command, is_pin_command};
 use crate::config::{Config, ConfigVersion, VinState};
 use crate::error::{HelperError, OperationError};
 use crate::session_client::{SessionClient, SessionEvent};
+use crate::share::{parse_shared_text, Destination};
 
 /// `GetConfig`'s return payload, in the same order the client (Qt's
 /// `QDBusPendingReply`) and the zbus macro both destructure it:
@@ -710,6 +711,85 @@ impl Core {
         Ok(())
     }
 
+    /// Parses shared text without sending anything, so the Navigation page
+    /// can show "will send coordinates" vs "will send address" before the
+    /// user confirms. Returns (kind, value1, value2): ("gps", lat, lon) or
+    /// ("address", text, ""). Pure CPU, no session/token needed.
+    pub(crate) fn preview_destination(text: &str) -> Result<(String, String, String), HelperError> {
+        match parse_shared_text(text) {
+            Ok(Destination::LatLon { lat, lon }) => {
+                Ok(("gps".to_string(), format!("{lat}"), format!("{lon}")))
+            }
+            Ok(Destination::Address(addr)) => Ok(("address".to_string(), addr, String::new())),
+            Err(e) => Err(HelperError::InvalidArgument(e.to_string())),
+        }
+    }
+
+    /// Sends a parsed destination to the car navigation over the live BLE
+    /// session (signed field-53/field-21 actions — see
+    /// `docs/navigation-share.md` §1). No network, no token, no
+    /// Fleet API: the payload rides the same authenticated BLE connection
+    /// as lock/unlock.
+    ///
+    /// Takes `ble_sem` like `run()`: this uses the radio, so it serializes
+    /// against concurrent BLE commands.
+    pub(crate) fn share_destination(
+        &self,
+        text: &str,
+    ) -> Result<(bool, String, String), HelperError> {
+        let dest =
+            parse_shared_text(text).map_err(|e| HelperError::InvalidArgument(e.to_string()))?;
+        let (vin, key_path, connect_timeout_sec, command_timeout_sec, timeout) = {
+            let cfg = self.cfg.lock().unwrap();
+            if cfg.vin.is_empty() {
+                return Err(HelperError::NotConfigured(
+                    "VIN is not set; call SetConfig first".to_string(),
+                ));
+            }
+            // Same envelope as run(): connect + command + 10s.
+            let secs = i64::from(cfg.connect_timeout_sec) + i64::from(cfg.command_timeout_sec) + 10;
+            (
+                cfg.vin.clone(),
+                self.private_key_path().to_string_lossy().into_owned(),
+                cfg.connect_timeout_sec,
+                cfg.command_timeout_sec,
+                Duration::from_secs(secs.cast_unsigned()),
+            )
+        };
+        let Some(session) = &self.session else {
+            return Err(HelperError::SessionUnavailable(
+                "persistent BLE session is unavailable".to_string(),
+            ));
+        };
+        let _permit = self
+            .ble_sem
+            .try_lock()
+            .map_err(|_| HelperError::Busy("another BLE command is in progress".to_string()))?;
+        let args: Vec<String> = match dest {
+            Destination::LatLon { lat, lon } => {
+                vec!["gps".to_string(), format!("{lat}"), format!("{lon}")]
+            }
+            Destination::Address(addr) => vec!["address".to_string(), addr],
+        };
+        eprintln!("Core: share_destination({} args)", args[0]);
+        // VIN/key-file/timeouts are spawn-time argv; key-file is unused by
+        // the navigate path but the spawn signature requires it.
+        match session.run(
+            "navigate",
+            &args,
+            &vin,
+            &key_path,
+            connect_timeout_sec,
+            command_timeout_sec,
+            timeout,
+        ) {
+            Ok(o) => Ok((o.ok, o.stdout, o.stderr)),
+            Err(e) => Err(HelperError::SessionUnavailable(format!(
+                "navigation share failed: {e}"
+            ))),
+        }
+    }
+
     pub(crate) fn get_config(&self) -> GetConfigReply {
         let cfg = self.cfg.lock().unwrap();
         let (has_key, pub_key) = match std::fs::read_to_string(self.public_key_path()) {
@@ -946,6 +1026,40 @@ mod tests {
                 panic!("generate_key did not return within 5s - looks deadlocked on self.cfg (recv: {e:?})");
             }
         }
+    }
+
+    #[test]
+    fn test_preview_destination_vectors() {
+        let (kind, v1, v2) = Core::preview_destination("geo:48.8584,2.2945").unwrap();
+        assert_eq!(
+            (kind.as_str(), v1.as_str(), v2.as_str()),
+            ("gps", "48.8584", "2.2945")
+        );
+        let (kind, v1, _) = Core::preview_destination("1600 Amphitheatre Parkway").unwrap();
+        assert_eq!(kind, "address");
+        assert_eq!(v1, "1600 Amphitheatre Parkway");
+        assert!(Core::preview_destination("").is_err());
+        assert!(Core::preview_destination("999,999").is_err());
+    }
+
+    #[test]
+    fn test_share_destination_needs_vin_and_session() {
+        let dir = tempfile::tempdir().unwrap();
+        let core = Core::new(
+            dir.path().to_string_lossy().into_owned(),
+            dir.path().to_string_lossy().into_owned(),
+            None,
+        )
+        .unwrap();
+        // Unparseable text is refused before anything else.
+        assert!(core.share_destination("").is_err());
+        assert!(core.share_destination("999,999").is_err());
+        // No VIN configured (default config) is refused.
+        assert!(core
+            .share_destination("geo:48.8584,2.2945")
+            .unwrap_err()
+            .to_string()
+            .contains("VIN"));
     }
 
     #[test]

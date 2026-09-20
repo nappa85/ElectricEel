@@ -21,14 +21,14 @@ Page {
             page.generating = false
             if (ok) {
                 page.publicKeyPem = publicKeyPem
-                page.pairStatus = "Key generated. Tap \"Pair with Vehicle\", then tap your NFC card on the center console when prompted on the car's screen."
+                page.pairStatus = qsTr("Key generated. Tap \"Pair with Vehicle\", then tap your NFC card on the center console when prompted on the car's screen.")
             } else {
-                page.pairStatus = "Key generation failed: " + errorMessage
+                page.pairStatus = qsTr("Key generation failed: %1").arg(errorMessage)
             }
         }
         onPaired: {
             page.pairing = false
-            page.pairStatus = ok ? ("Paired.\n" + output) : ("Pairing failed: " + errorMessage)
+            page.pairStatus = ok ? (qsTr("Paired.") + "\n" + output) : qsTr("Pairing failed: %1").arg(errorMessage)
         }
         onCommandFinished: {
             if (requestId !== "list-keys")
@@ -58,14 +58,14 @@ Page {
             width: parent.width
             spacing: Theme.paddingLarge
 
-            PageHeader { title: "Pairing & Keys" }
+            PageHeader { title: qsTr("Pairing & Keys") }
 
             Label {
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.margins: Theme.horizontalPageMargin
                 wrapMode: Text.Wrap
-                text: "Set the VIN in Settings first. Then generate a key, then pair it with the car over BLE - you'll need to be next to the vehicle and tap the NFC card on the center console to approve."
+                text: qsTr("Set the VIN in Settings first. Then generate a key, then pair it with the car over BLE - you'll need to be next to the vehicle and tap the NFC card on the center console to approve.")
                 font.pixelSize: Theme.fontSizeExtraSmall
                 color: Theme.secondaryColor
             }
@@ -77,7 +77,7 @@ Page {
                 wrapMode: Text.Wrap
                 text: teslaClient.phoneKeyStatus.length > 0
                       ? teslaClient.phoneKeyStatus
-                      : "Phone key starting..."
+                      : qsTr("Phone key starting...")
                 font.pixelSize: Theme.fontSizeSmall
                 color: teslaClient.phoneKeyStatus.indexOf("error") >= 0
                        ? Theme.highlightColor
@@ -105,7 +105,7 @@ Page {
 
             Button {
                 anchors.horizontalCenter: parent.horizontalCenter
-                text: page.generating ? "Generating..." : "Generate Key"
+                text: page.generating ? qsTr("Generating...") : qsTr("Generate Key")
                 // Gated on configReady: clicking Generate Key before the
                 // config loads would run without knowing a key already
                 // exists. Also disabled while pairing - generating during the
@@ -131,11 +131,11 @@ Page {
 
             Button {
                 anchors.horizontalCenter: parent.horizontalCenter
-                text: page.pairing ? "Waiting for NFC tap..." : "Pair with Vehicle"
+                text: page.pairing ? qsTr("Waiting for NFC tap...") : qsTr("Pair with Vehicle")
                 enabled: !page.pairing && page.publicKeyPem.length > 0
                 onClicked: {
                     page.pairing = true
-                    page.pairStatus = "Requesting pairing over BLE - approve on the car's touchscreen / NFC card now."
+                    page.pairStatus = qsTr("Requesting pairing over BLE - approve on the car's touchscreen / NFC card now.")
                     teslaClient.pair()
                 }
             }
@@ -155,11 +155,11 @@ Page {
                 font.pixelSize: Theme.fontSizeExtraSmall
             }
 
-            SectionHeader { text: "Enrolled Keys" }
+            SectionHeader { text: qsTr("Enrolled Keys") }
 
             Button {
                 anchors.horizontalCenter: parent.horizontalCenter
-                text: "List Enrolled Keys"
+                text: qsTr("List Enrolled Keys")
                 onClicked: teslaClient.runCommand("list-keys", "list-keys", [])
             }
 

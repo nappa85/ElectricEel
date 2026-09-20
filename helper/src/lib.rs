@@ -1,4 +1,4 @@
-//! In-process control core for harbour-electric-eel (see `BLUEZ_BACKEND_PLAN.md`
+//! In-process control core for harbour-electric-eel (see `docs/architecture.md`
 //! for why it's a staticlib + C ABI instead of a D-Bus daemon).
 //!
 //! Built two ways:
@@ -19,6 +19,7 @@ pub mod error;
 pub mod ffi;
 pub mod keylog;
 pub mod session_client;
+pub mod share;
 
 #[cfg(feature = "dbus")]
 pub mod authorize;

@@ -31,6 +31,8 @@ public slots:
     void refreshConfig();
     void pollPhoneKeyEvents();
     void handleResume();
+    void previewDestination(const QString &requestId, const QString &text);
+    void shareDestination(const QString &requestId, const QString &text);
     void shutdown();
 
 signals:
@@ -47,13 +49,18 @@ signals:
     void phoneKeyStarted(bool active, const QString &errorMessage);
     void phoneKeyEvent(const QString &kind, const QString &vin,
                        const QString &time, const QString &errorMessage);
+    void destinationPreviewed(const QString &requestId, bool ok, const QString &kind,
+                              const QString &value1, const QString &value2,
+                              const QString &errorMessage);
+    void shareFinished(const QString &requestId, bool ok, const QString &output,
+                       const QString &errorMessage);
 
 private:
     Core *m_core;
     QTimer *m_phoneKeyTimer;
 };
 
-// In-process client for the Rust control core (see BLUEZ_BACKEND_PLAN.md for
+// In-process client for the Rust control core (see docs/architecture.md for
 // why). Previously this was the async D-Bus client for the privileged
 // org.electriceel.Helper system service; the service is gone and the core is
 // linked in via ffld's C ABI (helper/ffi.rs). The QML-facing surface (slots +
@@ -82,6 +89,8 @@ public slots:
     // requestId is caller-chosen and echoed back on commandFinished/
     // commandError so QML can match replies to the triggering control.
     void runCommand(const QString &requestId, const QString &cmd, const QVariantList &args);
+    void previewDestination(const QString &requestId, const QString &text);
+    void shareDestination(const QString &requestId, const QString &text);
     void generateKey(bool force);
     void pair();
     void setConfig(const QString &vin, const QString &model, const QString &keyName,
@@ -103,6 +112,11 @@ signals:
     void helperAvailableChanged();
     void helperVersionChanged();
     void phoneKeyStatusChanged();
+    void destinationPreviewed(const QString &requestId, bool ok, const QString &kind,
+                              const QString &value1, const QString &value2,
+                              const QString &errorMessage);
+    void shareFinished(const QString &requestId, bool ok, const QString &output,
+                       const QString &errorMessage);
 
 private slots:
     void onInitialized(bool ok, const QString &errorMessage);

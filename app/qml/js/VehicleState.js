@@ -43,12 +43,12 @@
 // force that model's silhouette. Keep MODELS, config.rs's VALID_MODELS and
 // the trylist guessModel() below in sync when adding models.
 var MODELS = [
-    { id: "",           name: "Auto (from VIN)", image: "" },
-    { id: "model3",     name: "Model 3",     image: "../../img/model3.png" },
-    { id: "models",     name: "Model S",     image: "../../img/models.png" },
-    { id: "modelx",     name: "Model X",     image: "../../img/modelx.png" },
-    { id: "modely",     name: "Model Y",     image: "../../img/modely.png" },
-    { id: "cybertruck", name: "Cybertruck",  image: "../../img/cybertruck.png" },
+    { id: "",           name: qsTr("Auto (from VIN)"), image: "" },
+    { id: "model3",     name: qsTr("Model 3"),     image: "../../img/model3.png" },
+    { id: "models",     name: qsTr("Model S"),     image: "../../img/models.png" },
+    { id: "modelx",     name: qsTr("Model X"),     image: "../../img/modelx.png" },
+    { id: "modely",     name: qsTr("Model Y"),     image: "../../img/modely.png" },
+    { id: "cybertruck", name: qsTr("Cybertruck"),  image: "../../img/cybertruck.png" },
 ]
 
 function modelImage(id) {
@@ -66,7 +66,7 @@ function modelName(id) {
         if (MODELS[i].id === id)
             return MODELS[i].name
     }
-    return "Model 3"
+    return qsTr("Model 3")
 }
 
 function modelIndex(id) {

@@ -269,7 +269,7 @@ func (s *session) ensureConnectedLocked(ctx context.Context, cmd string, target 
 	} else {
 		// Default: upstream go-ble raw HCI. The only path that calls
 		// InitAdapterWithID - which brings the controller down and binds an
-		// exclusive HCI user channel (see KNOWN_ISSUES.md). This is exactly
+		// exclusive HCI user channel (see docs/limitations.md). This is exactly
 		// the behavior the bluez backend exists to avoid.
 		if err := ble.InitAdapterWithID(s.adapterID); err != nil {
 			return err
@@ -682,7 +682,7 @@ func (s *session) writeResponse(resp response) {
 // loop. Requires the bluez backend: the raw-HCI backend's InitAdapterWithID
 // takes exclusive control of the controller for GATT connects, which is
 // incompatible with also running continuous org.bluez discovery for
-// proximity polling (see KNOWN_ISSUES.md).
+// proximity polling (see docs/limitations.md).
 func (s *session) dispatchPresenceStart(req request) response {
 	cfg, err := parsePresenceArgs(req.Args)
 	if err != nil {
@@ -1112,6 +1112,12 @@ func (s *session) dispatch(req request) response {
 		return s.dispatchPresenceStart(req)
 	case "presence-stop":
 		return s.dispatchPresenceStop(req)
+	case "navigate":
+		// BLE navigation share: signed nav action over the live session.
+		// dispatchNavigate manages session.mu itself (connect, then
+		// execute under lock), like dispatchPresenceStart does — do NOT
+		// lock here, sync.Mutex is not reentrant.
+		return s.dispatchNavigate(req)
 	}
 
 	s.mu.Lock()

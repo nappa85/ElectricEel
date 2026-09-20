@@ -8,6 +8,13 @@ require (
 	google.golang.org/protobuf v1.34.2
 )
 
+// Local patch of vehicle-command v0.4.1 with upstream PR #443
+// (navigation_waypoints_request, tag 90) applied — see
+// thirdparty/vehicle-command/README.electriceel.md. The proxy/command.go
+// hunk of that PR is intentionally NOT included: this app is BLE-only,
+// and the proxy is the internet path.
+replace github.com/teslamotors/vehicle-command => ./thirdparty/vehicle-command
+
 require (
 	github.com/99designs/go-keychain v0.0.0-20191008050251-8e49817e8af4 // indirect
 	github.com/99designs/keyring v1.2.2 // indirect

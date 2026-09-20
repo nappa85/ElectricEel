@@ -186,3 +186,33 @@ enum CoreError core_run(struct Core *core,
                         char **out_stderr,
                         int32_t *out_exit_code,
                         char **error_message);
+
+/**
+ * Preview a navigation share without sending: parses `text` and reports
+ * (kind, value1, value2) = ("gps", lat, lon) or ("address", text, "").
+ * A parse failure is `ok=false` + `error_message`, same soft shape as
+ * `core_generate_key`.
+ *
+ * # Safety
+ * `core` must be valid; strings NUL-terminated UTF-8; outputs writable/NULL.
+ */
+enum CoreError core_preview_destination(struct Core *core,
+                                        const char *text,
+                                        bool *ok,
+                                        char **kind,
+                                        char **value1,
+                                        char **value2,
+                                        char **error_message);
+
+/**
+ * Send shared text to the car navigation over BLE (session child).
+ * Same output shape as `core_pair`.
+ *
+ * # Safety
+ * `core` must be valid; strings NUL-terminated UTF-8; outputs writable/NULL.
+ */
+enum CoreError core_share_destination(struct Core *core,
+                                      const char *text,
+                                      bool *ok,
+                                      char **stdout_out,
+                                      char **error_message);

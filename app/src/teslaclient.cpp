@@ -22,7 +22,7 @@ namespace {
 const char *kBinDir = "/usr/share/harbour-electric-eel/bin";
 const char *kSessionBin = "/usr/share/harbour-electric-eel/bin/tesla-session";
 // BlueZ is the cooperative transport the app uses by default (see
-// BLUEZ_BACKEND_PLAN.md); "hci" raw-HCI is an escape hatch, not what ships.
+// docs/architecture.md); "hci" raw-HCI is an escape hatch, not what ships.
 const char *kBleBackend = "bluez";
 
 // Converts a Rust-owned C string from an output slot into a QString and frees
@@ -298,6 +298,51 @@ void CoreWorker::refreshConfig()
                       connectTimeoutSec, commandTimeoutSec, hasKey, takeCString(publicKeyPem));
 }
 
+void CoreWorker::previewDestination(const QString &requestId, const QString &text)
+{
+    if (!m_core) {
+        emit destinationPreviewed(requestId, false, QString(), QString(), QString(),
+                                  QStringLiteral("control core not initialized"));
+        return;
+    }
+    const QByteArray textBa = text.toUtf8();
+    bool ok = false;
+    char *kind = nullptr;
+    char *value1 = nullptr;
+    char *value2 = nullptr;
+    char *errorMessage = nullptr;
+    const CoreError rc = core_preview_destination(m_core, textBa.constData(), &ok,
+                                                  &kind, &value1, &value2, &errorMessage);
+    if (rc != CoreError::Ok) {
+        emit destinationPreviewed(requestId, false, QString(), QString(), QString(),
+                                  QStringLiteral("core_preview_destination failed (ABI error %1)").arg(rc));
+        return;
+    }
+    emit destinationPreviewed(requestId, ok, takeCString(kind), takeCString(value1),
+                              takeCString(value2), takeCString(errorMessage));
+}
+
+void CoreWorker::shareDestination(const QString &requestId, const QString &text)
+{
+    if (!m_core) {
+        emit shareFinished(requestId, false, QString(),
+                           QStringLiteral("control core not initialized"));
+        return;
+    }
+    const QByteArray textBa = text.toUtf8();
+    bool ok = false;
+    char *out = nullptr;
+    char *errorMessage = nullptr;
+    const CoreError rc = core_share_destination(m_core, textBa.constData(),
+                                                &ok, &out, &errorMessage);
+    if (rc != CoreError::Ok) {
+        emit shareFinished(requestId, false, QString(),
+                           QStringLiteral("core_share_destination failed (ABI error %1)").arg(rc));
+        return;
+    }
+    emit shareFinished(requestId, ok, takeCString(out), takeCString(errorMessage));
+}
+
 TeslaClient::TeslaClient(QObject *parent)
     : QObject(parent)
     , m_worker(nullptr)
@@ -333,6 +378,8 @@ TeslaClient::TeslaClient(QObject *parent)
     connect(m_worker, &CoreWorker::configLoaded, this, &TeslaClient::configLoaded);
     connect(m_worker, &CoreWorker::phoneKeyStarted, this, &TeslaClient::onPhoneKeyStarted);
     connect(m_worker, &CoreWorker::phoneKeyEvent, this, &TeslaClient::onPhoneKeyEvent);
+    connect(m_worker, &CoreWorker::destinationPreviewed, this, &TeslaClient::destinationPreviewed);
+    connect(m_worker, &CoreWorker::shareFinished, this, &TeslaClient::shareFinished);
 
     // Device suspend (screen off / freezer) leaves the Go child's
     // org.bluez SystemBus socket stale. The next BLE command would then
@@ -492,6 +539,20 @@ void TeslaClient::generateKey(bool force)
 {
     QMetaObject::invokeMethod(m_worker, "generateKey", Qt::QueuedConnection,
                               Q_ARG(bool, force));
+}
+
+void TeslaClient::previewDestination(const QString &requestId, const QString &text)
+{
+    QMetaObject::invokeMethod(m_worker, "previewDestination", Qt::QueuedConnection,
+                              Q_ARG(QString, requestId),
+                              Q_ARG(QString, text));
+}
+
+void TeslaClient::shareDestination(const QString &requestId, const QString &text)
+{
+    QMetaObject::invokeMethod(m_worker, "shareDestination", Qt::QueuedConnection,
+                              Q_ARG(QString, requestId),
+                              Q_ARG(QString, text));
 }
 
 void TeslaClient::pair()

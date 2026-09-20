@@ -6,7 +6,7 @@ Page {
     id: page
     property var teslaClient
 
-    property string statusText: "Loading current configuration..."
+    property string statusText: qsTr("Loading current configuration...")
     // Set while onConfigLoaded is repopulating the form so vinField's
     // onTextChanged doesn't auto-guess the model and clobber the model value
     // that was actually saved for this VIN (see modelField's comment).
@@ -32,10 +32,10 @@ Page {
             commandTimeoutSlider.value = commandTimeoutSec
             page.loadingConfig = false
             page.configReady = true
-            page.statusText = hasKey ? "Key on file" : "No key yet - use Pair Vehicle from the main menu"
+            page.statusText = hasKey ? qsTr("Key on file") : qsTr("No key yet - use Pair Vehicle from the main menu")
         }
         onConfigSaved: {
-            page.statusText = ok ? "Saved" : ("Save failed: " + errorMessage)
+            page.statusText = ok ? qsTr("Saved") : qsTr("Save failed: %1").arg(errorMessage)
         }
     }
 
@@ -50,7 +50,7 @@ Page {
             width: parent.width
             spacing: Theme.paddingLarge
 
-            PageHeader { title: "Settings" }
+            PageHeader { title: qsTr("Settings") }
 
             Label {
                 anchors.left: parent.left
@@ -74,12 +74,12 @@ Page {
             TextField {
                 id: vinField
                 width: parent.width
-                label: "Vehicle VIN"
+                label: qsTr("Vehicle VIN")
                 // Not a real-looking VIN on purpose: a placeholder that
                 // resembles an actual VIN (e.g. "5YJ3E1EA0PF000000") reads
                 // as saved content at a glance on a blank field - see
-                // KNOWN_ISSUES.md's Settings load/save race entry.
-                placeholderText: "17-character VIN"
+                // docs/limitations.md's Settings load/save race entry.
+                placeholderText: qsTr("17-character VIN")
                 EnterKey.iconSource: "image://theme/icon-m-enter-next"
                 // The VIN parser preselects the matching model in the list
                 // below as soon as a recognizable prefix appears. A manual
@@ -102,8 +102,8 @@ Page {
             ComboBox {
                 id: modelField
                 width: parent.width
-                label: "Front-page car model"
-                description: "Auto selects the model from the VIN"
+                label: qsTr("Front-page car model")
+                description: qsTr("Auto selects the model from the VIN")
                 menu: ContextMenu {
                     Repeater {
                         model: VState.MODELS
@@ -115,36 +115,36 @@ Page {
             TextField {
                 id: keyNameField
                 width: parent.width
-                label: "Key name"
-                placeholderText: "harbour-electric-eel"
+                label: qsTr("Key name")
+                placeholderText: qsTr("harbour-electric-eel")
             }
 
             Slider {
                 id: connectTimeoutSlider
                 width: parent.width
-                label: "Connect timeout"
+                label: qsTr("Connect timeout")
                 // Max mirrors helper/src/config.rs's MAX_TIMEOUT_SEC (300),
                 // so a saved value that high isn't silently clamped down to
                 // the old 60 cap and then persisted as 60 on the next Save.
                 minimumValue: 5
                 maximumValue: 300
                 stepSize: 1
-                valueText: value + " s"
+                valueText: value + qsTr(" s")
             }
 
             Slider {
                 id: commandTimeoutSlider
                 width: parent.width
-                label: "Command timeout"
+                label: qsTr("Command timeout")
                 minimumValue: 2
                 maximumValue: 300
                 stepSize: 1
-                valueText: value + " s"
+                valueText: value + qsTr(" s")
             }
 
             Button {
                 anchors.horizontalCenter: parent.horizontalCenter
-                text: "Save"
+                text: qsTr("Save")
                 // Disabled until the current config has actually loaded (see
                 // page.configReady) - otherwise this fires against the
                 // fields' blank/default values, not what's really saved.
@@ -156,11 +156,11 @@ Page {
 
             Button {
                 anchors.horizontalCenter: parent.horizontalCenter
-                text: "Pairing & Keys"
+                text: qsTr("Pairing & Keys")
                 onClicked: pageStack.push(Qt.resolvedUrl("PairingPage.qml"), { teslaClient: teslaClient })
             }
 
-            SectionHeader { text: "About" }
+            SectionHeader { text: qsTr("About") }
 
             // Versions of the app and its in-process control core. They're
             // stamped from the same release tag and compiled together, so a
@@ -174,10 +174,11 @@ Page {
                 wrapMode: Text.Wrap
                 font.pixelSize: Theme.fontSizeExtraSmall
                 color: Theme.secondaryColor
-                text: "App: ElectricEel " + teslaClient.appVersion +
-                      "   |   core: " + (teslaClient.helperVersion.length > 0
-                                         ? teslaClient.helperVersion
-                                         : "(too old / unknown)")
+                text: qsTr("App: ElectricEel %1   |   core: %2")
+                    .arg(teslaClient.appVersion)
+                    .arg(teslaClient.helperVersion.length > 0
+                         ? teslaClient.helperVersion
+                         : qsTr("(too old / unknown)"))
             }
 
             Label {
@@ -190,9 +191,9 @@ Page {
                 visible: teslaClient.helperVersion.length === 0
                         || teslaClient.helperVersion !== teslaClient.appVersion
                 text: teslaClient.helperVersion.length === 0
-                    ? "The control core is too old to report a version - reinstall the app."
-                    : "Version mismatch: core " + teslaClient.helperVersion +
-                      " vs app " + teslaClient.appVersion + " - reinstall the app."
+                    ? qsTr("The control core is too old to report a version - reinstall the app.")
+                    : qsTr("Version mismatch: core %1 vs app %2 - reinstall the app.")
+                        .arg(teslaClient.helperVersion).arg(teslaClient.appVersion)
             }
         }
     }

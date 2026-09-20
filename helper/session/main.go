@@ -2,10 +2,9 @@
 // connecting, running one command, and exiting (paying a full BLE
 // connect+StartSession handshake every time), it holds a live
 // *vehicle.Vehicle across many commands and only reconnects after a period
-// of inactivity. It's spoken to over stdin/stdout by the in-process Rust
-// control core, which falls back to spawning tesla-control directly
-// (today's behavior) if this process is unreachable or misbehaves - see
-// helper/src/session_client.rs.
+// of inactivity. It's spoken to over a private Unix-domain socket by the
+// in-process Rust control core - see helper/src/session_client.rs and
+// serve.go for the tagged JSON-lines framing.
 //
 // Every command still goes through commands_vendor.go's execute() and
 // commands map, unmodified - this file only changes when the BLE
@@ -13,7 +12,6 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
@@ -48,18 +46,46 @@ func writeErr(format string, a ...interface{}) {
 }
 
 type request struct {
+	Type string   `json:"type"`
 	ID   string   `json:"id"`
 	Cmd  string   `json:"cmd"`
 	Args []string `json:"args"`
 }
 
 type response struct {
+	Type     string `json:"type"`
 	ID       string `json:"id"`
 	OK       bool   `json:"ok"`
 	Stdout   string `json:"stdout"`
 	Stderr   string `json:"stderr"`
 	ExitCode int    `json:"exit_code"`
 }
+
+// protocolVersion is the parent/child framing contract. The parent kills
+// and respawns on mismatch instead of parsing frames it doesn't
+// understand. Bump when the frame shapes below change.
+const protocolVersion = 1
+
+// helloFrame is the first line the child sends after dialing: it proves
+// the peer speaks this protocol version before any command flows.
+type helloFrame struct {
+	Type       string `json:"type"`
+	Version    int    `json:"v"`
+	BLEBackend string `json:"ble_backend"`
+}
+
+// heartbeatFrame is sent every heartbeatInterval while the child is alive,
+// including mid-command: it doubles as liveness proof (a wedged child that
+// can't even tick is dead by definition) and as parent-death detection
+// (the write fails once the parent is gone, even if no command is running).
+type heartbeatFrame struct {
+	Type string `json:"type"`
+	Unix int64  `json:"unix"`
+}
+
+// heartbeatInterval between heartbeat frames. The parent's frame timeout
+// is a multiple of this (see Rust SessionClient::frame_timeout).
+const heartbeatInterval = 10 * time.Second
 
 // session owns the (possibly absent) live vehicle connection. All access is
 // serialized by mu - the caller (the in-process Rust core, via its own
@@ -654,7 +680,7 @@ func (s *session) emitEvent(kind string, err error) {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 	if s.enc != nil {
-		_ = s.enc.Encode(e)
+		_ = s.enc.Encode(taggedEvent{Type: "event", event: e})
 	}
 }
 
@@ -667,10 +693,12 @@ func (s *session) emitPresenceDisconnectedLocked(err error) {
 	s.emitEvent("presence_disconnected", err)
 }
 
-// writeResponse serializes resp to stdout, synchronized with emitEvent so
-// the two goroutines that write to the process's single JSON-lines stdout
-// (the request loop and the presence loop) never interleave partial writes.
+// writeResponse serializes resp to the parent socket, synchronized with
+// emitEvent so the goroutines writing to the single JSON-lines connection
+// (the request loop, the presence loop, the heartbeat loop) never
+// interleave partial writes.
 func (s *session) writeResponse(resp response) {
+	resp.Type = "response"
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 	if s.enc != nil {
@@ -1242,6 +1270,7 @@ func main() {
 		commandTimeout time.Duration
 		idleTimeout    time.Duration
 		logDir         string
+		socketPath     string
 	)
 	flag.StringVar(&vin, "vin", "", "Vehicle Identification Number (required)")
 	flag.StringVar(&keyFile, "key-file", "", "Private key file (required)")
@@ -1251,10 +1280,15 @@ func main() {
 	flag.DurationVar(&commandTimeout, "command-timeout", 5*time.Second, "Timeout for each command sent to the vehicle")
 	flag.DurationVar(&idleTimeout, "idle-timeout", 90*time.Second, "Tear down the BLE session after this much inactivity")
 	flag.StringVar(&logDir, "log-dir", "", "Directory for daily phone-key logs (default: $ELECTRIC_EEL_LOG_DIR or ~/Documents/ElectricEel)")
+	flag.StringVar(&socketPath, "socket-path", "", "Parent Unix-socket path to dial (required)")
 	flag.Parse()
 
 	if vin == "" || keyFile == "" {
 		fmt.Fprintln(os.Stderr, "tesla-session: -vin and -key-file are required")
+		os.Exit(2)
+	}
+	if socketPath == "" {
+		fmt.Fprintln(os.Stderr, "tesla-session: -socket-path is required")
 		os.Exit(2)
 	}
 	if bleBackend != "hci" && bleBackend != "bluez" {
@@ -1275,7 +1309,7 @@ func main() {
 		commandTimeout: commandTimeout,
 		idleTimeout:    idleTimeout,
 	}
-	s.enc = json.NewEncoder(os.Stdout)
+	s.enc = nil // set by serveConn once the parent socket is up
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
@@ -1290,25 +1324,6 @@ func main() {
 		os.Exit(0)
 	}()
 
-	scanner := bufio.NewScanner(os.Stdin)
-	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
-	for scanner.Scan() {
-		line := scanner.Bytes()
-		if len(line) == 0 {
-			continue
-		}
-		var req request
-		if err := json.Unmarshal(line, &req); err != nil {
-			s.writeResponse(response{OK: false, Stderr: fmt.Sprintf("tesla-session: malformed request: %s", err), ExitCode: 1})
-			continue
-		}
-		s.writeResponse(s.dispatch(req))
-	}
-
-	keylog("session", "stdin closed - shutting down")
-	s.mu.Lock()
-	s.stopPresenceLocked()
-	s.teardownLocked()
-	s.closeBluezLocked()
-	s.mu.Unlock()
+	s.serveConn(dialParent(socketPath))
+	os.Exit(0)
 }

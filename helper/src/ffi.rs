@@ -134,7 +134,11 @@ pub unsafe extern "C" fn core_new(
             return std::ptr::null_mut();
         };
         let backend = cstr(ble_backend).unwrap_or_else(|| "hci".to_string());
-        Some(SessionClient::new(PathBuf::from(path), &backend))
+        Some(SessionClient::new(
+            PathBuf::from(path),
+            &backend,
+            PathBuf::from(state_dir.clone()),
+        ))
     };
 
     // If the core can't be constructed (bad state dir), the app must know.

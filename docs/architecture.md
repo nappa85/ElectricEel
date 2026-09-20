@@ -17,11 +17,39 @@ capabilities, no `devel-su` install. Sailjail permissions: `Bluetooth`.
   speaking to the session child. One BLE command at a time (`ble_sem`).
 - **Session child** (`helper/session`, Go `tesla-session` binary in
   `/usr/share/harbour-electric-eel/bin/`): holds one authenticated BLE
-  session across commands over a private stdin/stdout JSON protocol (one
-  request in flight). Commands execute through the vendored
+  session across commands, driven over a private Unix-domain socket
+  (one request in flight). Commands execute through the vendored
   `tesla-control` handlers (`commands_vendor.go`, pinned
   vehicle-command v0.4.1). Navigation dispatches to `navigate.go`
   (field-53/field-21 actions, see `navigation-share.md`).
+
+## Parent/child protocol
+
+Unix socket at `<state-dir>/tesla-session-<pid>-<n>.sock`, created by
+the parent per spawn (`--socket-path`): accept exactly once, then
+unlink the path so no other same-UID process can dial in later.
+Tagged newline-delimited JSON frames (`{"type":...}`, never
+shape-sniffed), versioned by a `hello` handshake (`v: 1` both sides —
+mismatch kills the child instead of parsing unknown frames):
+
+- parent → child: `request` (`id`, `cmd`, `args`)
+- child → parent: `hello` (first line), `response` (replies),
+  `event` (unsolicited presence updates), `heartbeat` (every 10 s,
+  including mid-command)
+
+stdin/stdout are not the protocol: stdout is plain logs (vendored
+command output is still captured per command for replies). On any
+transport failure the child is dropped and the error surfaces — never
+a silent fallback, never an unbounded buffer. A failed heartbeat
+(dead parent) or closed connection makes the child tear down BLE state
+and exit rather than linger. Any frame gap over 30 s (no response,
+event, or heartbeat) kills the child as wedged instead of hanging the
+caller until the command deadline.
+
+Child processes are never leaked: explicit kill-and-wait on every error
+path, plus drop-based reaping (`KillOnDrop` for the process,
+`ChildHandle::drop` for the socket path) covering early-returns and
+panics — no async runtime involved, plain threads with blocking waits.
 
 ## Bluetooth transport
 

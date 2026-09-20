@@ -37,10 +37,18 @@ One parser (`helper/src/share.rs`): shared text (max 2000 chars) becomes
 
 - `geo:lat,lon[?q=...]` (RFC 5870): coordinates win;
   `geo:0,0?q=...` is an address search.
-- Map URLs: Google (`?q=`/`?query=`/`?daddr=`, `/@lat,lon`,
-  `/place/.../@lat,lon`, `!3dLAT!4dLON`), Apple Maps (`?q=`, `?ll=`),
-  OpenStreetMap (`#map=z/lat/lon`, `?mlat=&mlon=`). Others pass through
-  as address text. An embedded map URL beats surrounding text
+- Map URLs, host-agnostic: structural rules extract coordinates from
+  any map link — `pll` wins outright (portal over map center), then the
+  first query/fragment value that strictly parses as a pair (exactly
+  two in-range numbers, any of `,` `;` `~` `|` whitespace separators —
+  singles like `z=17` can never match), then `lat`+`lon` split across
+  two params, then path patterns (`/@lat,lon`, `!3dLAT!4dLON`,
+  exactly-two bare-numeric slash runs like OSM `#map=z/lat/lon`).
+  A bare "first two floats" scan is deliberately NOT used: OSM leads
+  with the zoom, `ll` precedes portal `pll`, viewports precede
+  destinations, and addresses contain small numbers. Free text is never
+  float-scanned. Anything unparseable passes through as address text.
+  An embedded map URL beats surrounding text
   (Android shares often arrive as `Name\n\nhttps://...`).
 - Bare `lat,lon` / `lat lon` / `lat;lon` (lat −90..90, lon −180..180).
   Out-of-range pairs are rejected, never auto-swapped and never treated
@@ -56,7 +64,11 @@ previews which one will be sent before confirming.
 `.desktop` declares `X-Share-Methods=destination` with
 `Capabilities=text/plain;text/x-url;`, `SupportsMultipleFiles=no`
 (Sharing permission is default-granted; a `Share` permission entry
-breaks Harbour QA). Reception is twofold: a `ShareProvider` for
+breaks Harbour QA). `X-Share-Methods` MUST sit in the `[Desktop Entry]`
+group: `sailfish-share-update-cache` (which rebuilds the provider cache
+`/var/lib/sailfish-share/desktopfiles.list` at install time) only reads
+that group — the same key under `[X-Sailjail]` is silently ignored and
+the cache stays empty. Reception is twofold: a `ShareProvider` for
 well-formed shares, plus a `DBusAdaptor` on `/share/destination`
 (iface `org.sailfishos.share`) for Browser/WebView links, which arrive
 as `{type, linkTitle, status}` without the `name`/`data` keys
@@ -65,10 +77,18 @@ share arrives; the handler brings it forward.
 
 ## Android apps
 
-Third-party Harbour apps cannot appear in Android sharesheets (Jolla's
-Android→native bridge is hardcoded for its own apps). Clipboard is
-shared between Android and native apps via the Sailfish keyboard, so
-the path from Android apps is copy → paste into the Navigation page.
+Third-party Harbour apps cannot appear in Android sharesheets. Verified
+on-device (5.2.0.17): Jolla's own Messages/Browser/Email declare no
+`X-Share-Methods` yet appear in the Android sharesheet, so that path is
+not declarative and offers no hook a third party can use.
+`apkd-launcher` only launches Android from native; the native Share UI
+has no Android hooks. Clipboard is shared between Android and native
+apps via the Sailfish keyboard, so the path from Android apps today is
+copy → paste into the Navigation page. A future option needing no
+Harbour or AppSupport changes on this side: a tiny standalone Android
+companion APK (outside Harbour) with an `ACTION_SEND` filter that drops
+the shared text into shared storage, which the Sailfish app watches and
+surfaces as a tap-to-send notification.
 
 ## Test vectors
 
@@ -87,3 +107,8 @@ the path from Android apps is copy → paste into the Navigation page.
 | empty | error |
 | `999,999` | error (out of range) |
 | >2000 chars | error |
+| `https://www.bing.com/maps?cp=48.8584~2.2945&lvl=16` | LatLon(48.8584, 2.2945) |
+| `http://osmand.net/go?lat=48.8584&lon=2.2945&z=15` | LatLon(48.8584, 2.2945) |
+| `https://www.waze.com/ul?z=10&ll=48.8584,2.2945` | LatLon(48.8584, 2.2945) |
+| `https://tile.openstreetmap.org/17/65535/48351.png` | Address (full URL, opaque) |
+| `Via Roma 45, 09125 Cagliari` | Address (same text, never hijacked) |

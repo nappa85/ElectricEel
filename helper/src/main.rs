@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::path::PathBuf;
 
 use electriceelcore::core::Core;
 use electriceelcore::helper::{Helper, IFACE_NAME};
@@ -64,6 +65,7 @@ fn main() {
         Some(SessionClient::new(
             Path::new(&bin_dir).join("tesla-session"),
             &ble_backend,
+            PathBuf::from(state_dir.clone()),
         ))
     } else {
         None

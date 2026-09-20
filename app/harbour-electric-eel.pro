@@ -7,7 +7,7 @@ CONFIG += sailfishapp
 # this (and helper/Cargo.toml) from the same git tag, so a matched pair
 # reports equal versions. Keep in sync with helper/Cargo.toml when bumping
 # outside a release.
-VERSION = 0.2.10
+VERSION = 0.2.11
 DEFINES += APP_VERSION=\\\"$$VERSION\\\"
 
 # In-process Rust control core (docs/architecture.md phase 4): the cbindgen

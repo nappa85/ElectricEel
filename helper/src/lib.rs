@@ -12,6 +12,7 @@
 //! app's staticlib carries neither zbus nor the caller-authorization
 //! plumbing.
 
+pub mod child;
 pub mod commands;
 pub mod config;
 pub mod core;

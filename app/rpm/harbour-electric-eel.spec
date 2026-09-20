@@ -1,6 +1,6 @@
 Name:       harbour-electric-eel
 Summary:    Control your Tesla over Bluetooth
-Version:    0.2.10
+Version:    0.2.11
 Release:    1
 License:    ASL 2.0
 URL:        https://github.com/nappa85/ElectricEel
@@ -46,6 +46,10 @@ desktop-file-install --delete-original \
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
 
 %changelog
+* Sun Sep 20 2026 Marco Napetti <marco.napetti@proton.me> - 0.2.11-1
+- Share target registration: X-Share-Methods belongs in [Desktop Entry]
+- Generic map-URL parsing (no per-service list)
+- Parent/child transport over Unix socket with versioned handshake
 * Sun Sep 20 2026 Marco Napetti <marco.napetti@proton.me> - 0.2.10-1
 - Share destination to car navigation over BLE (field-53 coordinates, field-21 address)
 * Wed Aug 26 2026 Pauli Kettunen <pauligrinder@gmail.com> - 0.2.9-1

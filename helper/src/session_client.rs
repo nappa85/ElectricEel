@@ -3,31 +3,39 @@
 //! across many commands instead of paying a full connect+StartSession
 //! handshake per command, the way spawning a fresh `tesla-control` does.
 //!
-//! Talks newline-delimited JSON over the child's stdin/stdout, matching
-//! `Run()`'s own (ok, stdout, stderr, `exit_code`) shape so callers can't tell
-//! the difference except by latency. Any failure at this layer (spawn,
-//! broken pipe, timeout, a response that doesn't decode or doesn't match
-//! the request it's replying to) drops the whole child and reports an
-//! error - `Helper::run()` in helper.rs falls back to the one-shot
-//! `run_binary("tesla-control", ...)` path on any such error, so a bug
-//! here degrades to today's behavior rather than to a broken app.
+//! Transport is a private Unix-domain socket, not stdio: the parent binds
+//! a uniquely-named path under the state dir, spawns the child with
+//! `--socket-path`, accepts exactly one connection, then unlinks the path
+//! so no other same-UID process can dial in later and spoof responses.
+//! Frames are tagged newline-delimited JSON (`{"type":...}`), versioned by
+//! a `hello` handshake — never shape-sniffed. This removes the old stdio
+//! transport's failure modes: response/event ambiguity, interleaving with
+//! command output on stdout, and silent version skew.
+//!
+//! The child heartbeats every 10s (even mid-command); any frame resets the
+//! reader's 30s deadline, so a wedged-but-silent child is killed and
+//! reported instead of hanging the next command. On any failure at this
+//! layer the whole child is dropped and an error reported — `Core`
+//! surfaces it (no silent fallback), so a bug here degrades to a visible
+//! error rather than to a wrong reply.
 //!
 //! tesla-session's presence-maintenance loop (presence-start/presence-stop)
-//! also writes unsolicited `{"kind": ..., ...}` event lines onto the same
-//! stdout stream, outside any request/response pairing - see
-//! `dispatchPresenceStart` and `presenceLoop` in `helper/session/main.go`.
-//! The stdout reader demultiplexes those events into a bounded side queue so
-//! they cannot accumulate in front of command responses. The C ABI polls that
-//! queue to surface phone-key state to QML.
+//! also writes unsolicited `event` frames outside any request/response
+//! pairing. The socket reader demultiplexes those into a bounded side
+//! queue (capacity 64, oldest dropped) so a UI that never polls cannot
+//! wedge the child. The C ABI polls that queue to surface phone-key state
+//! to QML.
 //!
-//! Requests are never sent concurrently: the only caller is `Helper::run`,
-//! itself serialized by `ble_sem`, so a single in-flight request at a time
-//! is a precondition here, not something this module enforces on its own.
+//! Requests are never sent concurrently: the only caller is `Core::run`
+//! (and its siblings), itself serialized by `ble_sem`, so a single
+//! in-flight request at a time is a precondition here, not something this
+//! module enforces on its own.
 
 use std::collections::VecDeque;
 use std::io::{BufRead, BufReader, Write};
+use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::PathBuf;
-use std::process::{Child, ChildStdin, Command, Stdio};
+use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError};
 use std::sync::{Arc, Mutex};
@@ -36,20 +44,29 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
+use crate::child::KillOnDrop;
+
 /// How long a BLE session may sit idle before tesla-session tears it down
 /// and lets the vehicle/adapter go back to sleep. Not user-configurable
 /// (see `docs/limitations.md`: shipped as an invisible optimization, not a
 /// Settings toggle).
 pub(crate) const IDLE_TIMEOUT_SEC: u32 = 90;
 
+/// Framing contract version. Must match tesla-session's `protocolVersion`
+/// (see helper/session/serve.go); a mismatch kills the child with a
+/// version error instead of parsing frames it doesn't understand.
+pub(crate) const PROTOCOL_VERSION: u32 = 1;
+
 #[derive(Serialize)]
 struct Request<'a> {
+    #[serde(rename = "type")]
+    kind: &'a str,
     id: &'a str,
     cmd: &'a str,
     args: &'a [String],
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 struct Response {
     id: String,
     ok: bool,
@@ -70,16 +87,29 @@ pub(crate) struct SessionEvent {
     pub error: String,
 }
 
-/// Either shape a line on tesla-session's stdout can take. `run()` waits
-/// specifically for a `Response`, silently skipping any `Event` lines it
-/// reads along the way.
-#[derive(Deserialize)]
-#[serde(untagged)]
-enum Line {
+/// Either shape a frame on tesla-session's socket can take, discriminated
+/// by the sender-set `"type"` field — never inferred from the payload
+/// shape. `run()` waits specifically for a `Response`, diverting `Event`
+/// frames to the side queue and treating `Heartbeat` as liveness.
+#[derive(Debug, Deserialize)]
+#[serde(tag = "type")]
+enum Frame {
+    #[serde(rename = "response")]
     Response(Response),
+    #[serde(rename = "event")]
     Event(SessionEvent),
+    #[serde(rename = "heartbeat")]
+    Heartbeat {
+        // Payload unused: any successfully-read frame (including this
+        // one) is the liveness signal. Kept for protocol compatibility.
+        #[allow(dead_code)]
+        unix: i64,
+    },
+    #[serde(rename = "hello")]
+    Hello { v: u32 },
 }
 
+#[derive(Debug)]
 pub(crate) struct RunOutcome {
     pub ok: bool,
     pub stdout: String,
@@ -90,6 +120,9 @@ pub(crate) struct RunOutcome {
 #[derive(Debug)]
 pub(crate) enum SessionError {
     Spawn(std::io::Error),
+    /// Accept, hello, or version-handshake failure (holds the reason).
+    /// The child (if any) is reaped; nothing half-connected survives.
+    Handshake(String),
     BrokenPipe,
     Timeout,
     Decode(serde_json::Error),
@@ -104,49 +137,107 @@ impl std::fmt::Display for SessionError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             SessionError::Spawn(e) => write!(f, "failed to spawn tesla-session: {e}"),
-            SessionError::BrokenPipe => write!(f, "tesla-session pipe closed"),
+            SessionError::Handshake(e) => write!(f, "tesla-session handshake failed: {e}"),
+            SessionError::BrokenPipe => write!(f, "tesla-session connection closed"),
             SessionError::Timeout => write!(f, "tesla-session did not respond in time"),
-            SessionError::Decode(e) => write!(f, "malformed tesla-session response: {e}"),
+            SessionError::Decode(e) => write!(f, "malformed tesla-session frame: {e}"),
             SessionError::IdMismatch => write!(f, "tesla-session response id mismatch"),
         }
     }
 }
 
-struct ChildHandle {
-    child: Child,
-    stdin: ChildStdin,
+pub(crate) struct ChildHandle {
+    /// None only in tests driving a mock peer (nothing to reap).
+    /// Production always holds the spawned tesla-session here, wrapped so
+    /// any drop path (including panic unwind) still kills and reaps it —
+    /// see `crate::child::KillOnDrop`.
+    child: Option<KillOnDrop>,
+    /// Write half of the session socket. Reads live on a cloned handle in
+    /// the reader thread; writes happen only under the client's `child`
+    /// lock (single-flight by contract), so no write mutex is needed.
+    stream: UnixStream,
     rx: mpsc::Receiver<String>,
+    /// Bound socket path, removed on kill. Unlinked right after accept so
+    /// the accept window is the only time the path exists.
+    sock_path: PathBuf,
 }
 
-/// Spawns a background thread that owns the child's stdout for its whole
-/// lifetime, forwarding complete lines onto a channel - this is what makes
-/// `recv_timeout` in `SessionClient::run` a real read-with-timeout despite
-/// `std::process::ChildStdout` not natively supporting one. EOF or a read
-/// error just ends the thread; the channel closing is how `run` finds out.
+impl Drop for ChildHandle {
+    /// Backstop for the socket path: `KillOnDrop` already reaps the
+    /// process above; unlinking here guarantees no stale path survives
+    /// any drop path either. Both halves ignore errors (nothing sensible
+    /// to do in Drop, and double unlink/kill is harmless).
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.sock_path);
+    }
+}
+
+/// Spawns a background thread that owns the socket's read half for the
+/// child lifetime, forwarding complete response lines onto a channel and
+/// diverting events/heartbeats. This is what makes `recv_timeout` in
+/// `SessionClient::run` a real read-with-timeout despite sockets not
+/// natively supporting one, and what enforces the frame deadline: any
+/// gap longer than `frame_timeout` (no response, event, or heartbeat)
+/// kills the child as wedged rather than hanging the caller. EOF or a
+/// read error just ends the thread; the channel closing is how `run`
+/// finds out.
 fn spawn_reader(
-    stdout: std::process::ChildStdout,
+    reader: BufReader<UnixStream>,
     events: Arc<Mutex<VecDeque<SessionEvent>>>,
 ) -> mpsc::Receiver<String> {
     let (tx, rx) = mpsc::channel();
     thread::spawn(move || {
-        let mut reader = BufReader::new(stdout);
+        let mut reader = reader;
         let mut line = String::new();
         loop {
             line.clear();
             match reader.read_line(&mut line) {
-                Ok(0) | Err(_) => break,
+                Ok(0) => break, // EOF: child exited or connection reset
                 Ok(_) => {
                     let raw = line.trim_end().to_string();
-                    if let Ok(Line::Event(event)) = serde_json::from_str::<Line>(&raw) {
-                        let mut queue = events.lock().unwrap();
-                        if queue.len() == 64 {
-                            queue.pop_front();
+                    match serde_json::from_str::<Frame>(&raw) {
+                        Ok(Frame::Response(_)) => {
+                            if tx.send(raw).is_err() {
+                                break;
+                            }
                         }
-                        queue.push_back(event);
-                    } else if tx.send(raw).is_err() {
-                        break;
+                        Ok(Frame::Event(event)) => {
+                            let mut queue = events.lock().unwrap();
+                            if queue.len() == 64 {
+                                queue.pop_front();
+                            }
+                            queue.push_back(event);
+                        }
+                        Ok(Frame::Heartbeat { .. }) => {
+                            // Liveness only; the successful read itself is
+                            // what holds the frame deadline open.
+                        }
+                        Ok(Frame::Hello { .. }) => {
+                            // Only legal as the first frame (consumed by the
+                            // handshake); a later one is a protocol violation.
+                            break;
+                        }
+                        Err(_) => {
+                            // Unparseable frame: fatal for this child, same
+                            // as the old transport — never skip-and-continue
+                            // past data we can't classify.
+                            break;
+                        }
                     }
                 }
+                // No frame (not even a heartbeat) within the deadline: the
+                // child is wedged. Break so run() fails fast instead of
+                // waiting out the full command deadline; run() owns the
+                // Child and reaps it. (SO_RCVTIMEO expiry surfaces as
+                // WouldBlock on Unix; TimedOut is matched too so a
+                // platform quirk can't silently disable the watchdog.)
+                Err(e)
+                    if e.kind() == std::io::ErrorKind::WouldBlock
+                        || e.kind() == std::io::ErrorKind::TimedOut =>
+                {
+                    break;
+                }
+                Err(_) => break,
             }
         }
     });
@@ -156,20 +247,29 @@ fn spawn_reader(
 pub struct SessionClient {
     bin_path: PathBuf,
     ble_backend: String,
+    state_dir: PathBuf,
     child: Mutex<Option<ChildHandle>>,
     next_id: AtomicU64,
     events: Arc<Mutex<VecDeque<SessionEvent>>>,
+    /// Bound on socket accept + hello handshake.
+    handshake_timeout: Duration,
+    /// Deadline per frame on an established connection. Must exceed the
+    /// child's heartbeat interval by several multiples.
+    frame_timeout: Duration,
 }
 
 impl SessionClient {
     #[must_use]
-    pub fn new(bin_path: PathBuf, ble_backend: &str) -> Self {
+    pub fn new(bin_path: PathBuf, ble_backend: &str, state_dir: PathBuf) -> Self {
         SessionClient {
             bin_path,
             ble_backend: ble_backend.to_string(),
+            state_dir,
             child: Mutex::new(None),
             next_id: AtomicU64::new(1),
             events: Arc::new(Mutex::new(VecDeque::new())),
+            handshake_timeout: Duration::from_secs(5),
+            frame_timeout: Duration::from_secs(30),
         }
     }
 
@@ -182,26 +282,42 @@ impl SessionClient {
     /// to the connect+command+10s envelope, so potentially minutes) - a
     /// `SetConfig`/`GenerateKey` call invoking this concurrently blocks on
     /// that same lock until the in-flight command finishes, not just until
-    /// the child is idle. Harmless today (the feature this guards is off
-    /// by default and unverified on real hardware - see `docs/limitations.md`),
-    /// but worth knowing before relying on `SetConfig` feeling instant
-    /// while a command is running.
+    /// the child is idle.
     pub(crate) fn invalidate(&self) {
         if let Ok(mut guard) = self.child.lock() {
-            if let Some(mut handle) = guard.take() {
-                let _ = handle.child.kill();
-                let _ = handle.child.wait();
+            if let Some(handle) = guard.take() {
+                Self::kill(handle);
             }
         }
     }
 
     /// The BLE transport backend this client was constructed with ("hci" or
-    /// "bluez"). helper.rs consults it so the hci-only one-shot fallback
+    /// "bluez"). `Core` consults it so the hci-only one-shot fallback
     /// (`run_binary("tesla-control", ...)`) is suppressed while a bluez
     /// session is in use - spawning raw HCI code would bring down the very
     /// adapter connections (e.g. a soundbar) that bluez mode exists to keep.
     pub(crate) fn ble_backend(&self) -> &str {
         &self.ble_backend
+    }
+
+    fn sock_path(&self) -> PathBuf {
+        self.state_dir.join(format!(
+            "tesla-session-{}-{}.sock",
+            std::process::id(),
+            self.next_id.load(Ordering::Relaxed)
+        ))
+    }
+
+    /// Binds the private parent socket. Split out of `spawn` so tests can
+    /// drive the accept/handshake half against a scripted mock peer.
+    pub(crate) fn bind_listener(&self) -> Result<(UnixListener, PathBuf), SessionError> {
+        let sock_path = self.sock_path();
+        // Best-effort stale cleanup (previous crash between bind and
+        // unlink). The name is unique per spawn, so a leftover can only be
+        // ours.
+        let _ = std::fs::remove_file(&sock_path);
+        let listener = UnixListener::bind(&sock_path).map_err(SessionError::Spawn)?;
+        Ok((listener, sock_path))
     }
 
     fn spawn(
@@ -211,79 +327,142 @@ impl SessionClient {
         connect_timeout_sec: i32,
         command_timeout_sec: i32,
     ) -> Result<ChildHandle, SessionError> {
-        let log_dir = crate::keylog::log_dir();
-        let mut command = Command::new(&self.bin_path);
-        command
-            .arg("-vin")
-            .arg(vin)
-            .arg("-key-file")
-            .arg(key_file)
-            .arg("-ble-backend")
-            .arg(&self.ble_backend)
-            .arg("-connect-timeout")
-            .arg(format!("{connect_timeout_sec}s"))
-            .arg("-command-timeout")
-            .arg(format!("{command_timeout_sec}s"))
-            .arg("-idle-timeout")
-            .arg(format!("{IDLE_TIMEOUT_SEC}s"))
-            .arg("-log-dir")
-            .arg(&log_dir)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            // Inherited, not discarded: tesla-session's own startup
-            // failures (bad flags, an unexpected panic) should land in
-            // the app's own journal tag, same place run_binary's captured
-            // tesla-control stderr effectively ends up via Run()'s reply.
-            .stderr(Stdio::inherit());
-        // Linux: SIGTERM the child if the app dies, so a killed UI cannot
-        // leak tesla-session holding the BLE radio. prctl is Linux-only.
-        #[cfg(target_os = "linux")]
-        {
-            use std::os::unix::process::CommandExt;
-            // SAFETY: pre_exec runs in the child after fork, before exec.
-            unsafe {
-                command.pre_exec(|| {
-                    libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGTERM as usize, 0, 0, 0);
-                    Ok(())
-                });
-            }
-        }
-        let mut child = command.spawn().map_err(SessionError::Spawn)?;
-
-        let stdin = child.stdin.take().expect("piped stdin");
-        let stdout = child.stdout.take().expect("piped stdout");
-        let rx = spawn_reader(stdout, Arc::clone(&self.events));
-        Ok(ChildHandle { child, stdin, rx })
+        let (listener, sock_path) = self.bind_listener()?;
+        // this is made unsafe by libc::prctl
+        // Wrapped at birth: every later drop path (including `?`
+        // early-outs and panics) reaps the child, not just the explicit
+        // kills below.
+        let child = KillOnDrop(
+            Command::new(&self.bin_path)
+                .arg("-vin")
+                .arg(vin)
+                .arg("-key-file")
+                .arg(key_file)
+                .arg("-ble-backend")
+                .arg(&self.ble_backend)
+                .arg("-connect-timeout")
+                .arg(format!("{connect_timeout_sec}s"))
+                .arg("-command-timeout")
+                .arg(format!("{command_timeout_sec}s"))
+                .arg("-idle-timeout")
+                .arg(format!("{IDLE_TIMEOUT_SEC}s"))
+                .arg("-socket-path")
+                .arg(&sock_path)
+                // Inherited, not discarded: tesla-session's own startup
+                // failures (bad flags, an unexpected panic) should land in
+                // the app's own journal tag.
+                .stderr(Stdio::inherit())
+                .spawn()
+                .map_err(SessionError::Spawn)?,
+        );
+        self.accept_and_handshake(listener, Some(child), sock_path)
     }
 
-    /// Kills the given handle. On Unix, sends SIGTERM first so tesla-session's
-    /// signal handler can stop discovery and disconnect GATT cleanly before
-    /// exit - an immediate SIGKILL (`Child::kill`) leaves org.bluez discovery
-    /// running and has been observed to destabilize Sailfish's bluetoothd.
-    /// Waits up to 5s for exit, then SIGKILL if still alive.
-    fn kill(mut handle: ChildHandle) {
-        #[cfg(unix)]
-        {
-            use std::time::Duration;
-            const SIGTERM: i32 = 15;
-            let pid = handle.child.id();
-            // SAFETY: kill(2) with SIGTERM is the standard graceful-shutdown
-            // signal; pid comes from our own child process.
-            let term_sent = unsafe { libc::kill(pid.cast_signed(), SIGTERM) == 0 };
-            if term_sent {
-                let deadline = Duration::from_secs(5);
-                let start = std::time::Instant::now();
-                while start.elapsed() < deadline {
-                    match handle.child.try_wait() {
-                        Ok(Some(_)) => return,
-                        Ok(None) => std::thread::sleep(Duration::from_millis(100)),
-                        Err(_) => break,
-                    }
+    /// Accepts the single child connection and runs the hello handshake.
+    /// `child` is `None` only in tests driving a mock peer (nothing to
+    /// reap on failure); production always passes `Some`.
+    pub(crate) fn accept_and_handshake(
+        &self,
+        listener: UnixListener,
+        child: Option<KillOnDrop>,
+        sock_path: PathBuf,
+    ) -> Result<ChildHandle, SessionError> {
+        let mut child = child;
+        // Accept runs on a thread so a child that never dials can't hang
+        // spawn past the handshake deadline.
+        let accepted = {
+            let (tx, rx) = mpsc::channel();
+            thread::spawn(move || {
+                let _ = tx.send(listener.accept());
+            });
+            let Ok(outcome) = rx.recv_timeout(self.handshake_timeout) else {
+                if let Some(mut c) = child.take() {
+                    let _ = c.kill();
+                    let _ = c.wait();
                 }
+                let _ = std::fs::remove_file(&sock_path);
+                return Err(SessionError::Handshake(
+                    "tesla-session did not connect in time".to_string(),
+                ));
+            };
+            outcome
+        };
+        let stream = match accepted {
+            Ok((s, _)) => s,
+            Err(e) => {
+                if let Some(mut c) = child.take() {
+                    let _ = c.kill();
+                    let _ = c.wait();
+                }
+                let _ = std::fs::remove_file(&sock_path);
+                return Err(SessionError::Handshake(format!("accept failed: {e}")));
             }
+        };
+        // Unlink right after accept: from here on no new peer can dial in,
+        // so frames can only come from our child.
+        let _ = std::fs::remove_file(&sock_path);
+
+        // Hello handshake, synchronously: the first frame must be a
+        // versioned hello, otherwise this child speaks a different
+        // protocol and must not survive. The handshake reads through the
+        // SAME BufReader the reader thread will own afterwards: a fresh
+        // reader per phase would buffer ahead and silently drop frames
+        // already read (e.g. presence events sent right after hello).
+        // Timeouts are socket options, shared by the clones below.
+        stream
+            .set_read_timeout(Some(self.handshake_timeout))
+            .map_err(SessionError::Spawn)?;
+        let mut reader = BufReader::new(stream.try_clone().map_err(SessionError::Spawn)?);
+        let mut line = String::new();
+        let hello_ok = match reader.read_line(&mut line) {
+            Ok(_) => matches!(
+                serde_json::from_str::<Frame>(line.trim_end()),
+                Ok(Frame::Hello { v }) if v == PROTOCOL_VERSION
+            ),
+            Err(_) => false,
+        };
+        // The frame deadline governs the established connection from here.
+        stream
+            .set_read_timeout(Some(self.frame_timeout))
+            .map_err(SessionError::Spawn)?;
+        if !hello_ok {
+            if let Some(mut c) = child.take() {
+                let _ = c.kill();
+                let _ = c.wait();
+            }
+            return Err(SessionError::Handshake(format!(
+                "bad hello (want {{\"type\":\"hello\",\"v\":{PROTOCOL_VERSION}}}): {}",
+                line.trim_end()
+            )));
         }
-        let _ = handle.child.kill();
-        let _ = handle.child.wait();
+        // `child` is None only in tests driving a mock peer (nothing to
+        // reap); production always passes the spawned process. Either way
+        // it moves into the handle untouched.
+        let events = Arc::clone(&self.events);
+        let rx = spawn_reader(reader, events);
+        Ok(ChildHandle {
+            child,
+            stream,
+            rx,
+            sock_path,
+        })
+    }
+
+    /// Kills the given handle outright rather than dropping it - a live
+    /// Child's Drop impl does not send a signal, so an abandoned handle
+    /// would otherwise leak a running tesla-session (and its BLE session)
+    /// for every timeout/error, not just close our end of the socket. The
+    /// socket path was already unlinked at accept; remove it again in
+    /// case accept never got that far (spawn failure paths).
+    fn kill(handle: ChildHandle) {
+        let mut handle = handle;
+        // Drop the process first (KillOnDrop SIGKILLs and reaps promptly),
+        // then the rest (ChildHandle::drop unlinks the socket path).
+        // Kept as a named function so call sites read as an action: every
+        // error path below funnels the doomed child through here instead
+        // of relying on scope-end Drops scattered across the function.
+        drop(handle.child.take());
+        drop(handle);
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -304,22 +483,28 @@ impl SessionClient {
         let handle = guard.as_mut().unwrap();
 
         let id = self.next_id.fetch_add(1, Ordering::Relaxed).to_string();
-        let mut line = serde_json::to_string(&Request { id: &id, cmd, args })
-            .expect("Request only contains strings; cannot fail to encode");
+        let mut line = serde_json::to_string(&Request {
+            kind: "request",
+            id: &id,
+            cmd,
+            args,
+        })
+        .expect("Request only contains strings; cannot fail to encode");
         line.push('\n');
 
-        if handle.stdin.write_all(line.as_bytes()).is_err() || handle.stdin.flush().is_err() {
+        if handle.stream.write_all(line.as_bytes()).is_err() {
             let handle = guard.take().unwrap();
             Self::kill(handle);
             return Err(SessionError::BrokenPipe);
         }
 
-        // The reader thread has already diverted Event lines into `events`;
-        // this channel contains only responses (or malformed lines that must
-        // fail the child), so a single timed recv is enough.
+        // The reader thread has already diverted Event/Heartbeat frames
+        // into `events`/oblivion; this channel contains only responses (or
+        // malformed lines that must fail the child), so a single timed
+        // recv is enough.
         match handle.rx.recv_timeout(timeout) {
             Ok(raw) => {
-                let line: Line = match serde_json::from_str(&raw) {
+                let frame: Frame = match serde_json::from_str(&raw) {
                     Ok(l) => l,
                     Err(e) => {
                         let handle = guard.take().unwrap();
@@ -327,9 +512,11 @@ impl SessionClient {
                         return Err(SessionError::Decode(e));
                     }
                 };
-                let resp = match line {
-                    Line::Event(_) => unreachable!("reader diverts events"),
-                    Line::Response(resp) => resp,
+                let resp = match frame {
+                    Frame::Event(_) | Frame::Heartbeat { .. } | Frame::Hello { .. } => {
+                        unreachable!("reader diverts non-response frames")
+                    }
+                    Frame::Response(resp) => resp,
                 };
                 if resp.id != id {
                     let handle = guard.take().unwrap();
@@ -357,7 +544,7 @@ impl SessionClient {
     /// encoded on `RunOutcome::stdout`; the private key is written to
     /// `key_file` by tesla-session itself. Pure-crypto, so there's no radio
     /// touching here and no backend concerns - the point is to stop exec'ing
-    /// the privileged tesla-keygen binary (helper/ removal, Phases 3-4).
+    /// the privileged tesla-keygen binary.
     pub(crate) fn keygen(
         &self,
         force: bool,
@@ -436,16 +623,226 @@ impl SessionClient {
 mod tests {
     use super::*;
 
-    // No real tesla-session binary (and no BLE adapter) in this
-    // environment - what's verifiable here is that a missing/non-
-    // executable binary is a clean Spawn error, not a panic or hang, and
-    // that invalidate() on a client that never spawned anything is a
-    // harmless no-op. The write/read/timeout/id-matching logic above is
-    // exercised for real by helper/session's own tests on the child
-    // process side; the two halves only meet on a real device.
+    fn test_client(dir: &std::path::Path) -> SessionClient {
+        SessionClient::new(
+            PathBuf::from("/nonexistent/tesla-session"),
+            "bluez",
+            dir.to_path_buf(),
+        )
+    }
+
+    fn tmp_state_dir(tag: &str) -> tempfile::TempDir {
+        tempfile::Builder::new()
+            .prefix(&format!("electric-eel-sessiontest-{tag}-"))
+            .tempdir()
+            .unwrap()
+    }
+
+    /// Scripted mock peer: dials `sock_path`, sends `greet` lines, then
+    /// answers each request line with the next `replies` entry (`{ID}` is
+    /// replaced with the request's id). Closes when the script is
+    /// exhausted or the socket breaks. Returns received request lines.
+    fn mock_peer(
+        sock_path: PathBuf,
+        greet: Vec<String>,
+        replies: Vec<String>,
+    ) -> (mpsc::Receiver<String>, thread::JoinHandle<()>) {
+        let (tx, rx) = mpsc::channel();
+        let handle = thread::spawn(move || {
+            let stream = UnixStream::connect(&sock_path).expect("mock peer dial");
+            let mut w = stream.try_clone().expect("mock clone");
+            for line in greet {
+                writeln!(w, "{line}").expect("mock greet");
+            }
+            let mut reader = BufReader::new(stream);
+            let mut replies = replies.into_iter();
+            let mut line = String::new();
+            loop {
+                line.clear();
+                match reader.read_line(&mut line) {
+                    Ok(0) | Err(_) => break,
+                    Ok(_) => {
+                        let raw = line.trim_end().to_string();
+                        let id = serde_json::from_str::<serde_json::Value>(&raw)
+                            .ok()
+                            .and_then(|v| v.get("id")?.as_str().map(str::to_string))
+                            .unwrap_or_default();
+                        let _ = tx.send(raw);
+                        match replies.next() {
+                            Some(r) => {
+                                let _ = writeln!(w, "{}", r.replace("{ID}", &id));
+                            }
+                            None => break,
+                        }
+                    }
+                }
+            }
+        });
+        (rx, handle)
+    }
+
+    fn hello_ok() -> Vec<String> {
+        vec![format!(
+            "{{\"type\":\"hello\",\"v\":{},\"ble_backend\":\"bluez\"}}",
+            PROTOCOL_VERSION
+        )]
+    }
+
+    fn ok_response() -> String {
+        "{\"type\":\"response\",\"id\":\"{ID}\",\"ok\":true,\"stdout\":\"done\",\"stderr\":\"\",\"exit_code\":0}"
+            .to_string()
+    }
+
+    /// Accepts a mock peer into a fresh client, bypassing process spawn:
+    /// pre-binds the listener, starts the peer, and runs the real
+    /// accept+handshake. Returns the client (with live child slot) and the
+    /// peer's received-request channel.
+    fn accept_mock(
+        dir: &std::path::Path,
+        greet: Vec<String>,
+        replies: Vec<String>,
+    ) -> (
+        SessionClient,
+        mpsc::Receiver<String>,
+        thread::JoinHandle<()>,
+    ) {
+        let client = test_client(dir);
+        let (listener, path) = client.bind_listener().expect("bind");
+        let (got, peer) = mock_peer(path.clone(), greet, replies);
+        let handle = client
+            .accept_and_handshake(listener, None, path)
+            .expect("handshake");
+        client.child.lock().unwrap().replace(handle);
+        (client, got, peer)
+    }
+
+    #[test]
+    fn test_request_response_roundtrip_over_uds() {
+        let dir = tmp_state_dir("roundtrip");
+        let (client, got, peer) = accept_mock(dir.path(), hello_ok(), vec![ok_response()]);
+        let outcome = client
+            .run("lock", &[], "VIN", "/key", 5, 5, Duration::from_secs(5))
+            .expect("run");
+        assert!(outcome.ok);
+        assert_eq!(outcome.stdout, "done");
+        // The request line itself is tagged and carries the echoed id.
+        let req_line = got.recv_timeout(Duration::from_secs(5)).unwrap();
+        let req: serde_json::Value = serde_json::from_str(&req_line).unwrap();
+        assert_eq!(req["type"], "request");
+        assert_eq!(req["cmd"], "lock");
+        drop(peer);
+    }
+
+    #[test]
+    fn test_handshake_rejects_wrong_version() {
+        let dir = tmp_state_dir("badversion");
+        let client = test_client(dir.path());
+        let (listener, path) = client.bind_listener().expect("bind");
+        let (_got, peer) = mock_peer(
+            path.clone(),
+            vec!["{\"type\":\"hello\",\"v\":999,\"ble_backend\":\"bluez\"}".to_string()],
+            vec![],
+        );
+        match client.accept_and_handshake(listener, None, path.clone()) {
+            Err(SessionError::Handshake(msg)) => assert!(msg.contains("bad hello")),
+            Err(e) => panic!("expected Handshake error, got {e:?}"),
+            Ok(_) => panic!("expected Handshake error, got Ok"),
+        }
+        assert!(
+            !path.exists(),
+            "socket path must not linger after a failed handshake"
+        );
+        drop(peer);
+    }
+
+    #[test]
+    fn test_events_and_heartbeats_dont_confuse_run() {
+        let dir = tmp_state_dir("demux");
+        let event = "{\"type\":\"event\",\"kind\":\"presence_near\",\"vin\":\"V\",\"time\":\"t\"}"
+            .to_string();
+        let heartbeat = "{\"type\":\"heartbeat\",\"unix\":123}".to_string();
+        // Unsolicited frames go in greet (sent on connect, before any
+        // request); the reply to run()'s request comes from replies.
+        let mut greet = hello_ok();
+        greet.push(event);
+        greet.push(heartbeat);
+        let (client, _got, peer) = accept_mock(dir.path(), greet, vec![ok_response()]);
+        let outcome = client
+            .run("ping", &[], "VIN", "/key", 5, 5, Duration::from_secs(5))
+            .expect("run");
+        assert!(outcome.ok);
+        let ev = client.poll_event().expect("event diverted to queue");
+        assert_eq!(ev.kind, "presence_near");
+        assert_eq!(ev.vin, "V");
+        assert!(client.poll_event().is_none());
+        drop(peer);
+    }
+
+    #[test]
+    fn test_id_mismatch_is_fatal() {
+        let dir = tmp_state_dir("mismatch");
+        let wrong = "{\"type\":\"response\",\"id\":\"nope\",\"ok\":true,\"stdout\":\"\",\"stderr\":\"\",\"exit_code\":0}"
+            .to_string();
+        let (client, _got, peer) = accept_mock(dir.path(), hello_ok(), vec![wrong]);
+        match client.run("lock", &[], "VIN", "/key", 5, 5, Duration::from_secs(5)) {
+            Err(SessionError::IdMismatch) => {}
+            other => panic!("expected IdMismatch, got {other:?}"),
+        }
+        drop(peer);
+    }
+
+    #[test]
+    fn test_silent_child_trips_watchdog_not_command_timeout() {
+        let dir = tmp_state_dir("watchdog");
+        // Peer hellos, then never speaks again: no responses, no
+        // heartbeats. No replies scripted, so it just idles on read.
+        let mut client = test_client(dir.path());
+        client.handshake_timeout = Duration::from_secs(2);
+        client.frame_timeout = Duration::from_millis(200);
+        let (listener, path) = client.bind_listener().expect("bind");
+        let (_got, peer) = mock_peer(path.clone(), hello_ok(), vec![]);
+        let handle = client
+            .accept_and_handshake(listener, None, path)
+            .expect("handshake");
+        client.child.lock().unwrap().replace(handle);
+        let start = std::time::Instant::now();
+        // Command deadline is 30s; the watchdog must fail this in ~200ms.
+        match client.run("lock", &[], "VIN", "/key", 5, 5, Duration::from_secs(30)) {
+            Err(SessionError::Timeout) => {}
+            other => panic!("expected Timeout, got {other:?}"),
+        }
+        assert!(
+            start.elapsed() < Duration::from_secs(5),
+            "watchdog must beat the command timeout"
+        );
+        drop(peer);
+    }
+
+    #[test]
+    fn test_frame_tagging_is_strict() {
+        // Response shape without a tag is rejected (never sniffed).
+        assert!(serde_json::from_str::<Frame>(
+            r#"{"id":"5","ok":true,"stdout":"done","stderr":"","exit_code":0}"#
+        )
+        .is_err());
+        // Event shape without a tag is rejected too.
+        assert!(serde_json::from_str::<Frame>(
+            r#"{"kind":"presence_error","vin":"V","time":"t","error":"radio"}"#
+        )
+        .is_err());
+        // A response mislabeled as an event is rejected outright (the
+        // tag selects the variant, whose required fields are then
+        // missing) — mislabeled frames are never misrouted.
+        assert!(serde_json::from_str::<Frame>(
+            r#"{"type":"event","id":"5","ok":true,"stdout":"","stderr":"","exit_code":0}"#,
+        )
+        .is_err());
+    }
+
     #[test]
     fn test_spawn_failure_is_reported_not_panicked() {
-        let client = SessionClient::new(PathBuf::from("/nonexistent/tesla-session"), "hci");
+        let dir = tmp_state_dir("spawnfail");
+        let client = test_client(dir.path());
         let result = client.run(
             "lock",
             &[],
@@ -455,48 +852,15 @@ mod tests {
             5,
             Duration::from_secs(1),
         );
+        // Bind succeeds (tmpdir), spawn of the bogus binary fails.
         assert!(matches!(result, Err(SessionError::Spawn(_))));
     }
 
     #[test]
     fn test_invalidate_without_a_running_child() {
-        let client = SessionClient::new(PathBuf::from("/nonexistent/tesla-session"), "hci");
+        let dir = tmp_state_dir("invalidate");
+        let client = test_client(dir.path());
         client.invalidate();
         client.invalidate();
-    }
-
-    // These exercise Line's untagged parsing directly - the piece run()'s
-    // skip-events loop depends on to tell a presence-loop event apart from
-    // the response it's actually waiting for, without needing a real
-    // tesla-session child to produce the two shapes on a pipe.
-    #[test]
-    fn test_line_parses_response_shape() {
-        let raw = r#"{"id":"5","ok":true,"stdout":"done","stderr":"","exit_code":0}"#;
-        match serde_json::from_str::<Line>(raw).expect("valid Response line") {
-            Line::Response(r) => {
-                assert_eq!(r.id, "5");
-                assert!(r.ok);
-                assert_eq!(r.stdout, "done");
-            }
-            Line::Event(_) => panic!("Response-shaped line parsed as Event"),
-        }
-    }
-
-    #[test]
-    fn test_line_parses_event_shape_without_response_fields() {
-        let raw = r#"{"kind":"presence_error","vin":"5YJ3E1EA0PF000000","time":"2026-08-17T09:00:00Z","error":"radio"}"#;
-        match serde_json::from_str::<Line>(raw).expect("valid Event line") {
-            Line::Event(event) => {
-                assert_eq!(event.kind, "presence_error");
-                assert_eq!(event.vin, "5YJ3E1EA0PF000000");
-                assert_eq!(event.error, "radio");
-            }
-            Line::Response(_) => panic!("Event-shaped line parsed as Response"),
-        }
-    }
-
-    #[test]
-    fn test_line_rejects_garbage() {
-        assert!(serde_json::from_str::<Line>(r#"{"unexpected":"shape"}"#).is_err());
     }
 }

@@ -1,6 +1,6 @@
 [package]
 name = "electric-eel-core"
-version = "0.2.10"
+version = "0.2.11"
 edition = "2021"
 description = "In-process BLE control core for harbour-electric-eel"
 

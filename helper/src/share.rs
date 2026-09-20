@@ -144,109 +144,145 @@ fn parse_geo_uri(rest: &str) -> Result<Option<Destination>, ShareParseError> {
     Ok(None)
 }
 
-/// Try a URL from a share payload. Returns `None` when the URL is opaque to
-/// us (caller sends it as-is); never errors — an unparseable URL is still
-/// shareable text.
+/// Try a URL from a share payload. Host-agnostic on purpose: instead of a
+/// per-service allowlist, structural rules extract coordinates from any
+/// map URL, and anything unparseable stays shareable address text
+/// (returned as `None` here; the caller sends the URL itself).
+///
+/// A bare "first two floats" scan would be simpler but silently wrong:
+/// OSM `#map=17/lat/lon` leads with the zoom, `ll` precedes the portal
+/// `pll` in intel links, viewports precede `!3d/!4d` destinations, and
+/// addresses like "Via Roma 45, ..." contain small numbers. So:
+/// - `pll` wins outright (portal over map center);
+/// - otherwise the first query/fragment value that strictly parses as a
+///   pair (exactly two finite in-range numbers — singles like `z=17` and
+///   4-tuples like `bbox` can never match);
+/// - `lat`+`lon` split across two params (Bing `cp` uses `~`, `OSMAnd`
+///   `?lat=&lon=`);
+/// - path patterns `/@lat,lon`, `!3dLAT!4dLON`, and exactly-two
+///   bare-numeric slash runs (OSM `#map=z/lat/lon`, zoom excluded
+///   because `map=17` is not bare-numeric);
+/// - free text is NEVER float-scanned (house numbers would hijack it).
+///
+/// Never errors — an unparseable URL is still shareable text.
 fn parse_map_url(url: &str) -> Option<Destination> {
-    let lower = url.to_ascii_lowercase();
-    let host = url_host(&lower)?;
-
-    if host.contains("google.") || host.contains("goo.gl") || host.contains("maps.app.goo.gl") {
-        // ?q= / ?query= / ?daddr= : address or "lat,lon".
-        for key in ["q", "query", "daddr"] {
-            if let Some(raw) = url_query_param(url, key) {
-                let val = decode_query_value(&raw);
-                if val.trim().is_empty() {
-                    continue;
-                }
-                if let Some((lat, lon)) = parse_latlon_pair(&val) {
-                    return Some(Destination::LatLon { lat, lon });
-                }
-                // A bare `q=Eiffel+Tower` is an address; a full maps URL as
-                // `q` value would recurse pointlessly — keep the decoded text.
-                return Some(Destination::Address(val.trim().to_string()));
+    // Query + fragment params in order: (name, raw value).
+    let mut params: Vec<(&str, &str)> = Vec::new();
+    for section in [
+        url.split('?').nth(1).unwrap_or(""),
+        url.split('#').nth(1).unwrap_or(""),
+    ] {
+        let query = section.split('#').next().unwrap_or(section);
+        for pair in query.split('&') {
+            if let Some(i) = pair.find('=') {
+                params.push((&pair[..i], &pair[i + 1..]));
             }
         }
-        // Embedded !3dLAT!4dLON markers are the most specific (the
-        // destination); /@lat,lon earlier in the URL is the viewport.
-        if let Some((lat, lon)) = google_3d4d_coords(url) {
-            return Some(Destination::LatLon { lat, lon });
-        }
-        // /@lat,lon,... and /place/.../@lat,lon,...
-        if let Some((lat, lon)) = url_path_at_coords(url) {
-            return Some(Destination::LatLon { lat, lon });
-        }
-        return None;
     }
+    let param = |key: &str| {
+        params
+            .iter()
+            .find(|(k, _)| k.eq_ignore_ascii_case(key))
+            .map(|(_, v)| decode_query_value(v))
+    };
 
-    if host.contains("maps.apple.com") {
-        if let Some(raw) = url_query_param(url, "ll") {
-            let val = decode_query_value(&raw);
-            if let Some((lat, lon)) = parse_latlon_pair(&val) {
+    // pll first: the portal, not the map center.
+    if let Some(val) = param("pll") {
+        if let Some((lat, lon)) = parse_latlon_pair(&val) {
+            return Some(Destination::LatLon { lat, lon });
+        }
+    }
+    // First strictly-parsing pair value wins (URL order).
+    for (_, raw) in &params {
+        if let Some((lat, lon)) = parse_latlon_pair(&decode_query_value(raw)) {
+            return Some(Destination::LatLon { lat, lon });
+        }
+    }
+    // lat + lon split across two params.
+    let lat_val = ["lat", "latitude", "mlat"]
+        .iter()
+        .find_map(|k| param(k))
+        .map(|v| v.trim().to_string());
+    let lon_val = ["lon", "lng", "long", "longitude", "mlon"]
+        .iter()
+        .find_map(|k| param(k))
+        .map(|v| v.trim().to_string());
+    if let (Some(lat_s), Some(lon_s)) = (lat_val, lon_val) {
+        if let (Ok(lat), Ok(lon)) = (lat_s.parse::<f64>(), lon_s.parse::<f64>()) {
+            if valid_latlon(lat, lon) {
                 return Some(Destination::LatLon { lat, lon });
             }
         }
-        if let Some(raw) = url_query_param(url, "q") {
-            let val = decode_query_value(&raw).trim().to_string();
-            if val.is_empty() {
-                return None;
-            }
-            if let Some((lat, lon)) = parse_latlon_pair(&val) {
-                return Some(Destination::LatLon { lat, lon });
-            }
-            return Some(Destination::Address(val));
-        }
-        return None;
     }
-
-    if host.contains("openstreetmap.org") {
-        // Fragment #map=z/lat/lon.
-        if let Some(frag) = url.split('#').nth(1) {
-            let frag = frag.split('?').next().unwrap_or(frag);
-            let parts: Vec<&str> = frag.split('/').collect();
-            // "map=17/48.8584/2.2945" (3 parts, zoom glued to "map=")
-            // or a bare "z/lat/lon" shape.
-            let (lat_s, lon_s) = if parts.len() == 3 && parts[0].starts_with("map=") {
-                (parts[1], parts[2])
-            } else if parts.len() == 4 && parts[0] == "map" {
-                (parts[2], parts[3])
-            } else {
-                ("", "")
-            };
-            if !lat_s.is_empty() {
-                if let (Ok(lat), Ok(lon)) = (lat_s.parse::<f64>(), lon_s.parse::<f64>()) {
-                    if valid_latlon(lat, lon) {
-                        return Some(Destination::LatLon { lat, lon });
-                    }
-                }
-            }
-        }
-        // ?mlat=&mlon=.
-        if let (Some(lat_raw), Some(lon_raw)) =
-            (url_query_param(url, "mlat"), url_query_param(url, "mlon"))
-        {
-            if let (Ok(lat), Ok(lon)) = (
-                decode_query_value(&lat_raw).trim().parse::<f64>(),
-                decode_query_value(&lon_raw).trim().parse::<f64>(),
-            ) {
-                if valid_latlon(lat, lon) {
-                    return Some(Destination::LatLon { lat, lon });
-                }
-            }
-        }
-        return None;
+    // Path patterns, most specific first.
+    if let Some((lat, lon)) = google_3d4d_coords(url) {
+        return Some(Destination::LatLon { lat, lon });
     }
-
-    // Unknown host (HERE, Bing, OSM short links, ...): opaque.
+    if let Some((lat, lon)) = url_path_at_coords(url) {
+        return Some(Destination::LatLon { lat, lon });
+    }
+    if let Some((lat, lon)) = slash_run_coords(url) {
+        return Some(Destination::LatLon { lat, lon });
+    }
+    // A named text param (address or opaque link target) becomes the
+    // address; otherwise the caller sends the whole URL.
+    for key in ["pll", "daddr", "destination", "q", "query"] {
+        if let Some(val) = param(key) {
+            let text = val.trim().to_string();
+            if !text.is_empty() {
+                return Some(Destination::Address(text));
+            }
+        }
+    }
     None
 }
 
-/// Strict `lat,lon` / `lat;lon` / `lat lon` pair. The whole string must be
-/// exactly two finite numbers — this is what keeps "1600 Amphitheatre..."
+/// Coordinates from slash-separated path/fragment segments: the last
+/// exactly-two run of bare-numeric segments (e.g. OSM `#map=17/lat/lon`
+/// — `map=17` is not bare-numeric so the zoom never leaks in; tile
+/// `z/x/y` runs fail the range check downstream in `parse_latlon_pair`
+/// semantics via [`valid_latlon`]).
+fn slash_run_coords(url: &str) -> Option<(f64, f64)> {
+    let mut run: Vec<f64> = Vec::new();
+    let mut best: Option<(f64, f64)> = None;
+    let flush = |run: &mut Vec<f64>, best: &mut Option<(f64, f64)>| {
+        if run.len() == 2 {
+            let (lat, lon) = (run[0], run[1]);
+            if valid_latlon(lat, lon) {
+                *best = Some((lat, lon));
+            }
+        }
+        run.clear();
+    };
+    let path_and_frag = format!(
+        "{}#{}",
+        url.split(['?', '#']).next().unwrap_or(url),
+        url.split('#').nth(1).unwrap_or("")
+    );
+    for seg in path_and_frag.split('/') {
+        // Strip query/form wrappers: only truly bare segments count.
+        if seg.contains(['?', '&', '=', '@', '!']) {
+            flush(&mut run, &mut best);
+            continue;
+        }
+        match seg.trim().parse::<f64>() {
+            Ok(v) if v.is_finite() => run.push(v),
+            _ => flush(&mut run, &mut best),
+        }
+    }
+    flush(&mut run, &mut best);
+    best
+}
+
+/// Strict pair: the whole string must be exactly two finite numbers
+/// separated by `,` `;` `~` `|` or whitespace (Bing `cp=lat~lon`,
+/// parenthesized copies) — this is what keeps "1600 Amphitheatre..."
 /// an address. Returns `None` for non-pairs AND for out-of-range pairs
 /// (use [`looks_like_latlon_pair`] to tell those apart).
 fn parse_latlon_pair(s: &str) -> Option<(f64, f64)> {
-    let s = s.trim();
+    let s = s
+        .trim()
+        .trim_matches(|c: char| c == '(' || c == ')' || c == '[' || c == ']');
     if s.is_empty() {
         return None;
     }
@@ -254,6 +290,10 @@ fn parse_latlon_pair(s: &str) -> Option<(f64, f64)> {
         s.split(',').collect()
     } else if s.contains(';') {
         s.split(';').collect()
+    } else if s.contains('~') {
+        s.split('~').collect()
+    } else if s.contains('|') {
+        s.split('|').collect()
     } else {
         s.split_whitespace().collect()
     };
@@ -282,6 +322,10 @@ fn looks_like_latlon_pair(s: &str) -> bool {
         s.split(',').collect()
     } else if s.contains(';') {
         s.split(';').collect()
+    } else if s.contains('~') {
+        s.split('~').collect()
+    } else if s.contains('|') {
+        s.split('|').collect()
     } else {
         s.split_whitespace().collect()
     };
@@ -324,38 +368,8 @@ fn first_url_token(s: &str) -> Option<String> {
     None
 }
 
-/// Lowercase host of a URL, or `None` when there is none.
-fn url_host(lower_url: &str) -> Option<String> {
-    let after_scheme = lower_url.split("://").nth(1)?;
-    let end = after_scheme
-        .find(['/', '?', '#', ':'])
-        .unwrap_or(after_scheme.len());
-    Some(after_scheme[..end].to_string())
-}
-
-/// Raw (still encoded) value of a query parameter. Searches both the `?`
-/// query and, for OSM-style fragments, the `#` fragment.
-fn url_query_param(url: &str, key: &str) -> Option<String> {
-    for section in [
-        url.split('?').nth(1).unwrap_or(""),
-        url.split('#').nth(1).unwrap_or(""),
-    ] {
-        let query = section.split('#').next().unwrap_or(section);
-        for pair in query.split('&') {
-            let (k, v) = match pair.find('=') {
-                Some(i) => (&pair[..i], &pair[i + 1..]),
-                None => continue,
-            };
-            if k.eq_ignore_ascii_case(key) {
-                return Some(v.to_string());
-            }
-        }
-    }
-    None
-}
-
-/// Same as [`url_query_param`] but on a bare `a=1&b=2` query string (geo:
-/// URIs have no `?`-prefix handling needs beyond this).
+/// Raw (still encoded) value of a query parameter in a bare `a=1&b=2`
+/// query string (geo: URIs).
 fn query_param(query: &str, key: &str) -> Option<String> {
     for pair in query.split('&') {
         let (k, v) = match pair.find('=') {
@@ -621,9 +635,76 @@ mod tests {
     }
 
     #[test]
+    fn test_generic_param_scan() {
+        // Bing cp with tilde separator.
+        assert_eq!(
+            parse_shared_text("https://www.bing.com/maps?cp=48.8584~2.2945&lvl=16").unwrap(),
+            latlon(48.8584, 2.2945)
+        );
+        // OSMAnd-style split lat/lon params.
+        assert_eq!(
+            parse_shared_text("http://osmand.net/go?lat=48.8584&lon=2.2945&z=15").unwrap(),
+            latlon(48.8584, 2.2945)
+        );
+        // Zoom-first query order: singles can never match as pairs.
+        assert_eq!(
+            parse_shared_text("https://www.waze.com/ul?z=10&ll=48.8584,2.2945").unwrap(),
+            latlon(48.8584, 2.2945)
+        );
+        // Tile z/x/y: last pair out of range, stays opaque, never coords.
+        let tile = "https://tile.openstreetmap.org/17/65535/48351.png";
+        assert_eq!(parse_shared_text(tile).unwrap(), addr(tile));
+    }
+
+    #[test]
+    fn test_addresses_with_numbers_stay_addresses() {
+        // The generic scan only applies inside URLs: bare text with small
+        // numbers is an address, never silently hijacked as coordinates
+        // (contrast OSM #map, where structure disambiguates).
+        assert_eq!(
+            parse_shared_text("Via Roma 45, 09125 Cagliari").unwrap(),
+            addr("Via Roma 45, 09125 Cagliari")
+        );
+        assert_eq!(
+            parse_shared_text("1600 Amphitheatre Parkway").unwrap(),
+            addr("1600 Amphitheatre Parkway")
+        );
+    }
+
+    #[test]
     fn test_geo_case_insensitive() {
         assert_eq!(
             parse_shared_text("GEO:48.8584,2.2945").unwrap(),
+            latlon(48.8584, 2.2945)
+        );
+    }
+
+    #[test]
+    fn test_ingress_intel_links() {
+        // Stock / IITC Mobile share: pll is the portal (destination).
+        assert_eq!(
+            parse_shared_text(
+                "https://intel.ingress.com/intel?ll=48.85,2.29&z=17&pll=48.8584,2.2945"
+            )
+            .unwrap(),
+            latlon(48.8584, 2.2945)
+        );
+        // IITC desktop permalink without /intel path.
+        assert_eq!(
+            parse_shared_text("https://intel.ingress.com/?pll=48.8584,2.2945&z=19").unwrap(),
+            latlon(48.8584, 2.2945)
+        );
+        // No pll: fall back to the map center ll.
+        assert_eq!(
+            parse_shared_text("https://intel.ingress.com/intel?ll=48.8584,2.2945&z=17").unwrap(),
+            latlon(48.8584, 2.2945)
+        );
+        // Portal name + link, the Android share shape.
+        assert_eq!(
+            parse_shared_text(
+                "Tour Eiffel\n\nhttps://intel.ingress.com/intel?ll=48.85,2.29&z=17&pll=48.8584,2.2945"
+            )
+            .unwrap(),
             latlon(48.8584, 2.2945)
         );
     }

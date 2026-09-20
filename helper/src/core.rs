@@ -892,7 +892,7 @@ pub(crate) fn run_binary(
     timeout: Duration,
 ) -> RunOutcome {
     let path = Path::new(bin_dir).join(name);
-    let Ok(mut child) = Command::new(&path)
+    let Ok(child) = Command::new(&path)
         .args(args)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -906,6 +906,10 @@ pub(crate) fn run_binary(
             exit_code: -1,
         };
     };
+    // Wrapped at birth: the timeout arm below kills explicitly, but the
+    // wait_timeout error arm and any panic unwind would otherwise leak the
+    // child — Drop reaps it (see crate::child::KillOnDrop).
+    let mut child = crate::child::KillOnDrop(child);
 
     // Drain stdout/stderr on their own threads *before* waiting, so a child
     // that fills the OS pipe buffer can't deadlock us against wait_timeout.

@@ -8,11 +8,13 @@ Source0:    %{name}-%{version}.tar.bz2
 Requires:   sailfishsilica-qt5 >= 0.10.9
 Requires:   qt5-qtcore
 Requires:   qt5-qtdeclarative
+Requires:   qt5-qtnetwork
 Requires:   libkeepalive >= 1.8.0
 BuildRequires:  pkgconfig(sailfishapp) >= 1.0.2
 BuildRequires:  pkgconfig(Qt5Core)
 BuildRequires:  pkgconfig(Qt5Qml)
 BuildRequires:  pkgconfig(Qt5Quick)
+BuildRequires:  pkgconfig(Qt5Network)
 BuildRequires:  desktop-file-utils
 
 %description
@@ -45,8 +47,12 @@ desktop-file-install --delete-original \
 %{_datadir}/%{name}
 %{_datadir}/applications/%{name}.desktop
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
+%{_sysconfdir}/sailjail/permissions/ElectricEelAutomagic.permission
 
 %changelog
+* Thu Oct 08 2026 Pauli Kettunen <pauligrinder@gmail.com> - 0.2.12-1
+- Settings button writes Automagic triggers and hotspot flows for PhoneKeyEvent
+- Hotspot off waits 3 minutes unless presence_inside arrives first
 * Sun Sep 27 2026 Marco Napetti <marco.napetti@proton.me> - 0.2.12-1
 - Backgroud process and logging improvements
 * Sun Sep 20 2026 Marco Napetti <marco.napetti@proton.me> - 0.2.11-1

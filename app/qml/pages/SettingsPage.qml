@@ -37,6 +37,9 @@ Page {
         onConfigSaved: {
             page.statusText = ok ? qsTr("Saved") : qsTr("Save failed: %1").arg(errorMessage)
         }
+        onAutomagicSetupFinished: {
+            page.statusText = message
+        }
     }
 
     Component.onCompleted: teslaClient.refreshConfig()
@@ -140,6 +143,34 @@ Page {
                 maximumValue: 300
                 stepSize: 1
                 valueText: value + qsTr(" s")
+            }
+
+            SectionHeader { text: qsTr("Automagic") }
+
+            Label {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.margins: Theme.horizontalPageMargin
+                wrapMode: Text.Wrap
+                color: Theme.secondaryColor
+                font.pixelSize: Theme.fontSizeExtraSmall
+                text: qsTr("ElectricEel does not turn the hotspot on or launch apps itself. The button below adds harbour-automagic triggers for PhoneKeyEvent and two flows: hotspot on for presence_inside, and hotspot off 3 minutes after presence_far unless presence_inside arrives first. A second presence_far during that wait does not restart the timer. Extra triggers (presence_near, presence_auth_ok, and every event) are added so you can attach your own flows, such as launching an app.")
+            }
+
+            Button {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: qsTr("Add Automagic flows")
+                onClicked: teslaClient.installAutomagicFlows()
+            }
+
+            Label {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.margins: Theme.horizontalPageMargin
+                wrapMode: Text.Wrap
+                color: Theme.secondaryColor
+                font.pixelSize: Theme.fontSizeExtraSmall
+                text: qsTr("Manual trigger: protocol DBUS, Act as Trigger, Address session, Destination org.electriceel.harbour-electric-eel, Path /org/electriceel/PhoneKey, Interface org.electriceel.PhoneKey1, Signal PhoneKeyEvent. Filter arg0 to presence_inside, presence_far, presence_near, or presence_auth_ok. ElectricEel must stay running.")
             }
 
             Button {

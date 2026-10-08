@@ -1,4 +1,5 @@
 #include "teslaclient.h"
+#include "automagicsetup.h"
 
 #include <QDebug>
 #include <QDateTime>
@@ -648,4 +649,12 @@ void TeslaClient::refreshHelperVersion()
     // core_version() is static, but re-emit so callers' refresh flow keeps
     // working (the property may have changed after a re-init in theory).
     emit helperVersionChanged();
+}
+
+void TeslaClient::installAutomagicFlows()
+{
+    AutomagicSetup setup;
+    QString message;
+    const bool ok = setup.install(&message);
+    emit automagicSetupFinished(ok, message);
 }

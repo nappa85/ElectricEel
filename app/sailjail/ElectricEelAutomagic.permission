@@ -1,0 +1,12 @@
+# -*- mode: sh -*-
+
+# x-sailjail-description = Automagic automation files
+# x-sailjail-long-description = Add ElectricEel phone-key flows to Automagic
+
+# Sailjail only reads this file from /etc/sailjail/permissions/.
+# Do not whitelist /run/… here: that puts all of /run in whitelist mode
+# and hides the compositor / session bus, so the app never comes up.
+mkdir       ${HOME}/.config/app.qml/automagic
+noblacklist ${HOME}/.config/app.qml
+noblacklist ${HOME}/.config/app.qml/automagic
+whitelist   ${HOME}/.config/app.qml/automagic

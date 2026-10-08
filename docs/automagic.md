@@ -128,9 +128,11 @@ can also suppress rapid repeats.
 - **Missed events:** this is a live feed with no replay. Automagic's daemon
   must be listening before the event occurs.
 
-This version's `presence_far` feed has **no additional three-minute delay**.
-If your automation needs delayed cleanup after leaving, implement that timing
-and cancellation in Automagic.
+The `presence_far` event itself is immediate. The hotspot flow installed
+from Settings waits 3 minutes and turns the hotspot off only if
+`presence_inside` has not arrived. Another `presence_far` during that wait
+does not restart it. Other automations that need their own delay should
+implement that timing in Automagic.
 
 ## Reference versions
 
@@ -139,9 +141,9 @@ The setup labels and JSON format were checked against harbour-automagic
 and automagic-daemon
 [`b210f8c`](https://github.com/sailfishos-chum/automagic-daemon/tree/b210f8cc42ddef0e10f5d587e2b796d4a00533e5).
 
-Pauligrinder's fork updated to
-[`7f6afc4`](https://github.com/Pauligrinder/ElectricEel/tree/7f6afc4ac0f3ce9f710ae5c55f2af8f7365d67f8)
-with a different event interface, `org.electriceel.PhoneKey`, and separate
-signals such as `Inside` and delayed `Far`. Its automatic flow installer
-targets those signals. Use the values in this guide for **this ElectricEel
-build**, which exposes `org.electriceel.PhoneKey1.PhoneKeyEvent`.
+Settings → **Add Automagic flows** writes triggers for this build's
+`org.electriceel.PhoneKey1.PhoneKeyEvent` signal (`presence_inside`,
+`presence_far`, `presence_near`, `presence_auth_ok`, and an unfiltered
+presence source) plus ConnMan hotspot flows: on for `presence_inside`, and
+off 3 minutes after `presence_far` unless `presence_inside` arrives first.
+The importable example above is a separate logging flow and is left in place.

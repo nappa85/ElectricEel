@@ -551,6 +551,7 @@ impl Core {
             )
         };
         if !eligible {
+            self.phone_key_enabled.store(false, Ordering::SeqCst);
             crate::keylog::log("core", "phone-key start refused: not paired");
             return Err(OperationError::NotPaired);
         }
@@ -646,6 +647,10 @@ impl Core {
         self.phone_key_started.store(false, Ordering::SeqCst);
     }
 
+    pub(crate) fn phone_key_enabled(&self) -> bool {
+        self.phone_key_enabled.load(Ordering::SeqCst)
+    }
+
     fn schedule_phone_key_retry(&self) {
         *self
             .phone_key_retry_at
@@ -720,8 +725,8 @@ impl Core {
                     if let Some(event) = &mut event {
                         let msg = error.to_string();
                         if !msg.is_empty() {
-                            // Preserve stopped so Qt releases its keepalive
-                            // request while the bounded retry timer runs.
+                            // Preserve stopped for UI diagnostics. Mode remains
+                            // enabled, so the CPU lease spans the bounded retry.
                             event.error = msg;
                         }
                     }
@@ -1274,7 +1279,10 @@ mod tests {
         assert_eq!(stopped.kind, "presence_stopped");
         assert_eq!(stopped.vin, "5YJ3E1EA0PF000000");
         assert!(!core.phone_key_started.load(Ordering::SeqCst));
-        assert!(core.phone_key_enabled.load(Ordering::SeqCst));
+        assert!(
+            core.phone_key_enabled(),
+            "retry must retain the CPU lease intent"
+        );
         assert!(core.phone_key_retry_at.lock().unwrap().is_some());
         assert!(
             core.poll_phone_key_event().is_none(),
@@ -1285,9 +1293,47 @@ mod tests {
             core.poll_phone_key_event().unwrap().kind,
             "presence_stopped"
         );
+        assert!(
+            core.phone_key_enabled(),
+            "a failed retry must retain the CPU lease intent"
+        );
         core.stop_phone_key();
         assert!(!core.phone_key_enabled.load(Ordering::SeqCst));
         assert!(core.phone_key_retry_at.lock().unwrap().is_none());
+    }
+
+    #[test]
+    fn failed_initial_start_retains_cpu_lease_intent_until_stop() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = dir.path().to_string_lossy().into_owned();
+        let session = crate::session_client::SessionClient::new(
+            dir.path().join("missing-session"),
+            "bluez",
+            dir.path().to_path_buf(),
+        );
+        let mut core = Core::new(state.clone(), state, Some(session)).unwrap();
+        std::fs::write(core.private_key_path(), "private").unwrap();
+        {
+            let mut cfg = core.cfg.lock().unwrap();
+            cfg.vin = "5YJ3E1EA0PF000000".to_string();
+            cfg.vin_state = crate::config::VinState::Paired;
+        }
+        assert!(core.start_phone_key().is_err());
+        let mut enabled = false;
+        assert_eq!(
+            unsafe { crate::ffi::core_phone_key_enabled(&mut core, &mut enabled) },
+            crate::ffi::CoreError::Ok
+        );
+        assert!(
+            enabled,
+            "failed startup must keep the phone awake for retry"
+        );
+        core.stop_phone_key();
+        assert_eq!(
+            unsafe { crate::ffi::core_phone_key_enabled(&mut core, &mut enabled) },
+            crate::ffi::CoreError::Ok
+        );
+        assert!(!enabled, "an explicit stop must release the lease intent");
     }
 
     #[test]

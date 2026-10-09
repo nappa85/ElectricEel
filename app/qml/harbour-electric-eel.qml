@@ -3,7 +3,6 @@ import Sailfish.Silica 1.0
 import Sailfish.Share 1.0
 import Nemo.DBus 2.0
 import Nemo.KeepAlive 1.2
-import harbour.electriceel 1.0
 import "cover" as CoverDir
 import "pages"
 
@@ -11,23 +10,14 @@ ApplicationWindow
 {
     id: appWindow
 
-    // Named teslaClientInstance, not teslaClient: FirstPage declares its own
+    // Rust supplies the client through the UI context. Named
+    // teslaClientInstance, not teslaClient: FirstPage declares its own
     // "property var teslaClient", and inside an inline object literal like
     // "FirstPage { teslaClient: teslaClient }" QML resolves the right-hand
     // side against the new instance's own scope first - so a same-named
     // outer id gets shadowed by the not-yet-set property on the object
     // being constructed, silently binding it to itself (undefined).
-    TeslaClient {
-        id: teslaClientInstance
-    }
-
-    // Passive entry must run with the screen off, including while away.
-    // This prevents CPU suspend while phone-key mode is active; it does
-    // not prevent display blanking. Released when the app/key mode stops.
-    KeepAlive {
-        enabled: teslaClientInstance.phoneKeyActive
-        onEnabledChanged: teslaClientInstance.logPowerState("keepalive requested=" + enabled)
-    }
+    property var teslaClientInstance: electricEelClient
     Connections {
         target: DisplayBlanking
         onStatusChanged: teslaClientInstance.logPowerState("display status=" + DisplayBlanking.status)

@@ -315,7 +315,7 @@ dependencies = [
 
 [[package]]
 name = "electric-eel-core"
-version = "0.2.12"
+version = "0.3.0"
 dependencies = [
  "cbindgen",
  "libc",

@@ -19,6 +19,24 @@ typedef enum CoreError {
 
 typedef struct Core Core;
 
+typedef struct Runtime Runtime;
+
+/**
+ * Queue one typed JSON UI action without blocking on vehicle work.
+ * # Safety
+ * `runtime` must be live; `request` must be a NUL-terminated UTF-8 string.
+ */
+bool runtime_submit(struct Runtime *runtime, const char *request);
+
+/**
+ * Attach a UI sink, or detach with NULL. Detachment waits for in-flight
+ * callbacks, so the UI can safely destroy its context after this returns.
+ * # Safety
+ * `runtime` must be live. The callback must copy its borrowed JSON and return
+ * immediately, without re-entering this ABI. `context` stays live until detach.
+ */
+void runtime_observe(struct Runtime *runtime, void (*callback)(void*, const char*), void *context);
+
 /**
  * Free a string previously returned by any output slot. NULL is a no-op.
  * # Safety
@@ -137,6 +155,13 @@ enum CoreError core_pair(struct Core *core, bool *ok, char **stdout_out, char **
  * `core` must be valid; output pointers writable or NULL.
  */
 enum CoreError core_start_phone_key(struct Core *core, bool *active, char **error_message);
+
+/**
+ * Reports mode intent, including failed starts and pending retries.
+ * # Safety
+ * `core` must be valid and `enabled` must be writable.
+ */
+enum CoreError core_phone_key_enabled(struct Core *core, bool *enabled);
 
 /**
  * Notifies the core that the device resumed from system suspend.

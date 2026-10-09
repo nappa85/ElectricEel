@@ -1,6 +1,6 @@
 [package]
 name = "electric-eel-core"
-version = "0.2.12"
+version = "0.3.0"
 edition = "2021"
 description = "In-process BLE control core for harbour-electric-eel"
 
@@ -9,11 +9,11 @@ name = "electriceelcore"
 crate-type = ["staticlib", "rlib"]
 path = "src/lib.rs"
 
-# The `dbus` feature (only the electric-eel-daemon binary enables it) pulls
-# in the zbus server + caller authorization. The app's staticlib builds with
-# default (no) features so none of that machinery is linked into the app.
+# The app uses zbus only as an MCE client; daemon authorization stays optional.
 [features]
 default = []
+app-entry = ["runtime"]
+runtime = ["dep:zbus"]
 dbus = ["dep:zbus", "dep:procfs"]
 
 [[bin]]

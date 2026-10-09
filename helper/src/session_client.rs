@@ -22,9 +22,9 @@
 //! tesla-session's presence-maintenance loop (presence-start/presence-stop)
 //! also writes unsolicited `event` frames outside any request/response
 //! pairing. The socket reader demultiplexes those into a bounded side
-//! queue (capacity 64, oldest dropped) so a UI that never polls cannot
-//! wedge the child. The C ABI polls that queue to surface phone-key state
-//! to QML.
+//! queue (capacity 64, oldest dropped) so a slow consumer cannot wedge the
+//! child. Rust's autonomous runtime drains the queue and pushes state to QML;
+//! the UI never needs to poll to keep the session healthy.
 //!
 //! Requests are never sent concurrently: the only caller is `Core::run`
 //! (and its siblings), itself serialized by `ble_sem`, so a single

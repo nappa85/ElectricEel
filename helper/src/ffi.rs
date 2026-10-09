@@ -1,16 +1,18 @@
 //! C ABI surface for the in-process control core (see `docs/architecture.md`
-//! for why). The app links `libelectriceelcore.a` and drives
-//! all vehicle/config work through these functions on its own worker thread;
+//! for why). The app links `libelectriceelcore.a`; its Rust entrypoint owns
+//! an autonomous runtime. Qt queues actions and receives pushed notifications
+//! through `runtime_submit` / `runtime_observe`. The synchronous core ABI below
+//! remains available to other callers and tests;
 //! the header is generated from this module with cbindgen
 //! (`cbindgen --crate electriceelcore --output electriceelcore.h`, or the
 //! build.rs hook described in Cargo.toml).
 //!
 //! Conventions:
 //! - An opaque `Core` handle, created once by `core_new` and freed exactly
-//!   once by `core_free`. Never shared across threads that call into it
-//!   concurrently - the QML client owns a single worker thread (see
-//!   `app/src/teslaclient.cpp`), and `Core` uses internal mutexes only to
-//!   serialize its own sub-state, not to be a thread-safe handle.
+//!   once by `core_free`. The Rust app entrypoint instead owns an Arc<Core>
+//!   inside its runtime, without exposing Core to Qt. Synchronous ABI callers
+//!   must not free a handle while calls are in flight. The app runtime serializes
+//!   commands on Rust's worker; its lease thread only reads atomic mode intent.
 //! - All strings are UTF-8 C strings. Output strings are heap-allocated by
 //!   the callee and must be released with `core_string_free`.
 //! - `core_new` returns NULL and, when `err_out` is non-NULL, a caller-freed
@@ -23,6 +25,38 @@ use std::path::PathBuf;
 
 use crate::core::Core;
 use crate::session_client::SessionClient;
+
+/// Queue one typed JSON UI action without blocking on vehicle work.
+/// # Safety
+/// `runtime` must be live; `request` must be a NUL-terminated UTF-8 string.
+#[cfg(feature = "runtime")]
+#[no_mangle]
+pub unsafe extern "C" fn runtime_submit(
+    runtime: *mut crate::runtime::Runtime,
+    request: *const c_char,
+) -> bool {
+    let Some(runtime) = (unsafe { runtime.as_ref() }) else {
+        return false;
+    };
+    cstr(request).is_some_and(|request| runtime.submit(&request))
+}
+
+/// Attach a UI sink, or detach with NULL. Detachment waits for in-flight
+/// callbacks, so the UI can safely destroy its context after this returns.
+/// # Safety
+/// `runtime` must be live. The callback must copy its borrowed JSON and return
+/// immediately, without re-entering this ABI. `context` stays live until detach.
+#[cfg(feature = "runtime")]
+#[no_mangle]
+pub unsafe extern "C" fn runtime_observe(
+    runtime: *mut crate::runtime::Runtime,
+    callback: Option<unsafe extern "C" fn(*mut std::ffi::c_void, *const c_char)>,
+    context: *mut std::ffi::c_void,
+) {
+    if let Some(runtime) = unsafe { runtime.as_ref() } {
+        unsafe { runtime.observe(callback, context) };
+    }
+}
 
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
@@ -408,6 +442,21 @@ pub unsafe extern "C" fn core_start_phone_key(
             }
         }
     }
+    CoreError::Ok
+}
+
+/// Reports mode intent, including failed starts and pending retries.
+/// # Safety
+/// `core` must be valid and `enabled` must be writable.
+#[no_mangle]
+pub unsafe extern "C" fn core_phone_key_enabled(core: *mut Core, enabled: *mut bool) -> CoreError {
+    let Some(core) = (unsafe { core.as_ref() }) else {
+        return CoreError::BadArg;
+    };
+    if enabled.is_null() {
+        return CoreError::BadArg;
+    }
+    unsafe { *enabled = core.phone_key_enabled() };
     CoreError::Ok
 }
 
@@ -817,6 +866,21 @@ mod tests {
         assert_eq!(rc, CoreError::Ok);
         assert!(!active);
         assert!(!error.is_null());
+
+        let mut enabled = true;
+        assert_eq!(
+            unsafe { core_phone_key_enabled(core, &mut enabled) },
+            CoreError::Ok
+        );
+        assert!(!enabled, "an unpaired key must not hold the CPU lease");
+        assert_eq!(
+            unsafe { core_phone_key_enabled(core, ptr::null_mut()) },
+            CoreError::BadArg
+        );
+        assert_eq!(
+            unsafe { core_phone_key_enabled(ptr::null_mut(), &mut enabled) },
+            CoreError::BadArg
+        );
 
         let mut has_event = true;
         let rc = unsafe {

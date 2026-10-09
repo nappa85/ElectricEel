@@ -1,10 +1,8 @@
 //! Drop-based child reaping: the std-only equivalent of tokio's
 //! `kill_on_drop`.
 //!
-//! There is deliberately no async runtime on the Rust side — everything
-//! runs on plain threads with blocking waits (the Qt worker thread calls
-//! into blocking C ABI functions by design), so pulling in tokio just for
-//! this one property would drag a whole runtime for nothing. This wrapper
+//! Child orchestration runs on Rust threads with blocking waits, so pulling
+//! in tokio just for child reaping would add an unnecessary dependency. This wrapper
 //! gives the same guarantee with std: whichever path drops the value —
 //! normal return, `?` early-out, or panic unwind — the child is `SIGKILL`ed
 //! and reaped, never leaked as a live process or left as a zombie.

@@ -5,8 +5,25 @@ capabilities, no `devel-su` install. Sailjail permissions: `Bluetooth`.
 
 ## Components
 
-- **Silica UI** (`app/qml`, `app/src`): the `TeslaClient` QObject owns a
-  worker thread that drives the control core through its C ABI. QML pages:
+- **Application entrypoint** (`helper/src/app.rs`, Rust, `app-entry` feature):
+  supplies the executable's `main` from the static library. It calls Qt's
+  platform setup to resolve Sailjail paths, constructs and owns the runtime,
+  runs the UI with a borrowed runtime handle, then joins Rust's threads,
+  stops presence and reaps Go before Qt teardown. There is one application
+  process; the UI does not construct, start, poll or free the Rust core.
+- **Application runtime** (`helper/src/runtime.rs`): starts phone-key mode
+  independently of the UI, processes a bounded queue of typed UI actions on
+  its own Rust thread, drains presence events on a one-second deadline and
+  drives the core's five-second retry deadlines. It owns phone-key state,
+  resume recovery and the 2.5-second post-toggle status-refresh delay. A
+  separate Rust lease thread keeps renewing even during blocking BLE work.
+- **Silica UI** (`app/qml`, `app/src`): the `TeslaClient` QObject is injected
+  into QML by the UI callback. It serializes UI actions to `runtime_submit`
+  and copies pushed Rust notifications into queued Qt deliveries, updating
+  properties and emitting signals on the GUI thread. Callback detachment is
+  a synchronization barrier before UI destruction. There are no Qt worker
+  threads or backend timers. QML retains only the dashboard's label-age
+  timer, which updates presentation without touching the car. QML pages:
   FirstPage (dashboard + categories), CategoryPage (generic command list),
   ArgumentDialog (per-command form), PairingPage, SettingsPage,
   NavigationPage.
@@ -56,7 +73,8 @@ and only trailing empty slots can be removed from the request.
 Child processes are never leaked: explicit kill-and-wait on every error
 path, plus drop-based reaping (`KillOnDrop` for the process,
 `ChildHandle::drop` for the socket path) covering early-returns and
-panics — no async runtime involved, plain threads with blocking waits.
+panics. Core orchestration uses plain threads with blocking waits; the MCE
+client uses zbus's blocking API and its internal I/O executor.
 
 Configuration changes are persisted before runtime settings/session changes.
 Unknown newer schemas are read-only (or rejected if their shape is unsupported).
@@ -97,12 +115,24 @@ Cached RSSI snapshots seed device identity only; they cannot trigger presence
 connections. GATT links each own a fresh signal queue to avoid replaying an
 old disconnect on a replacement connection.
 
-While phone-key mode runs, QML's `Nemo.KeepAlive` requests CPU suspend
-prevention so scanning/authentication can progress with the display off.
+While the core's `phone_key_enabled` flag is true, Rust's `CpuKeepAlive` holds an MCE
+CPU lease on the system bus (`com.nokia.mce`, `/com/nokia/mce/request`). The
+lease thread reads mode intent directly from the core's atomic flag, checking
+every 100 ms independently of commands or UI callbacks. It acquires the lease
+even while an initial presence start is still blocking. Failed starts and `presence_stopped` retries keep
+the lease: connection status is separate from mode intent. A dedicated thread
+queries `req_cpu_keepalive_period` and renews `req_cpu_keepalive_start` with the
+stable ID `harbour-electric-eel-phone-key`, sleeping for half the granted period
+(clamped to 100 ms–15 s). Blocking D-Bus calls have a one-second timeout; failures
+retry after one second. Renewal needs neither a GUI timer nor a Qt event loop.
+`req_cpu_keepalive_stop` releases the lease when mode is off or on shutdown.
+Sailjail's base permission already permits MCE access.
+
 Display blanking remains enabled. This trades increased screen-off power use
-for prompt passive entry; it is released when phone-key mode stops or the app
-closes. Daily logs include the requested keepalive state and display status
-(`0` unknown, `1` off, `2` dimmed, `3` on), separately from Qt app lifecycle.
+for prompt passive entry. Daily phone-key logs record the granted period, first
+successful hold, every D-Bus failure, and display status (`0` unknown, `1` off,
+`2` dimmed, `3` on), separately from Qt app lifecycle. Periodic wakeups cannot
+preserve an authenticated GATT session and are not used.
 
 Phone-key events are also published on the session bus through
 `org.electriceel.PhoneKey1`, including the fork's settled `presence_inside`
@@ -112,11 +142,11 @@ contract and integration examples.
 ## Source layout
 
 ```
-helper/src/{lib,core,ffi,config,commands,share,session_client}.rs
+helper/src/{app,runtime,cpukeepalive,lib,core,ffi,config,commands,share,session_client}.rs
 helper/session/{main,commands_vendor,navigate,auth}.go
 helper/session/bluez/            org.bluez D-Bus transport
 helper/session/thirdparty/vehicle-command/   patched upstream (see vehicle-command-patch.md)
-app/src/teslaclient.{h,cpp}      worker-thread C ABI wrapper
+app/src/teslaclient.{h,cpp}      UI-only action/notification adapter
 app/qml/{harbour-electric-eel.qml,cover/CoverPage.qml,pages/*.qml,js/*.js}
 app/translations/                qsTr catalogs (see translations.md)
 app/rpm/harbour-electric-eel.spec

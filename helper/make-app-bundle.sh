@@ -32,7 +32,7 @@ if ! rustup target list --installed | grep -q "^$target_triple$"; then
 fi
 
 echo "Cross-compiling libelectriceelcore.a ($target_triple, glibc)"
-(cd "$helper_dir" && cargo build --release --target "$target_triple" --lib)
+(cd "$helper_dir" && cargo build --release --target "$target_triple" --lib --features app-entry)
 
 install -m 0644 "$helper_dir/target/$target_triple/release/libelectriceelcore.a" \
     "$app_dir/thirdparty/libelectriceelcore.a"

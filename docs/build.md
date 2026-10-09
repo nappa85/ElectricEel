@@ -2,7 +2,8 @@
 
 ## Stage the in-app bundle
 
-`helper/make-app-bundle.sh` cross-builds the Rust staticlib
+`helper/make-app-bundle.sh` cross-builds the Rust staticlib with `app-entry`
+(Rust `main`, autonomous runtime, and MCE client)
 (`aarch64-unknown-linux-gnu`, glibc) and the Go `tesla-session` child
 (`CGO_ENABLED=0 GOOS=linux GOARCH=arm64`), staging them into
 `app/thirdparty/` and `app/bin/`. Requires the `aarch64-unknown-linux-gnu`
@@ -36,6 +37,32 @@ rpmlint's Sailfish config accepts only old Fedora short license names
 remaining rpmlint errors on the Go child (statically linked binary in
 `/usr/share`) are pre-existing and treated as warnings by the build
 config. QML files are not compiled by `mb2`, only reviewed.
+
+## Runtime checks
+
+Rust tests include a private-bus MCE integration test (requires `dbus-daemon`)
+and verify autonomous retry deadlines and notification detachment:
+
+```sh
+cargo test --manifest-path helper/Cargo.toml --lib --features runtime
+cargo clippy --manifest-path helper/Cargo.toml --lib --features app-entry -- -D warnings
+```
+
+After staging the bundle and copying `app/` into the SDK, test the real Rust
+entrypoint/runtime against the Qt adapter without loading a Sailfish view:
+
+```sh
+docker exec -w /home/mersdk/app/tests electric-eel-build \
+  sb2 -t SailfishOS-5.2.0.15-aarch64 qmake rustruntime.pro
+docker exec -w /home/mersdk/app/tests electric-eel-build \
+  sb2 -t SailfishOS-5.2.0.15-aarch64 make
+docker exec -w /home/mersdk/app/tests electric-eel-build \
+  sb2 -t SailfishOS-5.2.0.15-aarch64 ./rustruntime-test
+```
+
+This checks action/result marshaling, GUI-thread delivery, and Rust's delayed
+refresh while the GUI thread is sleeping. The only production QML timer is
+the dashboard label-age update; backend deadlines do not depend on Qt.
 
 ## Install on the phone
 

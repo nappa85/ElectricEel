@@ -1,7 +1,7 @@
 //! D-Bus daemon surface for the control core (pre-Phase-4 and fallback). This
 //! module is only compiled with the `dbus` cargo feature, which only the
-//! `electric-eel-daemon` binary enables; the app's staticlib (no features)
-//! never pulls in zbus or the caller-authorization machinery.
+//! `electric-eel-daemon` binary enables; the app's staticlib uses the separate
+//! runtime feature for its zbus MCE client without caller authorization.
 //!
 //! All real work lives in [`crate::core::Core`]; these interface methods are
 //! thin wrappers that (a) authorize the D-Bus caller and (b) hand off to the

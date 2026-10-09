@@ -5,6 +5,9 @@
 #include <QStringList>
 #include <QTranslator>
 #include <QtQml>
+#include <QDir>
+#include <QStandardPaths>
+#include <memory>
 
 #include "teslaclient.h"
 
@@ -32,16 +35,41 @@ static void installAppTranslator(QGuiApplication *app)
     }
 }
 
-int main(int argc, char *argv[])
-{
-    QGuiApplication *app = SailfishApp::application(argc, argv);
-    installAppTranslator(app);
-    QQuickView *view = SailfishApp::createView();
+static QGuiApplication *application = nullptr;
+static QByteArray stateDirectory;
 
-    qmlRegisterType<TeslaClient>("harbour.electriceel", 1, 0, "TeslaClient");
+// Called by Rust's executable entrypoint, before Core is constructed.
+extern "C" const char *electric_eel_ui_prepare(int argc, char *argv[])
+{
+    // QGuiApplication retains argc by reference for its lifetime.
+    static int qtArgc;
+    qtArgc = argc;
+    application = SailfishApp::application(qtArgc, argv);
+    installAppTranslator(application);
+    const QString state = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    const QString documents = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
+    const QString logs = documents.isEmpty() ? state + "/logs" : documents + "/ElectricEel";
+    if (!QDir().mkpath(state) || !QDir().mkpath(logs))
+        return nullptr;
+    qputenv("ELECTRIC_EEL_LOG_DIR", logs.toUtf8());
+    stateDirectory = state.toUtf8();
+    return stateDirectory.constData();
+}
+
+extern "C" int electric_eel_ui_run(Runtime *runtime)
+{
+    TeslaClient client(runtime);
+    std::unique_ptr<QQuickView> view(SailfishApp::createView());
+    view->rootContext()->setContextProperty(QStringLiteral("electricEelClient"), &client);
 
     view->setSource(SailfishApp::pathTo(QStringLiteral("qml/harbour-electric-eel.qml")));
     view->show();
 
-    return app->exec();
+    return application->exec();
+}
+
+extern "C" void electric_eel_ui_cleanup()
+{
+    delete application;
+    application = nullptr;
 }

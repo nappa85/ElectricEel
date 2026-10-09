@@ -39,22 +39,8 @@ Page {
         onTriggered: page.statusAgeTick++
     }
 
-    // Settle delay between a toggle command completing and re-fetching
-    // status to confirm it. Firing that re-fetch immediately (the original
-    // behavior) reads Infotainment's closures/climate telemetry before it
-    // has caught up with what VCSEC (which lock/unlock/climate/windows all
-    // go through) just actuated - so the "authoritative" re-fetch stomps
-    // the optimistic update in toggleLock/etc. right back to the stale
-    // pre-command value. Confirmed live: the optimistic update alone wasn't
-    // enough: the icon looked unchanged because this immediate re-fetch was
-    // overwriting it a moment later, not because the optimistic update
-    // itself failed to apply.
-    Timer {
-        id: toggleSettleTimer
-        interval: 2500
-        repeat: false
-        onTriggered: page.refreshStatus()
-    }
+    // Rust schedules the post-toggle settle delay before asking this dashboard
+    // to render a fresh reading. Only the label-age timer above stays in QML.
 
     function refresh() {
         teslaClient.refreshHelperAvailable()
@@ -97,7 +83,7 @@ Page {
         var sendLock = page.vehicleStatus.locked === false
         optimistic("locked")
         page.statusStage = "toggle"
-        teslaClient.runCommand("status:toggle", sendLock ? "lock" : "unlock", [])
+        teslaClient.runCommand("status:toggle", sendLock ? "lock" : "unlock", [], true)
     }
 
     function toggleClimate() {
@@ -106,7 +92,7 @@ Page {
         var wasOn = page.vehicleStatus.isClimateOn
         optimistic("isClimateOn")
         page.statusStage = "toggle"
-        teslaClient.runCommand("status:toggle", wasOn ? "climate-off" : "climate-on", [])
+        teslaClient.runCommand("status:toggle", wasOn ? "climate-off" : "climate-on", [], true)
     }
 
     function toggleWindows() {
@@ -115,21 +101,21 @@ Page {
         var wereOpen = page.vehicleStatus.windowsOpen
         optimistic("windowsOpen")
         page.statusStage = "toggle"
-        teslaClient.runCommand("status:toggle", wereOpen ? "windows-close" : "windows-vent", [])
+        teslaClient.runCommand("status:toggle", wereOpen ? "windows-close" : "windows-vent", [], true)
     }
 
     function openFrunk() {
         if (page.statusStage.length > 0)
             return
         page.statusStage = "toggle"
-        teslaClient.runCommand("status:toggle", "frunk-open", [])
+        teslaClient.runCommand("status:toggle", "frunk-open", [], true)
     }
 
     function openTrunk() {
         if (page.statusStage.length > 0)
             return
         page.statusStage = "toggle"
-        teslaClient.runCommand("status:toggle", "trunk-open", [])
+        teslaClient.runCommand("status:toggle", "trunk-open", [], true)
     }
 
     function batteryIconSource() {
@@ -154,6 +140,7 @@ Page {
 
     Connections {
         target: teslaClient
+        onStatusRefreshRequested: page.refreshStatus()
         onCommandFinished: {
             if (requestId === "status:body") {
                 if (ok)
@@ -188,10 +175,8 @@ Page {
                 // reality rather than an assumed new state (the command can
                 // "succeed" over BLE without the vehicle confirming - see
                 // protocol.MayHaveSucceeded usage elsewhere in this app).
-                // Delayed via toggleSettleTimer, not fired immediately - see
-                // its doc comment for why.
+                // Rust waits for vehicle telemetry to settle before refresh.
                 page.statusStage = ""
-                toggleSettleTimer.restart()
             }
         }
         onCommandError: {
@@ -207,8 +192,8 @@ Page {
                 // the same way onCommandFinished does for a soft (ok=false)
                 // failure, rather than leaving the wrong icon up until the
                 // user happens to pull down to refresh.
-                if (requestId === "status:toggle")
-                    toggleSettleTimer.restart()
+                // Rust schedules confirmation for toggle actions regardless
+                // of when this UI receives the result.
             }
         }
     }

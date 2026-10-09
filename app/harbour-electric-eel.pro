@@ -1,13 +1,14 @@
 TARGET = harbour-electric-eel
 
 CONFIG += sailfishapp
+CONFIG += c++11
 
 # Single source of the app version, surfaced on the Settings page and
 # compared against the core's GetVersion. The release workflow stamps
 # this (and helper/Cargo.toml) from the same git tag, so a matched pair
 # reports equal versions. Keep in sync with helper/Cargo.toml when bumping
 # outside a release.
-VERSION = 0.2.12
+VERSION = 0.3.0
 DEFINES += APP_VERSION=\\\"$$VERSION\\\"
 
 # In-process Rust control core (docs/architecture.md phase 4): the cbindgen

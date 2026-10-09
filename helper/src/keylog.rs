@@ -39,11 +39,37 @@ pub(crate) fn log(tag: &str, message: &str) {
     if let Ok(mut f) = OpenOptions::new().create(true).append(true).open(&path) {
         if created {
             let _ = writeln!(f, "# ElectricEel phone-key log {day}");
-            let _ = writeln!(f, "# tags: session presence connect auth link core");
+            let _ = writeln!(
+                f,
+                "# tags: session presence connect auth link core keepalive ui"
+            );
         }
         let _ = writeln!(f, "{}  {:<10}  {message}", local_stamp(), tag);
     }
     eprintln!("phone-key: {tag}  {message}");
+}
+
+pub(crate) fn utc_stamp() -> String {
+    // SAFETY: libc writes only into these stack-owned time structures.
+    unsafe {
+        let mut tv = libc::timeval {
+            tv_sec: 0,
+            tv_usec: 0,
+        };
+        libc::gettimeofday(&raw mut tv, std::ptr::null_mut());
+        let mut tm: libc::tm = std::mem::zeroed();
+        libc::gmtime_r(&raw const tv.tv_sec, &raw mut tm);
+        format!(
+            "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}.{:03}Z",
+            tm.tm_year + 1900,
+            tm.tm_mon + 1,
+            tm.tm_mday,
+            tm.tm_hour,
+            tm.tm_min,
+            tm.tm_sec,
+            tv.tv_usec / 1000
+        )
+    }
 }
 
 fn local_stamp() -> String {

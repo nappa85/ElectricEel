@@ -3,14 +3,15 @@
 //!
 //! Built two ways:
 //! - As a staticlib (`crate-type = ["staticlib"]`) linked into the app,
-//!   driven through the C ABI in `ffi.rs` by a worker thread in
-//!   `app/src/teslaclient.cpp`.
+//!   providing the Rust application entrypoint with `app-entry`. Rust owns
+//!   the runtime and threads; Qt only submits actions and renders notifications
+//!   through the C ABI in `ffi.rs`.
 //! - As an rlib used by the daemon binary (`main.rs`), which with the `dbus`
 //!   feature adds `helper.rs`'s D-Bus surface on top of the same `Core`.
 //!
 //! The daemon-only modules (`helper`, `authorize`) are feature-gated so the
-//! app's staticlib carries neither zbus nor the caller-authorization
-//! plumbing.
+//! app's staticlib carries the zbus MCE client but no daemon server or
+//! caller-authorization plumbing.
 
 pub mod child;
 pub mod commands;
@@ -21,6 +22,14 @@ pub mod ffi;
 pub mod keylog;
 pub mod session_client;
 pub mod share;
+
+#[cfg(feature = "runtime")]
+mod cpukeepalive;
+#[cfg(feature = "runtime")]
+pub mod runtime;
+
+#[cfg(all(feature = "app-entry", not(test)))]
+mod app;
 
 #[cfg(feature = "dbus")]
 pub mod authorize;

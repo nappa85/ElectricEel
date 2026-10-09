@@ -1,6 +1,7 @@
 import QtQuick 2.6
 import Sailfish.Silica 1.0
 import "../js/VehicleState.js" as VState
+import "../js/PhoneKeyState.js" as PhoneKey
 
 CoverBackground {
     id: cover
@@ -11,35 +12,19 @@ CoverBackground {
     property bool hasKey: false
     property bool commandBusy: false
 
-    function phoneKeyStatusIsBluetoothOff(status) {
-        return status.indexOf("NotPowered") >= 0
-            || status.indexOf("RFKILL") >= 0
-            || status.indexOf("power on adapter") >= 0
-    }
-
-    function phoneKeyStatusIsConnected(status) {
-        return status === "Phone key connected"
-            || status === "Phone key authorized"
-    }
-
     readonly property bool isPaired: cover.hasKey && cover.vin.length > 0
 
     // unpaired | bluetooth-off | connected | disconnected
-    readonly property string connectionKind: {
-        var status = teslaClient ? teslaClient.phoneKeyStatus : ""
-        if (phoneKeyStatusIsBluetoothOff(status))
-            return "bluetooth-off"
-        if (!isPaired)
-            return "unpaired"
-        if (phoneKeyStatusIsConnected(status))
-            return "connected"
-        return "disconnected"
-    }
+    readonly property string connectionKind: PhoneKey.connectionKind(
+        teslaClient ? teslaClient.phoneKeyLink : "stopped", isPaired)
 
     readonly property bool isConnected: connectionKind === "connected"
+    // A command can establish its own link while presence is scanning.
+    // Use the dashboard's key/VIN prerequisites, not the connection icon.
+    readonly property bool canCommand: !!teslaClient && teslaClient.helperAvailable && isPaired
 
     function runCoverCommand(cmd) {
-        if (!teslaClient || cover.commandBusy || !cover.isConnected)
+        if (!cover.canCommand || cover.commandBusy)
             return
         cover.commandBusy = true
         teslaClient.runCommand("cover:" + cmd, cmd, [])
@@ -158,7 +143,7 @@ CoverBackground {
         Row {
             id: actionRow
             width: parent.width
-            visible: cover.isConnected
+            visible: cover.canCommand
             height: visible ? Theme.iconSizeMedium : 0
             spacing: 0
 
@@ -168,7 +153,7 @@ CoverBackground {
             Item {
                 width: actionRow.width / 3
                 height: actionRow.height
-                enabled: !!teslaClient && !cover.commandBusy
+                enabled: cover.canCommand && !cover.commandBusy
                 opacity: enabled ? 1.0 : Theme.opacityLow
 
                 HighlightImage {
@@ -189,7 +174,7 @@ CoverBackground {
             Item {
                 width: actionRow.width / 3
                 height: actionRow.height
-                enabled: !!teslaClient && !cover.commandBusy
+                enabled: cover.canCommand && !cover.commandBusy
                 opacity: enabled ? 1.0 : Theme.opacityLow
 
                 HighlightImage {
@@ -210,7 +195,7 @@ CoverBackground {
             Item {
                 width: actionRow.width / 3
                 height: actionRow.height
-                enabled: !!teslaClient && !cover.commandBusy
+                enabled: cover.canCommand && !cover.commandBusy
                 opacity: enabled ? 1.0 : Theme.opacityLow
 
                 HighlightImage {

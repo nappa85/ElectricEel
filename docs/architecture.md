@@ -13,11 +13,16 @@ capabilities, no `devel-su` install. Sailjail permissions: `Bluetooth;Documents`
   stops presence and reaps Go before Qt teardown. There is one application
   process; the UI does not construct, start, poll or free the Rust core.
 - **Application runtime** (`helper/src/runtime.rs`): starts phone-key mode
-  independently of the UI, processes a bounded queue of typed UI actions on
-  its own Rust thread, drains presence events on a one-second deadline and
-  drives the core's five-second retry deadlines. It owns phone-key state,
-  resume recovery and the 2.5-second post-toggle status-refresh delay. A
-  separate Rust lease thread keeps renewing even during blocking BLE work.
+  independently of the UI. An async control loop serves configuration reads,
+  snapshots and destination previews while a separate serial executor handles
+  commands, pairing, key generation, configuration mutations and presence
+  lifecycle work. Both UI queues are bounded at 64. Presence events wake the
+  control loop immediately, with a one-second fallback drain; restarting
+  presence never runs in the event drain. The executor drives five-second
+  retries and coalesced resume recovery. Session-generation tags reject stale
+  events and start results. The control loop owns the published phone-key
+  state and the 2.5-second refresh deadline, measured from command completion.
+  A separate Rust lease thread keeps renewing during BLE work.
 - **Silica UI** (`app/qml`, `app/src`): the `TeslaClient` QObject is injected
   into QML by the UI callback. It serializes UI actions to `runtime_submit`
   and copies pushed Rust notifications into queued Qt deliveries, updating
@@ -52,7 +57,7 @@ mismatch kills the child instead of parsing unknown frames):
 
 - parent → child: `request` (`id`, `cmd`, `args`)
 - child → parent: `hello` (first line), `response` (replies),
-  `event` (unsolicited presence updates), `heartbeat` (every 10 s,
+  `event` (unsolicited presence updates, with optional structured `error_code`), `heartbeat` (every 10 s,
   including mid-command)
 
 stdin/stdout are not the protocol: stdout is plain logs. Command handlers
@@ -74,8 +79,22 @@ and only trailing empty slots can be removed from the request.
 Child processes are never leaked: explicit kill-and-wait on every error
 path, plus drop-based reaping (`KillOnDrop` for the process,
 `ChildHandle::drop` for the socket path) covering early-returns and
-panics. Core orchestration uses plain threads with blocking waits; the MCE
-client uses zbus's blocking API and its internal I/O executor.
+panics. The socket transport uses async-io readiness, async channels and an
+async single-flight mutex. A background async reader demultiplexes events and
+responses without holding the operation mutex. Synchronous Core/FFI entry
+points drive the same request futures with `block_on` on the serial executor;
+they do not block the control loop. The MCE client retains zbus's blocking API.
+
+Shutdown closes a cancellation channel independent of queue admission and the
+operation mutex. Accept, hello, socket writes and response waits are all
+interruptible. The runtime stops admitting work, skips queued commands, waits
+for in-flight observer callbacks during detachment, cancels transport work,
+joins both workers and releases the CPU lease after reaping the child. Legacy
+one-shot subprocess waits also check shutdown every 100 ms. Workers are joined,
+not detached after an artificial join timeout. Cancelling an already-sent
+command does not prove it had no effect on the vehicle; it retires the session
+so a late reply cannot be mistaken for the next request. Dropping an async
+request future provides the same session-retirement guarantee.
 
 Configuration changes are persisted before runtime settings/session changes.
 Unknown newer schemas are read-only (or rejected if their shape is unsupported).

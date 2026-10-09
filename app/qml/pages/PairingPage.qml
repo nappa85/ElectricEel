@@ -1,5 +1,6 @@
 import QtQuick 2.6
 import Sailfish.Silica 1.0
+import "../js/PhoneKeyState.js" as PhoneKey
 
 Page {
     id: page
@@ -88,7 +89,7 @@ Page {
                       ? teslaClient.phoneKeyStatus
                       : qsTr("Phone key starting...")
                 font.pixelSize: Theme.fontSizeSmall
-                color: teslaClient.phoneKeyStatus.indexOf("error") >= 0
+                color: PhoneKey.isError(teslaClient.phoneKeyLink)
                        ? Theme.highlightColor
                        : Theme.secondaryHighlightColor
             }

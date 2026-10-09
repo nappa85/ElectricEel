@@ -5,6 +5,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QLocale>
+#include <QStringList>
 
 extern "C" {
 #include "electriceelcore.h"
@@ -50,14 +51,25 @@ void TeslaClient::deliverNotification(const QByteArray &json)
     } else if (type == "phone_key_state") {
         const bool active = event.value("active").toBool();
         const QString status = event.value("status").toString();
-        if (m_phoneKeyActive != active) {
-            m_phoneKeyActive = active;
-            emit phoneKeyActiveChanged();
+        QString link = event.value("link").toString();
+        const QStringList links = {QStringLiteral("unpaired"), QStringLiteral("bluetooth-off"),
+            QStringLiteral("scanning"), QStringLiteral("connected"), QStringLiteral("authorized"),
+            QStringLiteral("stopped"), QStringLiteral("error")};
+        if (!links.contains(link)) {
+            qWarning() << "TeslaClient: unknown phone-key link" << link;
+            link = QStringLiteral("error");
         }
-        if (m_phoneKeyStatus != status) {
-            m_phoneKeyStatus = status;
-            emit phoneKeyStatusChanged();
-        }
+        const bool activeChanged = m_phoneKeyActive != active;
+        const bool statusChanged = m_phoneKeyStatus != status;
+        const bool linkChanged = m_phoneKeyLink != link;
+        m_phoneKeyActive = active;
+        m_phoneKeyStatus = status;
+        m_phoneKeyLink = link;
+        if (activeChanged) emit phoneKeyActiveChanged();
+        if (statusChanged) emit phoneKeyStatusChanged();
+        if (linkChanged) emit phoneKeyLinkChanged();
+        if (activeChanged || statusChanged || linkChanged)
+            emit phoneKeyStateChanged(active, link, status);
     } else if (type == "phone_key_event") {
         emit phoneKeyEvent(event.value("kind").toString(), event.value("vin").toString(),
                           event.value("time").toString(), error);

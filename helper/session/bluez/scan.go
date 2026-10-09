@@ -17,6 +17,24 @@ import (
 // phone-key watcher waits for BlueZ events instead of polling the object tree.
 const pollInterval = 100 * time.Millisecond
 
+// AdapterOffError preserves the diagnostic while exposing a machine-readable
+// radio-power failure to the parent. Callers must not parse Error() prose.
+type AdapterOffError struct{ Cause error }
+
+func (e *AdapterOffError) Error() string {
+	return fmt.Sprintf("bluez: power on adapter: %s", dbusDetail(e.Cause))
+}
+func (e *AdapterOffError) Unwrap() error { return e.Cause }
+
+func IsBluetoothOff(err error) bool {
+	var off *AdapterOffError
+	if errors.As(err, &off) {
+		return true
+	}
+	name, _ := dbusErrorParts(err)
+	return name == "org.bluez.Error.NotPowered"
+}
+
 // ScanResult describes a discovered vehicle beacon. Path is the org.bluez
 // Device1 object path (the identifier Connect needs).
 type ScanResult struct {
@@ -572,7 +590,7 @@ func ensurePowered(ctx context.Context, bus dbusBus, adapterPath dbus.ObjectPath
 				return nil
 			}
 		}
-		return fmt.Errorf("bluez: power on adapter: %s", dbusDetail(err))
+		return &AdapterOffError{Cause: err}
 	}
 	return nil
 }

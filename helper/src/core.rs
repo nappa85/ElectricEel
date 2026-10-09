@@ -63,6 +63,7 @@ pub struct Core {
     phone_key_started: AtomicBool,
     phone_key_enabled: AtomicBool,
     phone_key_retry_at: Mutex<Option<Instant>>,
+    shutdown: AtomicBool,
 }
 
 impl Core {
@@ -116,6 +117,7 @@ impl Core {
             phone_key_started: AtomicBool::new(false),
             phone_key_enabled: AtomicBool::new(false),
             phone_key_retry_at: Mutex::new(None),
+            shutdown: AtomicBool::new(false),
         })
     }
 
@@ -255,7 +257,10 @@ impl Core {
                         stderr: o.stderr,
                         exit_code: o.exit_code,
                     },
-                    Err(e) if session.ble_backend() == "bluez" => {
+                    Err(e)
+                        if session.ble_backend() == "bluez"
+                            || self.shutdown.load(Ordering::SeqCst) =>
+                    {
                         // No fallback: run_binary would spawn a raw-HCI
                         // tesla-control, which takes exclusive adapter
                         // control and drops any other BLE connections (the
@@ -270,11 +275,23 @@ impl Core {
                         eprintln!(
                             "Core: persistent session unavailable ({e}); falling back to one-shot tesla-control for {cmd}"
                         );
-                        run_binary(&self.bin_dir, "tesla-control", &command_argv, timeout)
+                        run_binary_cancellable(
+                            &self.bin_dir,
+                            "tesla-control",
+                            &command_argv,
+                            timeout,
+                            Some(&self.shutdown),
+                        )
                     }
                 }
             }
-            None => run_binary(&self.bin_dir, "tesla-control", &command_argv, timeout),
+            None => run_binary_cancellable(
+                &self.bin_dir,
+                "tesla-control",
+                &command_argv,
+                timeout,
+                Some(&self.shutdown),
+            ),
         };
 
         Ok((
@@ -304,15 +321,8 @@ impl Core {
             .map_err(OperationError::Persist)?;
         let private_existed = self.private_key_path().is_file();
         let replacing = force || !private_existed;
-        // Holds the config mutex for the whole call, same as the original -
-        // GenerateKey doesn't read Config, but this still serializes
-        // concurrent key generation against writing the same key files.
-        // Read from this single guard below rather than locking again:
-        // std::sync::Mutex isn't reentrant, so a second self.cfg.lock() on
-        // this thread while _cfg is still held would deadlock forever -
-        // exactly what happened here before this fix (Generate Key hanging
-        // indefinitely on the QML side, since the worker thread never
-        // returns to emit keyGenerated).
+        // The lifecycle gate serializes key writes. Snapshot config and
+        // release its mutex before any session I/O so GetConfig stays live.
         let mut cfg = self
             .cfg
             .lock()
@@ -326,11 +336,17 @@ impl Core {
             candidate
                 .save(&self.config_path())
                 .map_err(OperationError::Persist)?;
-            self.stop_phone_key_locked(&cfg);
+            let old = cfg.clone();
             *cfg = candidate;
+            drop(cfg);
+            self.stop_phone_key_locked(&old);
             if let Some(session) = &self.session {
                 session.invalidate();
             }
+            cfg = self
+                .cfg
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
         }
 
         let key_path = self.private_key_path().to_string_lossy().into_owned();
@@ -341,13 +357,18 @@ impl Core {
         let vin = cfg.vin.clone();
         let connect_timeout_sec = cfg.connect_timeout_sec;
         let command_timeout_sec = cfg.command_timeout_sec;
+        drop(cfg);
 
         eprintln!("Core: generate_key(force={force})");
 
         let pubkey = match &self.session {
-            None => {
-                generate_key_one_shot(&self.bin_dir, &key_path, &self.public_key_path(), force)?
-            }
+            None => generate_key_one_shot(
+                &self.bin_dir,
+                &key_path,
+                &self.public_key_path(),
+                force,
+                &self.shutdown,
+            )?,
             Some(session) => {
                 // Never retry a possibly completed key rotation through a
                 // different binary after a transport failure.
@@ -422,7 +443,8 @@ impl Core {
             let cfg = self
                 .cfg
                 .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .clone();
             self.stop_phone_key_locked(&cfg);
         }
         let (vin, key_path, connect_timeout_sec, command_timeout_sec, timeout) = {
@@ -634,7 +656,8 @@ impl Core {
         let cfg = self
             .cfg
             .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone();
         self.stop_phone_key_locked(&cfg);
     }
 
@@ -667,6 +690,70 @@ impl Core {
         self.phone_key_enabled.load(Ordering::SeqCst)
     }
 
+    /// Event observation is independent of lifecycle locks and radio I/O.
+    pub(crate) fn drain_phone_key_event(&self) -> Option<SessionEvent> {
+        self.session.as_ref().and_then(SessionClient::poll_event)
+    }
+
+    pub(crate) async fn wait_phone_key_event(&self) {
+        if let Some(session) = &self.session {
+            session.wait_event().await;
+        } else {
+            std::future::pending::<()>().await;
+        }
+    }
+
+    /// Called only by the serial lifecycle executor. Never from the UI/control
+    /// event drain: restarting can wait for a complete radio round trip.
+    pub(crate) fn session_generation(&self) -> u64 {
+        self.session.as_ref().map_or(0, SessionClient::generation)
+    }
+
+    pub(crate) fn maintain_phone_key(
+        &self,
+        stopped_generation: u64,
+    ) -> Option<Result<(), OperationError>> {
+        let gate = self
+            .phone_key_gate
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let stopped = stopped_generation != 0 && stopped_generation == self.session_generation();
+        if stopped {
+            self.phone_key_started.store(false, Ordering::SeqCst);
+        }
+        let due = self
+            .phone_key_retry_at
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .is_none_or(|deadline| Instant::now() >= deadline);
+        if self.phone_key_enabled()
+            && due
+            && (!self.phone_key_started.load(Ordering::SeqCst) || stopped)
+        {
+            if let Some(session) = &self.session {
+                session.invalidate();
+            }
+            drop(gate);
+            Some(self.start_phone_key())
+        } else {
+            None
+        }
+    }
+
+    pub(crate) fn cancel_session(&self) {
+        self.shutdown.store(true, Ordering::SeqCst);
+        self.phone_key_enabled.store(false, Ordering::SeqCst);
+        if let Some(session) = &self.session {
+            session.cancel();
+        }
+    }
+
+    pub(crate) fn reap_session(&self) {
+        if let Some(session) = &self.session {
+            session.invalidate();
+        }
+    }
+
     fn schedule_phone_key_retry(&self) {
         *self
             .phone_key_retry_at
@@ -688,6 +775,8 @@ impl Core {
                 vin: self.get_config().0,
                 time: String::new(),
                 error: String::new(),
+                error_code: String::new(),
+                generation: self.session_generation(),
             });
         }
         if let Some(event) = &event {
@@ -821,7 +910,7 @@ impl Core {
         if let Err(e) = candidate.save(&self.config_path()) {
             return Err(OperationError::Persist(e));
         }
-        self.stop_phone_key_locked(&cfg);
+        let old = cfg.clone();
         *cfg = candidate;
         eprintln!(
             "Core: set_config(vin={}, model={:?}, keyName={:?}, connectTimeout={}s, commandTimeout={}s)",
@@ -831,10 +920,11 @@ impl Core {
         // VIN/timeouts baked into its argv - drop it so the next run()
         // spawns a fresh one with the new config instead of silently
         // continuing to talk to the previous vehicle/timeout settings.
+        drop(cfg);
+        self.stop_phone_key_locked(&old);
         if let Some(session) = &self.session {
             session.invalidate();
         }
-        drop(cfg);
         drop(gate);
         if !vin_changed {
             let _ = self.start_phone_key();
@@ -994,6 +1084,7 @@ fn generate_key_one_shot(
     key_path: &str,
     pubkey_path: &std::path::Path,
     force: bool,
+    shutdown: &AtomicBool,
 ) -> Result<String, OperationError> {
     let mut args = vec![
         "-keyring-type".to_string(),
@@ -1008,7 +1099,13 @@ fn generate_key_one_shot(
     }
     args.push("create".to_string());
 
-    let outcome = run_binary(bin_dir, "tesla-keygen", &args, Duration::from_secs(15));
+    let outcome = run_binary_cancellable(
+        bin_dir,
+        "tesla-keygen",
+        &args,
+        Duration::from_secs(15),
+        Some(shutdown),
+    );
     if !outcome.ok {
         return Err(OperationError::KeygenFailed(
             outcome.stderr.trim().to_string(),
@@ -1189,12 +1286,21 @@ fn validate_arg_ranges(cmd: &str, args: &[String]) -> Result<(), HelperError> {
 
 /// Execs a bundled binary with a hard deadline, returning combined exit
 /// status. Never invoked with attacker-controlled binary names.
-pub(crate) fn run_binary(
+fn run_binary_cancellable(
     bin_dir: &str,
     name: &str,
     args: &[String],
     timeout: Duration,
+    shutdown: Option<&AtomicBool>,
 ) -> RunOutcome {
+    if shutdown.is_some_and(|flag| flag.load(Ordering::SeqCst)) {
+        return RunOutcome {
+            ok: false,
+            stdout: String::new(),
+            stderr: "Core: operation cancelled".into(),
+            exit_code: -1,
+        };
+    }
     let path = Path::new(bin_dir).join(name);
     let Ok(child) = Command::new(&path)
         .args(args)
@@ -1244,7 +1350,19 @@ pub(crate) fn run_binary(
         String::from_utf8_lossy(&raw).into_owned()
     });
 
-    let wait_result = child.wait_timeout(timeout);
+    let deadline = Instant::now() + timeout;
+    let mut cancelled = false;
+    let wait_result = loop {
+        if shutdown.is_some_and(|flag| flag.load(Ordering::SeqCst)) {
+            cancelled = true;
+            break Ok(None);
+        }
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        match child.wait_timeout(remaining.min(Duration::from_millis(100))) {
+            Ok(None) if !remaining.is_zero() && Instant::now() < deadline => (),
+            result => break result,
+        }
+    };
 
     let (ok, exit_code, timed_out) = match wait_result {
         Ok(Some(status)) => (status.success(), status.code().unwrap_or(-1), false),
@@ -1255,12 +1373,18 @@ pub(crate) fn run_binary(
             let _ = child.wait();
             (false, -1, true)
         }
-        Err(_) => (false, -1, false),
+        Err(_) => {
+            let _ = child.kill();
+            let _ = child.wait();
+            (false, -1, false)
+        }
     };
 
     let stdout = stdout_thread.join().unwrap_or_default();
     let mut stderr = stderr_thread.join().unwrap_or_default();
-    if timed_out {
+    if cancelled {
+        stderr.push_str("\nCore: operation cancelled");
+    } else if timed_out {
         stderr.push_str("\nCore: timed out waiting for tesla-control");
     }
     RunOutcome {
@@ -1274,6 +1398,37 @@ pub(crate) fn run_binary(
 #[cfg(test)]
 mod tests {
     use super::Core;
+
+    #[test]
+    fn stale_stopped_generation_cannot_retire_a_replacement_session() {
+        let dir = tempfile::tempdir().unwrap();
+        let (session, _, peer) = crate::session_client::tests::accept_mock(
+            dir.path(),
+            vec![r#"{"type":"hello","v":1}"#.into()],
+            vec![],
+        );
+        let state = dir.path().to_string_lossy().into_owned();
+        let core = Core::new(state.clone(), state, Some(session)).unwrap();
+        core.phone_key_enabled.store(true, super::Ordering::SeqCst);
+        core.phone_key_started.store(true, super::Ordering::SeqCst);
+        let generation = core.session_generation();
+        let session = core.session.as_ref().unwrap();
+        session.invalidate();
+        peer.join().unwrap();
+        let (_, replacement) = crate::session_client::tests::attach_mock(
+            session,
+            vec![r#"{"type":"hello","v":1}"#.into()],
+            vec![],
+        );
+        let current = core.session_generation();
+        assert!(current > generation);
+        assert!(core.maintain_phone_key(generation).is_none());
+        assert_eq!(core.session_generation(), current);
+        assert!(session.is_alive());
+        assert!(core.phone_key_started.load(super::Ordering::SeqCst));
+        drop(core);
+        replacement.join().unwrap();
+    }
 
     #[test]
     fn negative_software_update_durations_remain_rejected() {

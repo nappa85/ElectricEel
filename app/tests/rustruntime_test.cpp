@@ -25,6 +25,7 @@ private slots:
         QVERIFY(!configs.first().at(5).toBool());
         QTRY_VERIFY(!client.phoneKeyStatus().isEmpty());
         QVERIFY(!client.phoneKeyActive());
+        QTRY_COMPARE(client.phoneKeyLink(), QStringLiteral("unpaired"));
 
         QSignalSpy errors(&client, &TeslaClient::commandError);
         const QString id = QString::fromUtf8("quoted-\"-città");
@@ -49,6 +50,23 @@ private slots:
         QTRY_COMPARE(refreshes.count(), 1);
         QVERIFY(guiThread);
     } // Detaches callback before the Rust entrypoint destroys its runtime.
+
+    void phoneKeyPropertiesAreCoherentAndProseIsDisplayOnly() {
+        TeslaClient client(runtime);
+        bool coherent = false;
+        connect(&client, &TeslaClient::phoneKeyActiveChanged, this, [&] {
+            coherent = client.phoneKeyActive()
+                && client.phoneKeyLink() == QStringLiteral("authorized")
+                && client.phoneKeyStatus() == QStringLiteral("arbitrary diagnostic");
+        });
+        QVERIFY(QMetaObject::invokeMethod(&client, "deliverNotification", Qt::DirectConnection,
+            Q_ARG(QByteArray, QByteArray(R"({"type":"phone_key_state","active":true,"link":"authorized","status":"arbitrary diagnostic"})"))));
+        QVERIFY(coherent);
+        QVERIFY(QMetaObject::invokeMethod(&client, "deliverNotification", Qt::DirectConnection,
+            Q_ARG(QByteArray, QByteArray(R"({"type":"phone_key_state","active":true,"link":"future-value","status":"Phone key connected"})"))));
+        QCOMPARE(client.phoneKeyLink(), QStringLiteral("error"));
+        QCOMPARE(client.phoneKeyStatus(), QStringLiteral("Phone key connected"));
+    }
 };
 
 extern "C" const char *electric_eel_ui_prepare(int argc, char **argv)

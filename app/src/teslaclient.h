@@ -19,6 +19,7 @@ class TeslaClient : public QObject
     Q_PROPERTY(QString helperVersion READ helperVersion NOTIFY helperVersionChanged)
     Q_PROPERTY(QString phoneKeyStatus READ phoneKeyStatus NOTIFY phoneKeyStatusChanged)
     Q_PROPERTY(bool phoneKeyActive READ phoneKeyActive NOTIFY phoneKeyActiveChanged)
+    Q_PROPERTY(QString phoneKeyLink READ phoneKeyLink NOTIFY phoneKeyLinkChanged)
 
 public:
     explicit TeslaClient(Runtime *runtime, QObject *parent = nullptr);
@@ -29,6 +30,7 @@ public:
     QString helperVersion() const;
     QString phoneKeyStatus() const;
     bool phoneKeyActive() const { return m_phoneKeyActive; }
+    QString phoneKeyLink() const { return m_phoneKeyLink; }
 
 public slots:
     // requestId is caller-chosen and echoed back on commandFinished/
@@ -60,6 +62,8 @@ signals:
     void helperVersionChanged();
     void phoneKeyStatusChanged();
     void phoneKeyActiveChanged();
+    void phoneKeyLinkChanged();
+    void phoneKeyStateChanged(bool active, const QString &link, const QString &status);
     void statusRefreshRequested();
     void phoneKeyEvent(const QString &kind, const QString &vin,
                        const QString &time, const QString &errorMessage);
@@ -81,6 +85,7 @@ private:
     QString m_helperVersion;
     QString m_phoneKeyStatus;
     bool m_phoneKeyActive = false;
+    QString m_phoneKeyLink = QStringLiteral("stopped");
 };
 
 #endif // TESLACLIENT_H

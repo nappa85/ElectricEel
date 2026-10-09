@@ -18,6 +18,11 @@ Item {
              + '<arg name="vin" type="s"/>'
              + '<arg name="time" type="s"/>'
              + '<arg name="error" type="s"/>'
+             + '</signal>'
+             + '<signal name="PhoneKeyStateChanged">'
+             + '<arg name="active" type="b"/>'
+             + '<arg name="link" type="s"/>'
+             + '<arg name="status" type="s"/>'
              + '</signal></interface>'
     }
 
@@ -25,5 +30,6 @@ Item {
         target: root.client
         ignoreUnknownSignals: true
         onPhoneKeyEvent: eventBus.emitSignal("PhoneKeyEvent", [kind, vin, time, errorMessage])
+        onPhoneKeyStateChanged: eventBus.emitSignal("PhoneKeyStateChanged", [active, link, status])
     }
 }

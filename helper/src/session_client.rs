@@ -26,20 +26,29 @@
 //! child. Rust's autonomous runtime drains the queue and pushes state to QML;
 //! the UI never needs to poll to keep the session healthy.
 //!
-//! Requests are never sent concurrently: the only caller is `Core::run`
-//! (and its siblings), itself serialized by `ble_sem`, so a single
-//! in-flight request at a time is a precondition here, not something this
-//! module enforces on its own.
+//! Socket accept, handshake, reads, writes and response deadlines are async.
+//! An async mutex enforces single-flight requests; synchronous Core/FFI callers
+//! drive the same futures with `block_on`. Shutdown closes a cancellation channel
+//! independent of that mutex. Cancelling a request destroys its session instead
+//! of allowing a late response to be paired with a subsequent command.
 
+use async_io::{Async, Timer};
+use futures_lite::{
+    future,
+    io::{AsyncBufReadExt, AsyncWriteExt, BufReader as AsyncBufReader},
+};
 use std::collections::VecDeque;
+#[cfg(test)]
 use std::io::{BufRead, BufReader, Write};
 use std::net::Shutdown;
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::mpsc::{self, RecvTimeoutError};
+#[cfg(test)]
+use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
+#[cfg(test)]
 use std::thread;
 use std::time::Duration;
 
@@ -86,6 +95,10 @@ pub(crate) struct SessionEvent {
     pub time: String,
     #[serde(default)]
     pub error: String,
+    #[serde(default)]
+    pub error_code: String,
+    #[serde(skip)]
+    pub generation: u64,
 }
 
 /// Either shape a frame on tesla-session's socket can take, discriminated
@@ -132,6 +145,7 @@ pub(crate) enum SessionError {
     /// tesla-session), treated as fatal for this child rather than
     /// silently pairing a request with the wrong reply.
     IdMismatch,
+    Cancelled,
 }
 
 impl std::fmt::Display for SessionError {
@@ -143,6 +157,7 @@ impl std::fmt::Display for SessionError {
             SessionError::Timeout => write!(f, "tesla-session did not respond in time"),
             SessionError::Decode(e) => write!(f, "malformed tesla-session frame: {e}"),
             SessionError::IdMismatch => write!(f, "tesla-session response id mismatch"),
+            SessionError::Cancelled => write!(f, "tesla-session operation cancelled"),
         }
     }
 }
@@ -154,16 +169,16 @@ pub(crate) struct ChildHandle {
     /// see `crate::child::KillOnDrop`.
     child: Option<KillOnDrop>,
     /// Write half of the session socket. Reads live on a cloned handle in
-    /// the reader thread; writes happen only under the client's `child`
+    /// the reader task; writes happen only under the client's `child`
     /// lock (single-flight by contract), so no write mutex is needed.
-    stream: UnixStream,
-    rx: mpsc::Receiver<String>,
+    stream: Async<UnixStream>,
+    rx: async_channel::Receiver<String>,
     /// Bound socket path, removed on kill. Unlinked right after accept so
     /// the accept window is the only time the path exists.
     sock_path: PathBuf,
     alive: Arc<AtomicBool>,
     cancelled: Arc<AtomicBool>,
-    reader_thread: Option<thread::JoinHandle<()>>,
+    reader_task: Option<async_global_executor::Task<()>>,
 }
 
 impl Drop for ChildHandle {
@@ -173,9 +188,11 @@ impl Drop for ChildHandle {
     /// to do in Drop, and double unlink/kill is harmless).
     fn drop(&mut self) {
         self.cancelled.store(true, Ordering::SeqCst);
-        let _ = self.stream.shutdown(Shutdown::Both);
-        if let Some(reader) = self.reader_thread.take() {
-            let _ = reader.join();
+        let _ = self.stream.get_ref().shutdown(Shutdown::Both);
+        if let Some(reader) = self.reader_task.take() {
+            // The shared reactor keeps running while the compatibility caller
+            // waits. Await termination before clearing this generation's events.
+            async_global_executor::block_on(reader);
         }
         drop(self.child.take());
         let _ = std::fs::remove_file(&self.sock_path);
@@ -190,30 +207,56 @@ impl Drop for SocketPathGuard {
     }
 }
 
-/// Spawns a background thread that owns the socket's read half for the
+/// Spawns an async task that owns the socket's read half for the
 /// child lifetime, forwarding complete response lines onto a channel and
-/// diverting events/heartbeats. This is what makes `recv_timeout` in
-/// `SessionClient::run` a real read-with-timeout despite sockets not
-/// natively supporting one, and what enforces the frame deadline: any
+/// diverting events/heartbeats. Async timers enforce the frame deadline: any
 /// gap longer than `frame_timeout` (no response, event, or heartbeat)
 /// marks the child dead rather than hanging the caller. EOF/read errors also
 /// publish a stopped event so the core can reap and restart it while idle.
+#[allow(clippy::too_many_arguments)]
 fn spawn_reader(
-    reader: BufReader<UnixStream>,
+    reader: AsyncBufReader<Async<UnixStream>>,
     events: Arc<Mutex<VecDeque<SessionEvent>>>,
     alive: Arc<AtomicBool>,
     cancelled: Arc<AtomicBool>,
-) -> (mpsc::Receiver<String>, thread::JoinHandle<()>) {
+    frame_timeout: Duration,
+    generation: u64,
+    event_ready: async_channel::Sender<()>,
+    shutdown: async_channel::Receiver<()>,
+) -> (
+    async_channel::Receiver<String>,
+    async_global_executor::Task<()>,
+) {
     // Bounded to 1: exactly one response is consumed per run(). An unbounded
     // channel would let a buggy child flooding responses grow memory without
     // bound. A full channel is a protocol violation: kill the child.
-    let (tx, rx) = mpsc::sync_channel(1);
-    let thread = thread::spawn(move || {
+    let (tx, rx) = async_channel::bounded(1);
+    let task = async_global_executor::spawn(async move {
         let mut reader = reader;
         let mut line = String::new();
         loop {
             line.clear();
-            match reader.read_line(&mut line) {
+            match future::race(
+                reader.read_line(&mut line),
+                future::race(
+                    async {
+                        Timer::after(frame_timeout).await;
+                        Err(std::io::Error::new(
+                            std::io::ErrorKind::TimedOut,
+                            "frame deadline",
+                        ))
+                    },
+                    async {
+                        let _ = shutdown.recv().await;
+                        Err(std::io::Error::new(
+                            std::io::ErrorKind::Interrupted,
+                            "shutdown",
+                        ))
+                    },
+                ),
+            )
+            .await
+            {
                 Ok(0) => break, // EOF: child exited or connection reset
                 Ok(_) => {
                     let raw = line.trim_end().to_string();
@@ -223,7 +266,8 @@ fn spawn_reader(
                                 break;
                             }
                         }
-                        Ok(Frame::Event(event)) => {
+                        Ok(Frame::Event(mut event)) => {
+                            event.generation = generation;
                             let mut queue = events
                                 .lock()
                                 .unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -231,6 +275,7 @@ fn spawn_reader(
                                 queue.pop_front();
                             }
                             queue.push_back(event);
+                            let _ = event_ready.try_send(());
                         }
                         Ok(Frame::Heartbeat { .. }) => {
                             // Liveness only; the successful read itself is
@@ -252,9 +297,7 @@ fn spawn_reader(
                 // No frame (not even a heartbeat) within the deadline: the
                 // child is wedged. Break so run() fails fast instead of
                 // waiting out the full command deadline; run() owns the
-                // Child and reaps it. (SO_RCVTIMEO expiry surfaces as
-                // WouldBlock on Unix; TimedOut is matched too so a
-                // platform quirk can't silently disable the watchdog.)
+                // Child and reaps it.
                 Err(e)
                     if e.kind() == std::io::ErrorKind::WouldBlock
                         || e.kind() == std::io::ErrorKind::TimedOut =>
@@ -275,17 +318,26 @@ fn spawn_reader(
                 vin: String::new(),
                 time: String::new(),
                 error: "tesla-session transport closed".to_string(),
+                error_code: String::new(),
+                generation,
             });
+            let _ = event_ready.try_send(());
         }
     });
-    (rx, thread)
+    (rx, task)
 }
 
 pub struct SessionClient {
     bin_path: PathBuf,
     ble_backend: String,
     state_dir: PathBuf,
-    child: Mutex<Option<ChildHandle>>,
+    child: async_lock::Mutex<Option<ChildHandle>>,
+    shutdown_tx: async_channel::Sender<()>,
+    shutdown_rx: async_channel::Receiver<()>,
+    transport_alive: Arc<AtomicBool>,
+    generation: AtomicU64,
+    event_ready: async_channel::Sender<()>,
+    event_wait: async_channel::Receiver<()>,
     next_id: AtomicU64,
     /// Separate nonce for socket paths: request IDs and socket suffixes must
     /// not share a counter (a failed spawn without run would otherwise reuse
@@ -300,14 +352,52 @@ pub struct SessionClient {
     frame_timeout: Duration,
 }
 
+/// Dropping an in-flight future is cancellation too. A possibly transmitted
+/// command must never leave a session reusable with an outstanding response.
+struct InFlight<'a> {
+    slot: async_lock::MutexGuard<'a, Option<ChildHandle>>,
+    client: &'a SessionClient,
+    complete: bool,
+}
+
+impl std::ops::Deref for InFlight<'_> {
+    type Target = Option<ChildHandle>;
+    fn deref(&self) -> &Self::Target {
+        &self.slot
+    }
+}
+impl std::ops::DerefMut for InFlight<'_> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.slot
+    }
+}
+impl Drop for InFlight<'_> {
+    fn drop(&mut self) {
+        if !self.complete {
+            if let Some(handle) = self.slot.take() {
+                drop(handle);
+                self.client.transport_failed();
+            }
+        }
+    }
+}
+
 impl SessionClient {
     #[must_use]
     pub fn new(bin_path: PathBuf, ble_backend: &str, state_dir: PathBuf) -> Self {
+        let (shutdown_tx, shutdown_rx) = async_channel::bounded(1);
+        let (event_ready, event_wait) = async_channel::bounded(1);
         SessionClient {
             bin_path,
             ble_backend: ble_backend.to_string(),
             state_dir,
-            child: Mutex::new(None),
+            child: async_lock::Mutex::new(None),
+            shutdown_tx,
+            shutdown_rx,
+            transport_alive: Arc::new(AtomicBool::new(false)),
+            generation: AtomicU64::new(0),
+            event_ready,
+            event_wait,
             next_id: AtomicU64::new(1),
             sock_nonce: AtomicU64::new(1),
             events: Arc::new(Mutex::new(VecDeque::new())),
@@ -328,24 +418,58 @@ impl SessionClient {
     /// that same lock until the in-flight command finishes, not just until
     /// the child is idle.
     pub(crate) fn invalidate(&self) {
-        let mut guard = self
-            .child
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut guard = self.child.lock_blocking();
         self.presence_active.store(false, Ordering::SeqCst);
         if let Some(handle) = guard.take() {
             Self::kill(handle);
         }
+        self.generation.fetch_add(1, Ordering::SeqCst);
         // Drop joins the old reader, so it cannot enqueue stale events later.
         self.clear_events();
     }
 
     pub(crate) fn is_alive(&self) -> bool {
-        self.child
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .as_ref()
-            .is_some_and(|handle| handle.alive.load(Ordering::SeqCst))
+        self.transport_alive.load(Ordering::SeqCst)
+    }
+
+    /// Permanent shutdown. Closing this channel wakes every waiter, including
+    /// accept, hello, write and response waits, without acquiring `child`.
+    pub(crate) fn cancel(&self) {
+        self.shutdown_tx.close();
+        self.presence_active.store(false, Ordering::SeqCst);
+    }
+
+    pub(crate) fn generation(&self) -> u64 {
+        self.generation.load(Ordering::SeqCst)
+    }
+
+    async fn cancellable<T>(
+        &self,
+        work: impl std::future::Future<Output = Result<T, SessionError>>,
+        timeout: Duration,
+    ) -> Result<T, SessionError> {
+        if self.shutdown_rx.is_closed() {
+            return Err(SessionError::Cancelled);
+        }
+        let result = future::race(
+            work,
+            future::race(
+                async {
+                    let _ = self.shutdown_rx.recv().await;
+                    Err(SessionError::Cancelled)
+                },
+                async {
+                    Timer::after(timeout).await;
+                    Err(SessionError::Timeout)
+                },
+            ),
+        )
+        .await;
+        if self.shutdown_rx.is_closed() {
+            Err(SessionError::Cancelled)
+        } else {
+            result
+        }
     }
 
     pub(crate) fn is_presence_active(&self) -> bool {
@@ -396,7 +520,7 @@ impl SessionClient {
         Ok((listener, sock_path))
     }
 
-    fn spawn(
+    async fn spawn(
         &self,
         vin: &str,
         key_file: &str,
@@ -432,86 +556,78 @@ impl SessionClient {
                 .spawn()
                 .map_err(SessionError::Spawn)?,
         );
-        self.accept_and_handshake(&listener, Some(child), sock_path)
+        self.accept_and_handshake_async(&listener, Some(child), sock_path)
+            .await
     }
 
     /// Accepts the single child connection and runs the hello handshake.
     /// `child` is `None` only in tests driving a mock peer (nothing to
     /// reap on failure); production always passes `Some`.
+    #[cfg(test)]
     pub(crate) fn accept_and_handshake(
         &self,
         listener: &UnixListener,
         child: Option<KillOnDrop>,
         sock_path: PathBuf,
     ) -> Result<ChildHandle, SessionError> {
-        let mut child = child;
+        async_io::block_on(self.accept_and_handshake_async(listener, child, sock_path))
+    }
+
+    async fn accept_and_handshake_async(
+        &self,
+        listener: &UnixListener,
+        child: Option<KillOnDrop>,
+        sock_path: PathBuf,
+    ) -> Result<ChildHandle, SessionError> {
         let _cleanup = SocketPathGuard(sock_path.clone());
         // Non-blocking accept loop with a deadline: a child that never dials
         // can't hang spawn past the handshake deadline, and unlike the old
         // thread+recv_timeout helper this leaves no blocked accept thread
         // behind on timeout.
-        listener
-            .set_nonblocking(true)
+        let listener = Async::new(listener.try_clone().map_err(SessionError::Spawn)?)
             .map_err(SessionError::Spawn)?;
-        let deadline = std::time::Instant::now() + self.handshake_timeout;
-        let stream = loop {
-            match listener.accept() {
-                Ok((s, _)) => break s,
-                Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-                    if std::time::Instant::now() >= deadline {
-                        if let Some(mut c) = child.take() {
-                            let _ = c.kill();
-                            let _ = c.wait();
-                        }
-                        let _ = std::fs::remove_file(&sock_path);
-                        return Err(SessionError::Handshake(
-                            "tesla-session did not connect in time".to_string(),
-                        ));
-                    }
-                    thread::sleep(Duration::from_millis(20));
-                }
-                Err(e) => {
-                    if let Some(mut c) = child.take() {
-                        let _ = c.kill();
-                        let _ = c.wait();
-                    }
-                    let _ = std::fs::remove_file(&sock_path);
-                    return Err(SessionError::Handshake(format!("accept failed: {e}")));
-                }
-            }
-        };
+        let (stream, _) = self
+            .cancellable(
+                async { listener.accept().await.map_err(SessionError::Spawn) },
+                self.handshake_timeout,
+            )
+            .await?;
         // Unlink right after accept: from here on no new peer can dial in,
         // so frames can only come from our child.
         let _ = std::fs::remove_file(&sock_path);
 
-        // Hello handshake, synchronously: the first frame must be a
+        // Hello handshake: the first frame must be a
         // versioned hello, otherwise this child speaks a different
         // protocol and must not survive. The handshake reads through the
-        // SAME BufReader the reader thread will own afterwards: a fresh
+        // SAME BufReader the reader task will own afterwards: a fresh
         // reader per phase would buffer ahead and silently drop frames
         // already read (e.g. presence events sent right after hello).
-        // Timeouts are socket options, shared by the clones below.
-        stream
-            .set_read_timeout(Some(self.handshake_timeout))
+        // Accept and hello each have an interruptible handshake deadline.
+        let write = Async::new(stream.get_ref().try_clone().map_err(SessionError::Spawn)?)
             .map_err(SessionError::Spawn)?;
-        let mut reader = BufReader::new(stream.try_clone().map_err(SessionError::Spawn)?);
+        let mut reader = AsyncBufReader::new(stream);
         let mut line = String::new();
-        let hello_ok = match reader.read_line(&mut line) {
+        let hello_ok = match self
+            .cancellable(
+                async {
+                    reader
+                        .read_line(&mut line)
+                        .await
+                        .map_err(SessionError::Spawn)
+                },
+                self.handshake_timeout,
+            )
+            .await
+        {
             Ok(_) => matches!(
                 serde_json::from_str::<Frame>(line.trim_end()),
                 Ok(Frame::Hello { v }) if v == PROTOCOL_VERSION
             ),
+            Err(SessionError::Cancelled) => return Err(SessionError::Cancelled),
             Err(_) => false,
         };
         // The frame deadline governs the established connection from here.
-        stream
-            .set_read_timeout(Some(self.frame_timeout))
-            .map_err(SessionError::Spawn)?;
         if !hello_ok {
-            if let Some(mut c) = child.take() {
-                let _ = c.kill();
-                let _ = c.wait();
-            }
             return Err(SessionError::Handshake(format!(
                 "bad hello (want {{\"type\":\"hello\",\"v\":{PROTOCOL_VERSION}}}): {}",
                 line.trim_end()
@@ -521,18 +637,28 @@ impl SessionClient {
         // reap); production always passes the spawned process. Either way
         // it moves into the handle untouched.
         let events = Arc::clone(&self.events);
-        let alive = Arc::new(AtomicBool::new(true));
+        let alive = Arc::clone(&self.transport_alive);
+        alive.store(true, Ordering::SeqCst);
         let cancelled = Arc::new(AtomicBool::new(false));
-        let (rx, reader_thread) =
-            spawn_reader(reader, events, Arc::clone(&alive), Arc::clone(&cancelled));
+        let generation = self.generation.fetch_add(1, Ordering::SeqCst) + 1;
+        let (rx, reader_task) = spawn_reader(
+            reader,
+            events,
+            Arc::clone(&alive),
+            Arc::clone(&cancelled),
+            self.frame_timeout,
+            generation,
+            self.event_ready.clone(),
+            self.shutdown_rx.clone(),
+        );
         Ok(ChildHandle {
             child,
-            stream,
+            stream: write,
             rx,
             sock_path,
             alive,
             cancelled,
-            reader_thread: Some(reader_thread),
+            reader_task: Some(reader_task),
         })
     }
 
@@ -559,7 +685,10 @@ impl SessionClient {
             vin: String::new(),
             time: String::new(),
             error: "tesla-session transport failed".to_string(),
+            error_code: String::new(),
+            generation: self.generation(),
         });
+        let _ = self.event_ready.try_send(());
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -573,10 +702,36 @@ impl SessionClient {
         command_timeout_sec: i32,
         timeout: Duration,
     ) -> Result<RunOutcome, SessionError> {
-        let mut guard = self
-            .child
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        async_io::block_on(self.run_async(
+            cmd,
+            args,
+            vin,
+            key_file,
+            connect_timeout_sec,
+            command_timeout_sec,
+            timeout,
+        ))
+    }
+
+    #[allow(clippy::too_many_arguments, clippy::too_many_lines)]
+    pub(crate) async fn run_async(
+        &self,
+        cmd: &str,
+        args: &[String],
+        vin: &str,
+        key_file: &str,
+        connect_timeout_sec: i32,
+        command_timeout_sec: i32,
+        timeout: Duration,
+    ) -> Result<RunOutcome, SessionError> {
+        let slot = self
+            .cancellable(async { Ok(self.child.lock().await) }, timeout)
+            .await?;
+        let mut guard = InFlight {
+            slot,
+            client: self,
+            complete: false,
+        };
         if guard
             .as_ref()
             .is_some_and(|handle| !handle.alive.load(Ordering::SeqCst))
@@ -585,7 +740,10 @@ impl SessionClient {
             self.transport_failed();
         }
         if guard.is_none() {
-            *guard = Some(self.spawn(vin, key_file, connect_timeout_sec, command_timeout_sec)?);
+            *guard = Some(
+                self.spawn(vin, key_file, connect_timeout_sec, command_timeout_sec)
+                    .await?,
+            );
         }
         let handle = guard.as_mut().unwrap();
 
@@ -599,24 +757,41 @@ impl SessionClient {
         .expect("Request only contains strings; cannot fail to encode");
         line.push('\n');
 
-        // Bound the write: a wedged child with a full socket buffer must not
-        // block run() (and its child-mutex guard) forever. Only the read
-        // half had a timeout before.
-        let _ = handle.stream.set_write_timeout(Some(timeout));
-        if handle.stream.write_all(line.as_bytes()).is_err() {
+        // Writes and response waits share a command deadline and can both be
+        // interrupted without acquiring the single-flight mutex.
+        let deadline = std::time::Instant::now() + timeout;
+        if let Err(error) = self
+            .cancellable(
+                async {
+                    handle
+                        .stream
+                        .write_all(line.as_bytes())
+                        .await
+                        .map_err(|_| SessionError::BrokenPipe)
+                },
+                timeout,
+            )
+            .await
+        {
             let handle = guard.take().unwrap();
             Self::kill(handle);
             // The dead child's queued presence events must not replay as if
             // fresh once a new child is spawned.
             self.transport_failed();
-            return Err(SessionError::BrokenPipe);
+            return Err(error);
         }
 
-        // The reader thread has already diverted Event/Heartbeat frames
+        // The reader task has already diverted Event/Heartbeat frames
         // into `events`/oblivion; this channel contains only responses (or
         // malformed lines that must fail the child), so a single timed
         // recv is enough.
-        match handle.rx.recv_timeout(timeout) {
+        match self
+            .cancellable(
+                async { handle.rx.recv().await.map_err(|_| SessionError::BrokenPipe) },
+                deadline.saturating_duration_since(std::time::Instant::now()),
+            )
+            .await
+        {
             Ok(raw) => {
                 let frame: Frame = match serde_json::from_str(&raw) {
                     Ok(l) => l,
@@ -650,6 +825,7 @@ impl SessionClient {
                     self.presence_active
                         .store(cmd == "presence-start", Ordering::SeqCst);
                 }
+                guard.complete = true;
                 Ok(RunOutcome {
                     ok: resp.ok,
                     stdout: resp.stdout,
@@ -657,13 +833,7 @@ impl SessionClient {
                     exit_code: resp.exit_code,
                 })
             }
-            Err(RecvTimeoutError::Timeout) => {
-                let handle = guard.take().unwrap();
-                Self::kill(handle);
-                self.transport_failed();
-                Err(SessionError::Timeout)
-            }
-            Err(RecvTimeoutError::Disconnected) => {
+            Err(error) => {
                 // Reader died (EOF, malformed frame, wedged child): the
                 // transport is broken, not slow. Report BrokenPipe so the UI
                 // can distinguish "car slow" (Timeout, retry) from "session
@@ -671,7 +841,7 @@ impl SessionClient {
                 let handle = guard.take().unwrap();
                 Self::kill(handle);
                 self.transport_failed();
-                Err(SessionError::BrokenPipe)
+                Err(error)
             }
         }
     }
@@ -755,11 +925,16 @@ impl SessionClient {
             .pop_front()
     }
 
+    pub(crate) async fn wait_event(&self) {
+        let _ = self.event_wait.recv().await;
+    }
+
     pub(crate) fn clear_events(&self) {
         self.events
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .clear();
+        while self.event_wait.try_recv().is_ok() {}
     }
 }
 
@@ -851,13 +1026,218 @@ pub(crate) mod tests {
         thread::JoinHandle<()>,
     ) {
         let client = test_client(dir);
+        let (got, peer) = attach_mock(&client, greet, replies);
+        (client, got, peer)
+    }
+
+    pub(crate) fn attach_mock(
+        client: &SessionClient,
+        greet: Vec<String>,
+        replies: Vec<String>,
+    ) -> (mpsc::Receiver<String>, thread::JoinHandle<()>) {
         let (listener, path) = client.bind_listener().expect("bind");
         let (got, peer) = mock_peer(path.clone(), greet, replies);
         let handle = client
             .accept_and_handshake(&listener, None, path)
             .expect("handshake");
-        client.child.lock().unwrap().replace(handle);
-        (client, got, peer)
+        client.child.lock_blocking().replace(handle);
+        (got, peer)
+    }
+
+    /// A peer that emits presence during a command but withholds its reply.
+    /// EOF is the shutdown acknowledgement; no sleeps or radio hardware.
+    pub(crate) fn accept_blocked_mock(
+        dir: &std::path::Path,
+    ) -> (
+        SessionClient,
+        mpsc::Receiver<String>,
+        thread::JoinHandle<()>,
+    ) {
+        let client = test_client(dir);
+        let (listener, path) = client.bind_listener().unwrap();
+        let (tx, rx) = mpsc::channel();
+        let peer = thread::spawn({
+            let path = path.clone();
+            move || {
+                let stream = UnixStream::connect(path).unwrap();
+                let mut writer = stream.try_clone().unwrap();
+                writeln!(writer, "{}", hello_ok()[0]).unwrap();
+                let mut reader = BufReader::new(stream);
+                let mut line = String::new();
+                reader.read_line(&mut line).unwrap();
+                tx.send(line).unwrap();
+                let _ = writer.write_all(b"{\"type\":\"event\",\"kind\":\"presence_near\",\"vin\":\"V\",\"time\":\"t\"}\n");
+                let mut next = String::new();
+                assert_eq!(
+                    reader.read_line(&mut next).unwrap_or(0),
+                    0,
+                    "queued work must not execute after cancellation"
+                );
+            }
+        });
+        let handle = client.accept_and_handshake(&listener, None, path).unwrap();
+        client.child.lock_blocking().replace(handle);
+        (client, rx, peer)
+    }
+
+    #[test]
+    fn cancellation_interrupts_response_wait_without_the_operation_lock() {
+        let dir = tmp_state_dir("cancel-response");
+        let (client, got, peer) = accept_blocked_mock(dir.path());
+        let client = Arc::new(client);
+        let (tx, rx) = mpsc::channel();
+        let worker = thread::spawn({
+            let client = Arc::clone(&client);
+            move || {
+                tx.send(client.run("lock", &[], "VIN", "/key", 60, 60, Duration::from_secs(130)))
+                    .unwrap();
+            }
+        });
+        got.recv_timeout(Duration::from_secs(2)).unwrap();
+        let start = std::time::Instant::now();
+        client.cancel();
+        assert!(matches!(
+            rx.recv_timeout(Duration::from_secs(2)).unwrap(),
+            Err(SessionError::Cancelled)
+        ));
+        assert!(start.elapsed() < Duration::from_millis(500));
+        worker.join().unwrap();
+        peer.join().unwrap();
+        assert!(!client.is_alive());
+        assert!(client.child.lock_blocking().is_none());
+        assert!(matches!(
+            client.run("ping", &[], "VIN", "/key", 1, 1, Duration::from_secs(1)),
+            Err(SessionError::Cancelled)
+        ));
+    }
+
+    #[test]
+    fn dropping_an_async_request_retires_the_outstanding_response() {
+        let dir = tmp_state_dir("drop-future");
+        let (client, got, peer) = accept_blocked_mock(dir.path());
+        let mut request = Box::pin(client.run_async(
+            "lock",
+            &[],
+            "VIN",
+            "/key",
+            60,
+            60,
+            Duration::from_secs(130),
+        ));
+        assert!(async_io::block_on(future::poll_once(request.as_mut())).is_none());
+        got.recv_timeout(Duration::from_secs(2)).unwrap();
+        drop(request);
+        peer.join().unwrap();
+        assert!(!client.is_alive());
+        assert!(client.child.lock_blocking().is_none());
+    }
+
+    #[test]
+    fn cancellation_wakes_mutex_waiters_before_the_owner_releases_its_permit() {
+        let dir = tmp_state_dir("cancel-lock-wait");
+        let (client, got, peer) = accept_blocked_mock(dir.path());
+        let mut owner = Box::pin(client.run_async(
+            "lock",
+            &[],
+            "VIN",
+            "/key",
+            60,
+            60,
+            Duration::from_secs(130),
+        ));
+        assert!(async_io::block_on(future::poll_once(owner.as_mut())).is_none());
+        got.recv_timeout(Duration::from_secs(2)).unwrap();
+        let mut waiter = Box::pin(client.run_async(
+            "ping",
+            &[],
+            "VIN",
+            "/key",
+            60,
+            60,
+            Duration::from_secs(130),
+        ));
+        assert!(async_io::block_on(future::poll_once(waiter.as_mut())).is_none());
+        client.cancel();
+        assert!(matches!(
+            async_io::block_on(waiter),
+            Err(SessionError::Cancelled)
+        ));
+        assert!(
+            client.child.try_lock().is_none(),
+            "the owner's permit must still be held"
+        );
+        drop(owner);
+        peer.join().unwrap();
+    }
+
+    #[test]
+    fn cancellation_interrupts_accept_and_reaps_the_spawned_child() {
+        let dir = tmp_state_dir("cancel-accept");
+        let client = test_client(dir.path());
+        let (listener, path) = client.bind_listener().unwrap();
+        let child = KillOnDrop(Command::new("sleep").arg("60").spawn().unwrap());
+        let pid = child.id();
+        let mut accept =
+            Box::pin(client.accept_and_handshake_async(&listener, Some(child), path.clone()));
+        assert!(async_io::block_on(future::poll_once(accept.as_mut())).is_none());
+        client.cancel();
+        assert!(matches!(
+            async_io::block_on(accept),
+            Err(SessionError::Cancelled)
+        ));
+        assert!(!path.exists());
+        assert!(!std::path::Path::new(&format!("/proc/{pid}")).exists());
+    }
+
+    #[test]
+    fn cancellation_interrupts_a_peer_that_never_sends_hello() {
+        let dir = tmp_state_dir("cancel-hello");
+        let client = test_client(dir.path());
+        let (listener, path) = client.bind_listener().unwrap();
+        let peer = UnixStream::connect(&path).unwrap();
+        let mut hello = Box::pin(client.accept_and_handshake_async(&listener, None, path.clone()));
+        assert!(async_io::block_on(future::poll_once(hello.as_mut())).is_none());
+        client.cancel();
+        assert!(matches!(
+            async_io::block_on(hello),
+            Err(SessionError::Cancelled)
+        ));
+        assert_eq!(
+            BufReader::new(peer).read_line(&mut String::new()).unwrap(),
+            0
+        );
+        assert!(!path.exists());
+    }
+
+    #[test]
+    fn cancellation_interrupts_a_saturated_socket_write() {
+        let dir = tmp_state_dir("cancel-write");
+        let client = test_client(dir.path());
+        let (listener, path) = client.bind_listener().unwrap();
+        let mut peer = UnixStream::connect(&path).unwrap();
+        writeln!(peer, "{}", hello_ok()[0]).unwrap();
+        let handle = client.accept_and_handshake(&listener, None, path).unwrap();
+        client.child.lock_blocking().replace(handle);
+        // Larger than a Unix socket's send buffer; the peer never reads.
+        let args = vec!["x".repeat(8 * 1024 * 1024)];
+        let mut write = Box::pin(client.run_async(
+            "ping",
+            &args,
+            "VIN",
+            "/key",
+            60,
+            60,
+            Duration::from_secs(130),
+        ));
+        assert!(async_io::block_on(future::poll_once(write.as_mut())).is_none());
+        client.cancel();
+        let start = std::time::Instant::now();
+        assert!(matches!(
+            async_io::block_on(write),
+            Err(SessionError::Cancelled)
+        ));
+        assert!(start.elapsed() < Duration::from_millis(500));
+        assert!(!client.is_alive());
     }
 
     #[test]
@@ -948,7 +1328,7 @@ pub(crate) mod tests {
         let handle = client
             .accept_and_handshake(&listener, None, path)
             .expect("handshake");
-        client.child.lock().unwrap().replace(handle);
+        client.child.lock_blocking().replace(handle);
         let start = std::time::Instant::now();
         // Command deadline is 30s; the watchdog must fail this in ~200ms.
         // A silent child (no frames at all) kills the reader, so the run
@@ -1034,8 +1414,11 @@ pub(crate) mod tests {
         peer.join().unwrap();
         // Synchronize with reader termination, rather than sleeping.
         assert!(matches!(
-            handle.rx.recv_timeout(Duration::from_secs(2)),
-            Err(RecvTimeoutError::Disconnected)
+            async_io::block_on(client.cancellable(
+                async { handle.rx.recv().await.map_err(|_| SessionError::BrokenPipe) },
+                Duration::from_secs(2)
+            )),
+            Err(SessionError::BrokenPipe)
         ));
         let event = client.poll_event();
         assert!(
@@ -1067,6 +1450,8 @@ pub(crate) mod tests {
             vin: "V".to_string(),
             time: "t".to_string(),
             error: String::new(),
+            error_code: String::new(),
+            generation: client.generation(),
         });
         let _ = client.run("lock", &[], "VIN", "/key", 5, 5, Duration::from_secs(5));
         assert!(

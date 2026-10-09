@@ -12,8 +12,12 @@ class PhoneKeyEventsTest : public QObject
     Q_OBJECT
 signals:
     void received(const QString &kind, const QString &vin,
-                  const QString &time, const QString &errorMessage);
+                   const QString &time, const QString &errorMessage);
+    void stateReceived(bool active, const QString &link, const QString &status);
 private slots:
+    void onState(bool active, const QString &link, const QString &status) {
+        emit stateReceived(active, link, status);
+    }
     void onEvent(const QString &kind, const QString &vin,
                  const QString &time, const QString &errorMessage)
     {
@@ -31,12 +35,16 @@ private slots:
         QVERIFY(bus.connect(service, path, iface, QStringLiteral("PhoneKeyEvent"), this,
                             SLOT(onEvent(QString,QString,QString,QString))));
         QSignalSpy spy(this, SIGNAL(received(QString,QString,QString,QString)));
+        QVERIFY(bus.connect(service, path, iface, QStringLiteral("PhoneKeyStateChanged"), this,
+                            SLOT(onState(bool,QString,QString))));
+        QSignalSpy states(this, SIGNAL(stateReceived(bool,QString,QString)));
         QVERIFY(spy.isValid());
 
         QQmlEngine engine;
         QQmlComponent source(&engine);
         source.setData("import QtQml 2.2\nQtObject {\n"
                        "signal phoneKeyEvent(string kind, string vin, string time, string errorMessage)\n"
+                       "signal phoneKeyStateChanged(bool active, string link, string status)\n"
                        "}\n", QUrl());
         QScopedPointer<QObject> client(source.create());
         QVERIFY2(client, qPrintable(source.errorString()));
@@ -59,6 +67,17 @@ private slots:
         const QString signalXml = xml.mid(xml.indexOf(QStringLiteral("<signal name=\"PhoneKeyEvent\">")))
                                      .section(QStringLiteral("</signal>"), 0, 0);
         QCOMPARE(signalXml.count(QStringLiteral("type=\"s\"")), 4);
+        const QString stateXml = xml.mid(xml.indexOf(QStringLiteral("<signal name=\"PhoneKeyStateChanged\">")))
+                                     .section(QStringLiteral("</signal>"), 0, 0);
+        QCOMPARE(stateXml.count(QStringLiteral("type=\"b\"")), 1);
+        QCOMPARE(stateXml.count(QStringLiteral("type=\"s\"")), 2);
+        QVERIFY(QMetaObject::invokeMethod(client.data(), "phoneKeyStateChanged",
+                Q_ARG(bool, true), Q_ARG(QString, QStringLiteral("scanning")),
+                Q_ARG(QString, QStringLiteral("arbitrary prose"))));
+        QTRY_COMPARE(states.count(), 1);
+        QCOMPARE(states.first().at(0).type(), QVariant::Bool);
+        QCOMPARE(states.first().at(1).toString(), QStringLiteral("scanning"));
+        QCOMPARE(states.first().at(2).toString(), QStringLiteral("arbitrary prose"));
 
         const QString vin = QStringLiteral("5YJ3E1EA0PF000000");
         const QString time = QStringLiteral("2026-10-07T12:00:00+02:00");

@@ -742,16 +742,20 @@ func presenceLiveNear(live bool, rssi, nearRSSI int16) bool {
 // preceding presence_near, which mattered a great deal to what the result
 // could be taken to mean.
 type event struct {
-	Kind  string    `json:"kind"`
-	VIN   string    `json:"vin"`
-	Time  time.Time `json:"time"`
-	Error string    `json:"error,omitempty"`
+	Kind      string    `json:"kind"`
+	VIN       string    `json:"vin"`
+	Time      time.Time `json:"time"`
+	Error     string    `json:"error,omitempty"`
+	ErrorCode string    `json:"error_code,omitempty"`
 }
 
 func (s *session) emitEvent(kind string, err error) {
 	e := event{Kind: kind, VIN: s.vin, Time: time.Now()}
 	if err != nil {
 		e.Error = err.Error()
+		if bluez.IsBluetoothOff(err) {
+			e.ErrorCode = "bluetooth-off"
+		}
 	}
 	keylog("presence", "event %s err=%v", kind, err)
 	s.writeMu.Lock()

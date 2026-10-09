@@ -25,6 +25,41 @@ The arguments, in order, are:
 The object exposes signal introspection metadata. The service name is shared
 with the navigation Share adaptor; the event interface has no command methods.
 
+## Typed state signal
+
+The same interface additionally publishes **`PhoneKeyStateChanged(bss)`**:
+
+1. `active`: presence operation is running (not proof of an authenticated link).
+2. `link`: a stable machine state from the table below.
+3. `status`: human-readable diagnostic text. Never parse this text for state.
+
+| Link | Meaning |
+| --- | --- |
+| `unpaired` | VIN/key pairing prerequisites are not satisfied. |
+| `bluetooth-off` | A typed adapter-power failure was reported. |
+| `scanning` | Presence is seeking/re-establishing a connection. |
+| `connected` | A phone-key connection was established. |
+| `authorized` | An authentication response was sent successfully. |
+| `stopped` | Presence is inactive or has stopped. |
+| `error` | A startup, presence or authentication failure occurred. |
+
+`active` may remain true while `link` is `error` or `bluetooth-off`: presence
+can keep retrying after a failure. A connected icon must be based on `link`,
+not on `active`. Equivalent vehicle commands use key/VIN prerequisites rather
+than requiring the presence icon to be connected; a command can establish its
+own link. Unknown future link values should render as disconnected/degraded.
+
+This signal is emitted when the Qt adapter's complete state changes. It has no
+history replay, and unchanged snapshots do not produce duplicate state signals.
+The existing `PhoneKeyEvent(ssss)` signal, event kinds and diagnostics remain
+compatible; the additional signal does not change the `PhoneKey1` interface
+version. Legacy integrations can continue listening only for `PhoneKeyEvent`.
+
+Internally Rust publishes `phone_key_state { active, link, status }` and Qt
+exposes `phoneKeyActive`, `phoneKeyLink` and display-only `phoneKeyStatus`.
+Adapter-off detection originates from typed BlueZ errors (`error_code` in the
+Go-to-Rust event); diagnostic wording is not a machine contract.
+
 ## Events
 
 | Kind | Meaning |

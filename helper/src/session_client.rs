@@ -35,7 +35,7 @@
 use async_io::{Async, Timer};
 use futures_lite::{
     future,
-    io::{AsyncBufReadExt, AsyncWriteExt, BufReader as AsyncBufReader},
+    io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader as AsyncBufReader},
 };
 use std::collections::VecDeque;
 #[cfg(test)]
@@ -66,6 +66,28 @@ pub(crate) const IDLE_TIMEOUT_SEC: u32 = 90;
 /// (see helper/session/serve.go); a mismatch kills the child with a
 /// version error instead of parsing frames it doesn't understand.
 pub(crate) const PROTOCOL_VERSION: u32 = 1;
+
+/// Includes the terminating newline; matches Go's 1 MiB request ceiling.
+const MAX_FRAME_BYTES: usize = 1024 * 1024;
+
+async fn read_frame(
+    reader: &mut (impl futures_lite::io::AsyncBufRead + Unpin),
+    line: &mut String,
+) -> std::io::Result<usize> {
+    // Read at most one excess byte so an unterminated stream cannot allocate
+    // beyond the ceiling or wait for a newline before rejecting oversize input.
+    let count = reader
+        .take((MAX_FRAME_BYTES + 1) as u64)
+        .read_line(line)
+        .await?;
+    if count > MAX_FRAME_BYTES || (count != 0 && !line.ends_with('\n')) {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "oversized or unterminated session frame",
+        ));
+    }
+    Ok(count)
+}
 
 #[derive(Serialize)]
 struct Request<'a> {
@@ -237,7 +259,7 @@ fn spawn_reader(
         loop {
             line.clear();
             match future::race(
-                reader.read_line(&mut line),
+                read_frame(&mut reader, &mut line),
                 future::race(
                     async {
                         Timer::after(frame_timeout).await;
@@ -451,7 +473,7 @@ impl SessionClient {
         if self.shutdown_rx.is_closed() {
             return Err(SessionError::Cancelled);
         }
-        let result = future::race(
+        future::race(
             work,
             future::race(
                 async {
@@ -464,12 +486,7 @@ impl SessionClient {
                 },
             ),
         )
-        .await;
-        if self.shutdown_rx.is_closed() {
-            Err(SessionError::Cancelled)
-        } else {
-            result
-        }
+        .await
     }
 
     pub(crate) fn is_presence_active(&self) -> bool {
@@ -610,8 +627,7 @@ impl SessionClient {
         let hello_ok = match self
             .cancellable(
                 async {
-                    reader
-                        .read_line(&mut line)
+                    read_frame(&mut reader, &mut line)
                         .await
                         .map_err(SessionError::Spawn)
                 },
@@ -942,12 +958,105 @@ impl SessionClient {
 pub(crate) mod tests {
     use super::*;
 
+    #[test]
+    fn frames_are_bounded_even_without_a_newline() {
+        for payload in [vec![b'x'; MAX_FRAME_BYTES + 1], b"truncated".to_vec()] {
+            let mut reader = futures_lite::io::Cursor::new(payload);
+            let mut line = String::new();
+            let error = async_io::block_on(read_frame(&mut reader, &mut line)).unwrap_err();
+            assert_eq!(error.kind(), std::io::ErrorKind::InvalidData);
+            assert!(line.len() <= MAX_FRAME_BYTES + 1);
+        }
+    }
+
+    #[test]
+    fn frame_limit_preserves_following_buffered_frames() {
+        let mut payload = vec![b'x'; MAX_FRAME_BYTES - 1];
+        payload.extend_from_slice(b"\nnext\n");
+        let mut reader = futures_lite::io::Cursor::new(payload);
+        let mut line = String::new();
+        assert_eq!(
+            async_io::block_on(read_frame(&mut reader, &mut line)).unwrap(),
+            MAX_FRAME_BYTES
+        );
+        line.clear();
+        assert_eq!(
+            async_io::block_on(read_frame(&mut reader, &mut line)).unwrap(),
+            5
+        );
+        assert_eq!(line, "next\n");
+    }
+
+    #[test]
+    fn oversized_hello_rejects_the_peer() {
+        let dir = tempfile::tempdir().unwrap();
+        let client = test_client(dir.path());
+        let (listener, path) = client.bind_listener().unwrap();
+        let peer = thread::spawn({
+            let path = path.clone();
+            move || {
+                let mut stream = UnixStream::connect(path).unwrap();
+                let _ = stream.write_all(&vec![b'x'; MAX_FRAME_BYTES + 1]);
+            }
+        });
+        assert!(matches!(
+            client.accept_and_handshake(&listener, None, path.clone()),
+            Err(SessionError::Handshake(_))
+        ));
+        peer.join().unwrap();
+        assert!(!path.exists());
+    }
+
+    #[test]
+    fn oversized_established_frame_stops_the_session() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut greeting = hello_ok();
+        greeting.push(format!(
+            "{{\"type\":\"event\",\"kind\":\"{}\"}}",
+            "x".repeat(MAX_FRAME_BYTES)
+        ));
+        let (client, _, peer) = accept_mock(dir.path(), greeting, vec![]);
+        let ready = async_io::block_on(future::race(
+            async {
+                client.wait_event().await;
+                true
+            },
+            async {
+                Timer::after(Duration::from_secs(2)).await;
+                false
+            },
+        ));
+        let alive = client.is_alive();
+        let event = client.poll_event();
+        client.invalidate();
+        peer.join().unwrap();
+        assert!(ready, "reader did not report oversized established frame");
+        assert!(!alive);
+        assert_eq!(event.unwrap().kind, "presence_stopped");
+    }
+
     fn test_client(dir: &std::path::Path) -> SessionClient {
         SessionClient::new(
             PathBuf::from("/nonexistent/tesla-session"),
             "bluez",
             dir.to_path_buf(),
         )
+    }
+
+    #[test]
+    fn completed_work_survives_simultaneous_shutdown() {
+        let dir = tempfile::tempdir().unwrap();
+        let client = test_client(dir.path());
+        let result = future::block_on(client.cancellable(
+            async {
+                // Completion wins the race, even if shutdown becomes visible
+                // during this final poll before the result is returned.
+                client.cancel();
+                Ok(42)
+            },
+            Duration::from_secs(1),
+        ));
+        assert!(matches!(result, Ok(42)));
     }
 
     fn tmp_state_dir(tag: &str) -> tempfile::TempDir {

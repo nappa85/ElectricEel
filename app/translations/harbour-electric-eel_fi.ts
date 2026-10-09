@@ -418,108 +418,109 @@
   <context>
     <name>FirstPage</name>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="269" />
+      <location filename="../qml/pages/FirstPage.qml" line="298" />
       <source>The control core failed to start. Reinstall the app, then pull down to refresh.</source>
       <translation>Ohjausydin ei käynnistynyt. Asenna sovellus uudelleen ja vedä alas päivittääksesi.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="271" />
+      <location filename="../qml/pages/FirstPage.qml" line="300" />
       <source>The control core is too old to report its version. Reinstall the app (%1), then pull down to refresh.</source>
       <translation>Ohjausydin on liian vanha ilmoittamaan versionsa. Asenna sovellus (%1) uudelleen ja vedä alas päivittääksesi.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="272" />
+      <location filename="../qml/pages/FirstPage.qml" line="301" />
       <source>Version mismatch: app %1, core %2. Reinstall the app, then pull down to refresh.</source>
       <translation>Versioristiriita: sovellus %1, ydin %2. Asenna sovellus uudelleen ja vedä alas päivittääksesi.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="62" />
-      <location filename="../qml/pages/FirstPage.qml" line="290" />
+      <location filename="../qml/pages/FirstPage.qml" line="66" />
+      <location filename="../qml/pages/FirstPage.qml" line="319" />
       <source>No VIN configured</source>
       <translation>VIN-numeroa ei asetettu</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="54" />
+      <location filename="../qml/pages/FirstPage.qml" line="58" />
       <source>Control helper unavailable</source>
       <translation type="unfinished" />
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="58" />
+      <location filename="../qml/pages/FirstPage.qml" line="62" />
       <source>No key: generate and pair a key first</source>
       <translation type="unfinished" />
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="294" />
+      <location filename="../qml/pages/FirstPage.qml" line="323" />
       <source>Key ready</source>
       <translation>Avain valmis</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="294" />
+      <location filename="../qml/pages/FirstPage.qml" line="323" />
       <source>No key - tap for Settings / Pairing</source>
       <translation>Ei avainta - napauta Asetukset / Paritus</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="348" />
+      <location filename="../qml/pages/FirstPage.qml" line="377" />
       <source> • charging</source>
       <translation> • lataa</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="357" />
+      <location filename="../qml/pages/FirstPage.qml" line="386" />
       <source>• %1°C</source>
       <translation>• %1 °C</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="382" />
+      <location filename="../qml/pages/FirstPage.qml" line="411" />
       <source>Updating...</source>
       <translation>Päivitetään...</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="384" />
+      <location filename="../qml/pages/FirstPage.qml" line="413" />
       <source>Status unavailable (%1). Vehicle may be asleep - try Wake Vehicle (Attention), then Refresh Status.</source>
       <translation>Tila ei saatavilla (%1). Ajoneuvo saattaa nukkua - kokeile Herätä ajoneuvo (Huomio) ja Päivitä tila.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="386" />
+      <location filename="../qml/pages/FirstPage.qml" line="415" />
       <source>Pull down to refresh status</source>
       <translation>Vedä alas päivittääksesi tilan</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="388" />
+      <location filename="../qml/pages/FirstPage.qml" line="417" />
       <source>Updated just now</source>
       <translation>Päivitetty juuri</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="389" />
+      <location filename="../qml/pages/FirstPage.qml" line="418" />
       <source>Updated %1m ago</source>
       <translation>Päivitetty %1 min sitten</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="482" />
+      <location filename="../qml/pages/FirstPage.qml" line="511" />
       <source>Categories</source>
       <translation>Luokat</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="531" />
+      <location filename="../qml/pages/FirstPage.qml" line="560" />
       <source>Send Destination</source>
       <translation>Lähetä kohde</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="535" />
+      <location filename="../qml/pages/FirstPage.qml" line="564" />
       <source>Pair Vehicle</source>
       <translation>Parita ajoneuvo</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="539" />
+      <location filename="../qml/pages/FirstPage.qml" line="568" />
       <source>Settings</source>
       <translation>Asetukset</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="543" />
+      <location filename="../qml/pages/FirstPage.qml" line="572" />
+      <location filename="../qml/pages/SettingsPage.qml" line="154" />
       <source>Refresh</source>
       <translation>Päivitä</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="547" />
+      <location filename="../qml/pages/FirstPage.qml" line="576" />
       <source>Refresh Status</source>
       <translation>Päivitä tila</translation>
     </message>
@@ -527,72 +528,72 @@
   <context>
     <name>NavigationPage</name>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="46" />
+      <location filename="../qml/pages/NavigationPage.qml" line="48" />
       <source>Paste or type a destination first.</source>
       <translation>Liitä tai kirjoita ensin kohde.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="50" />
+      <location filename="../qml/pages/NavigationPage.qml" line="52" />
       <source>Checking...</source>
       <translation>Tarkistetaan...</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="59" />
+      <location filename="../qml/pages/NavigationPage.qml" line="63" />
       <source>Nothing to send.</source>
       <translation>Ei lähetettävää.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="76" />
+      <location filename="../qml/pages/NavigationPage.qml" line="80" />
       <source>Cannot use this: %1</source>
       <translation>Ei käytettävissä: %1</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="80" />
+      <location filename="../qml/pages/NavigationPage.qml" line="84" />
       <source>Coordinates %1, %2 — navigation will start there.</source>
       <translation>Koordinaatit %1, %2 — navigointi alkaa sieltä.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="83" />
+      <location filename="../qml/pages/NavigationPage.qml" line="87" />
       <source>Address "%1" — the car will look it up.</source>
       <translation>Osoite ”%1” — auto hakee sen.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="89" />
+      <location filename="../qml/pages/NavigationPage.qml" line="93" />
       <source>Send failed: %1</source>
       <translation>Lähetys epäonnistui: %1</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="109" />
+      <location filename="../qml/pages/NavigationPage.qml" line="113" />
       <source>Car Navigation</source>
       <translation>Auton navigointi</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="114" />
+      <location filename="../qml/pages/NavigationPage.qml" line="118" />
       <source>Destination</source>
       <translation>Kohde</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="115" />
+      <location filename="../qml/pages/NavigationPage.qml" line="119" />
       <source>Paste address, coordinates, or map link</source>
       <translation>Liitä osoite, koordinaatit tai karttalinkki</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="123" />
+      <location filename="../qml/pages/NavigationPage.qml" line="127" />
       <source>Preview</source>
       <translation>Esikatselu</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="141" />
+      <location filename="../qml/pages/NavigationPage.qml" line="145" />
       <source>Send to Car</source>
       <translation>Lähetä autoon</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="163" />
+      <location filename="../qml/pages/NavigationPage.qml" line="167" />
       <source>Notes</source>
       <translation>Huomautukset</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="172" />
+      <location filename="../qml/pages/NavigationPage.qml" line="176" />
       <source>This uses Bluetooth, like lock/unlock — the car must be in range, no internet needed on either side. Coordinates are sent exactly; addresses and links are looked up by the car itself, so unusual spellings may resolve differently than on your phone. From Android apps: copy the address or link, then paste it above.</source>
       <translation>Käyttää Bluetoothia kuten lukitus/avaus — auton on oltava kantaman sisällä, internetiä ei tarvita. Koordinaatit lähetetään tarkasti; osoitteet ja linkit auto hakee itse, joten epätavalliset kirjoitusasut voivat tulkita eri tavoin kuin puhelimessa. Android-sovelluksista: kopioi osoite tai linkki ja liitä yllä.</translation>
     </message>
@@ -600,77 +601,77 @@
   <context>
     <name>PairingPage</name>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="29" />
+      <location filename="../qml/pages/PairingPage.qml" line="30" />
       <source>Key generated. Tap "Pair with Vehicle", then tap your NFC card on the center console when prompted on the car's screen.</source>
       <translation>Avain luotu. Napauta ”Parita ajoneuvo” ja paina NFC-korttia keskikonsoliin, kun auton näyttö pyytää.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="31" />
+      <location filename="../qml/pages/PairingPage.qml" line="32" />
       <source>Key generation failed: %1</source>
       <translation>Avaimen luonti epäonnistui: %1</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="36" />
+      <location filename="../qml/pages/PairingPage.qml" line="37" />
       <source>Paired.</source>
       <translation>Paritettu.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="36" />
+      <location filename="../qml/pages/PairingPage.qml" line="37" />
       <source>Pairing failed: %1</source>
       <translation>Paritus epäonnistui: %1</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="42" />
+      <location filename="../qml/pages/PairingPage.qml" line="43" />
       <source>No keys listed</source>
       <translation type="unfinished" />
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="70" />
+      <location filename="../qml/pages/PairingPage.qml" line="71" />
       <source>Pairing &amp; Keys</source>
       <translation>Paritus &amp; avaimet</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="77" />
+      <location filename="../qml/pages/PairingPage.qml" line="78" />
       <source>Set the VIN in Settings first. Then generate a key, then pair it with the car over BLE - you'll need to be next to the vehicle and tap the NFC card on the center console to approve.</source>
       <translation>Aseta ensin VIN Asetuksissa. Luo sitten avain ja parita se autoon BLE:llä - seiso ajoneuvon vieressä ja paina NFC-korttia keskikonsoliin hyväksyäksesi.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="89" />
+      <location filename="../qml/pages/PairingPage.qml" line="90" />
       <source>Phone key starting...</source>
       <translation>Puhelinavain käynnistyy...</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="117" />
+      <location filename="../qml/pages/PairingPage.qml" line="118" />
       <source>Generating...</source>
       <translation>Luodaan...</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="117" />
+      <location filename="../qml/pages/PairingPage.qml" line="118" />
       <source>Generate Key</source>
       <translation>Luo avain</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="143" />
+      <location filename="../qml/pages/PairingPage.qml" line="144" />
       <source>Waiting for NFC tap...</source>
       <translation>Odotetaan NFC-kosketusta...</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="143" />
+      <location filename="../qml/pages/PairingPage.qml" line="144" />
       <source>Pair with Vehicle</source>
       <translation>Parita ajoneuvo</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="149" />
+      <location filename="../qml/pages/PairingPage.qml" line="150" />
       <source>Requesting pairing over BLE - approve on the car's touchscreen / NFC card now.</source>
       <translation>BLE-paritus pyydetty - hyväksy kosketusnäytöllä / NFC-kortilla nyt.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="169" />
+      <location filename="../qml/pages/PairingPage.qml" line="170" />
       <source>Enrolled Keys</source>
       <translation>Rekisteröidyt avaimet</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="173" />
+      <location filename="../qml/pages/PairingPage.qml" line="174" />
       <source>List Enrolled Keys</source>
       <translation>Listaa rekisteröidyt avaimet</translation>
     </message>
@@ -683,108 +684,108 @@
       <translation>Ladataan asetuksia...</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="35" />
+      <location filename="../qml/pages/SettingsPage.qml" line="37" />
       <source>Key on file</source>
       <translation>Avain olemassa</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="35" />
+      <location filename="../qml/pages/SettingsPage.qml" line="37" />
       <source>No key yet - use Pair Vehicle from the main menu</source>
       <translation>Ei avainta vielä - käytä Parita ajoneuvo päävalikossa</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="38" />
+      <location filename="../qml/pages/SettingsPage.qml" line="45" />
       <source>Saved</source>
       <translation>Tallennettu</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="38" />
+      <location filename="../qml/pages/SettingsPage.qml" line="45" />
       <source>Save failed: %1</source>
       <translation>Tallennus epäonnistui: %1</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="53" />
+      <location filename="../qml/pages/SettingsPage.qml" line="60" />
       <source>Settings</source>
       <translation>Asetukset</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="77" />
+      <location filename="../qml/pages/SettingsPage.qml" line="84" />
       <source>Vehicle VIN</source>
       <translation>Ajoneuvon VIN</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="82" />
+      <location filename="../qml/pages/SettingsPage.qml" line="89" />
       <source>17-character VIN</source>
       <translation>17-merkkinen VIN</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="105" />
+      <location filename="../qml/pages/SettingsPage.qml" line="112" />
       <source>Front-page car model</source>
       <translation>Automalli etusivulla</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="106" />
+      <location filename="../qml/pages/SettingsPage.qml" line="113" />
       <source>Auto selects the model from the VIN</source>
       <translation>Auto valitsee mallin VIN-numerosta</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="118" />
+      <location filename="../qml/pages/SettingsPage.qml" line="125" />
       <source>Key name</source>
       <translation>Avaimen nimi</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="119" />
+      <location filename="../qml/pages/SettingsPage.qml" line="126" />
       <source>harbour-electric-eel</source>
       <translation>harbour-electric-eel</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="125" />
+      <location filename="../qml/pages/SettingsPage.qml" line="132" />
       <source>Connect timeout</source>
       <translation>Yhteyden aikakatkaisu</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="132" />
-      <location filename="../qml/pages/SettingsPage.qml" line="142" />
+      <location filename="../qml/pages/SettingsPage.qml" line="139" />
+      <location filename="../qml/pages/SettingsPage.qml" line="149" />
       <source>%1 s</source>
       <translation type="unfinished" />
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="138" />
+      <location filename="../qml/pages/SettingsPage.qml" line="145" />
       <source>Command timeout</source>
       <translation>Komennon aikakatkaisu</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="147" />
+      <location filename="../qml/pages/SettingsPage.qml" line="164" />
       <source>Save</source>
       <translation>Tallenna</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="159" />
+      <location filename="../qml/pages/SettingsPage.qml" line="176" />
       <source>Pairing &amp; Keys</source>
       <translation>Paritus &amp; avaimet</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="163" />
+      <location filename="../qml/pages/SettingsPage.qml" line="180" />
       <source>About</source>
       <translation>Tietoa</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="177" />
+      <location filename="../qml/pages/SettingsPage.qml" line="194" />
       <source>App: ElectricEel %1   |   core: %2</source>
       <translation>Sovellus: ElectricEel %1   |   ydin: %2</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="181" />
+      <location filename="../qml/pages/SettingsPage.qml" line="198" />
       <source>(too old / unknown)</source>
       <translation>(liian vanha / tuntematon)</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="194" />
+      <location filename="../qml/pages/SettingsPage.qml" line="211" />
       <source>The control core is too old to report a version - reinstall the app.</source>
       <translation>Ohjausydin on liian vanha ilmoittamaan versiota - asenna sovellus uudelleen.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="195" />
+      <location filename="../qml/pages/SettingsPage.qml" line="212" />
       <source>Version mismatch: core %1 vs app %2 - reinstall the app.</source>
       <translation>Versioristiriita: ydin %1 vs sovellus %2 - asenna sovellus uudelleen.</translation>
     </message>

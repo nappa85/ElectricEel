@@ -22,6 +22,7 @@ SOURCES += \
     src/teslaclient.cpp
 
 HEADERS += \
+    src/commandarguments.h \
     src/teslaclient.h
 
 DISTFILES += \

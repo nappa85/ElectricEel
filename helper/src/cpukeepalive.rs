@@ -1,4 +1,5 @@
 //! MCE lease renewal on a Rust-owned thread, independent of UI and BLE work.
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
@@ -10,7 +11,8 @@ const RETRY: Duration = Duration::from_secs(1);
 const MAX_BACKOFF: Duration = Duration::from_secs(30);
 
 pub(crate) struct CpuKeepAlive {
-    quit: Arc<(Mutex<bool>, Condvar)>,
+    quit: Arc<AtomicBool>,
+    wakeup: Arc<(Mutex<u64>, Condvar)>,
     thread: Option<JoinHandle<()>>,
 }
 
@@ -20,11 +22,13 @@ impl CpuKeepAlive {
     }
 
     fn at_address(core: Arc<Core>, address: Option<String>) -> Self {
-        let quit = Arc::new((Mutex::new(false), Condvar::new()));
+        let quit = Arc::new(AtomicBool::new(false));
+        let wakeup = Arc::clone(&core.keepalive_wakeup);
         let worker_quit = Arc::clone(&quit);
         let thread = thread::spawn(move || renew(&core, &worker_quit, address.as_deref()));
         Self {
             quit,
+            wakeup,
             thread: Some(thread),
         }
     }
@@ -32,12 +36,15 @@ impl CpuKeepAlive {
 
 impl Drop for CpuKeepAlive {
     fn drop(&mut self) {
-        *self
-            .quit
+        let mut generation = self
+            .wakeup
             .0
             .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner) = true;
-        self.quit.1.notify_all();
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        self.quit.store(true, Ordering::SeqCst);
+        *generation = generation.wrapping_add(1);
+        self.wakeup.1.notify_all();
+        drop(generation);
         if let Some(thread) = self.thread.take() {
             let _ = thread.join();
         }
@@ -81,7 +88,7 @@ fn failure(method: &str, error: &str) {
 }
 
 #[allow(clippy::too_many_lines)]
-fn renew(core: &Core, quit: &(Mutex<bool>, Condvar), address: Option<&str>) {
+fn renew(core: &Core, quit: &AtomicBool, address: Option<&str>) {
     let mut connection = None;
     let mut requested = false;
     let mut first_hold = true;
@@ -90,13 +97,15 @@ fn renew(core: &Core, quit: &(Mutex<bool>, Condvar), address: Option<&str>) {
     let mut backoff = RETRY;
     let mut next = Instant::now();
     loop {
-        let guard = quit
+        let guard = core
+            .keepalive_wakeup
             .0
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        if *guard {
+        if quit.load(Ordering::SeqCst) {
             break;
         }
+        let generation = *guard;
         drop(guard);
         // Sleep target: when disabled and idle, wait on the condvar with a
         // long deadline instead of waking 10x/sec; renewals use half the
@@ -174,9 +183,6 @@ fn renew(core: &Core, quit: &(Mutex<bool>, Condvar), address: Option<&str>) {
                             }
                         }
                     }
-                } else {
-                    next = Instant::now() + backoff;
-                    backoff = (backoff * 2).min(MAX_BACKOFF);
                 }
             }
             // Sleep until the next renewal deadline (or quit).
@@ -198,21 +204,32 @@ fn renew(core: &Core, quit: &(Mutex<bool>, Condvar), address: Option<&str>) {
             delay = RETRY;
             backoff = RETRY;
             next = Instant::now();
-            // Re-check promptly: mode may flip back to enabled at any time
-            // (the test toggles stop/start within seconds).
-            sleep_for = RETRY;
+            // Mode changes notify the condvar, so idle can park immediately.
+            sleep_for = Duration::from_secs(30);
         } else {
             // Disabled and idle: park on the condvar instead of waking 10x/s.
+            // A failed bus connection granted no lease, but its old retry
+            // deadline must not delay a later explicit enable either.
+            backoff = RETRY;
+            next = Instant::now();
             sleep_for = Duration::from_secs(30);
         }
-        let guard = quit
+        let guard = core
+            .keepalive_wakeup
             .0
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        if *guard {
+        if quit.load(Ordering::SeqCst) {
             break;
         }
-        let _ = quit.1.wait_timeout(guard, sleep_for);
+        // Generation is checked while holding the notifier lock, so a mode
+        // change between evaluating it and parking cannot lose its wakeup.
+        let _ = core
+            .keepalive_wakeup
+            .1
+            .wait_timeout_while(guard, sleep_for, |current| {
+                *current == generation && !quit.load(Ordering::SeqCst)
+            });
     }
     if requested {
         if let Some(bus) = &connection {
@@ -233,6 +250,7 @@ mod tests {
     struct Mce {
         calls: mpsc::Sender<(String, String)>,
         starts: usize,
+        period: i32,
     }
 
     #[zbus::interface(name = "com.nokia.mce.request")]
@@ -240,7 +258,7 @@ mod tests {
         #[zbus(name = "req_cpu_keepalive_period")]
         fn req_cpu_keepalive_period(&self, id: &str) -> i32 {
             self.calls.send(("period".into(), id.into())).unwrap();
-            2
+            self.period
         }
         #[zbus(name = "req_cpu_keepalive_start")]
         fn req_cpu_keepalive_start(&mut self, id: &str) -> bool {
@@ -270,6 +288,15 @@ mod tests {
 
     #[test]
     fn rust_lease_renews_during_failed_start_and_stops_without_any_ui() {
+        exercise_lease(2);
+    }
+
+    #[test]
+    fn mode_changes_interrupt_long_renewal_and_idle_waits() {
+        exercise_lease(60);
+    }
+
+    fn exercise_lease(period: i32) {
         let child = Command::new("dbus-daemon")
             .args(["--session", "--nofork", "--print-address=1"])
             .stdout(Stdio::piped())
@@ -288,6 +315,7 @@ mod tests {
                 Mce {
                     calls: sender,
                     starts: 0,
+                    period,
                 },
             )
             .unwrap()
@@ -318,7 +346,9 @@ mod tests {
             wait_for(&receiver, "period");
             wait_for(&receiver, "start"); // Rejection.
             wait_for(&receiver, "start"); // Retry succeeds.
-            wait_for(&receiver, "start"); // Renewal with no UI event loop.
+            if period == 2 {
+                wait_for(&receiver, "start"); // Renewal with no UI event loop.
+            }
             core.stop_phone_key();
             wait_for(&receiver, "stop");
             assert!(core.start_phone_key().is_err());

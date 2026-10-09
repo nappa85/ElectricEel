@@ -241,3 +241,12 @@ enum CoreError core_share_destination(struct Core *core,
                                       bool *ok,
                                       char **stdout_out,
                                       char **error_message);
+
+/**
+ * Run the application lifecycle from the executable's forwarding entrypoint.
+ *
+ * # Safety
+ * `arguments` must contain `argument_count` valid C argument strings and remain
+ * live until this function returns, as required by Qt's application setup.
+ */
+int electric_eel_app_main(int argument_count, char **arguments);

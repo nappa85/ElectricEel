@@ -905,7 +905,7 @@ mod tests {
         let event = receive(&receiver, "phone_key_event", Duration::from_secs(8));
         assert_eq!(event["kind"], "presence_stopped");
         assert_eq!(event["vin"], "5YJ3E1EA0PF000000");
-        assert!(!event["error"].as_str().unwrap().is_empty());
+        assert_ne!(event["error"].as_str().unwrap(), "");
         assert!(event["time"].as_str().unwrap().ends_with('Z'));
         unsafe { runtime.observe(None, std::ptr::null_mut()) };
         drop(runtime);

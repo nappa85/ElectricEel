@@ -3,11 +3,13 @@ package bluez
 import (
 	"bytes"
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/godbus/dbus"
 	"github.com/teslamotors/vehicle-command/pkg/connector"
+	"github.com/teslamotors/vehicle-command/pkg/protocol"
 )
 
 // newTestConnection returns a Connection wired to the fake, primed for
@@ -414,8 +416,11 @@ func TestSendHonorsWriteDeadline(t *testing.T) {
 	go func() { done <- c.Send(ctx, []byte("status")) }()
 	select {
 	case err := <-done:
-		if err != context.DeadlineExceeded {
+		if !errors.Is(err, context.DeadlineExceeded) {
 			t.Fatalf("Send = %v; want deadline exceeded", err)
+		}
+		if !errors.Is(err, protocol.ErrNotConnected) || !protocol.MayHaveSucceeded(err) {
+			t.Fatal("uncertain write must retire the stream without claiming the command had no effect")
 		}
 		if c.blockLength != maxExpectedMTU-3 {
 			t.Fatal("deadline must not trigger an MTU fallback/retry")

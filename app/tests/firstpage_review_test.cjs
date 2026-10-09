@@ -6,7 +6,7 @@ const vm = require("node:vm");
 
 // Production-review regressions for the QML UI layer. Each test executes the
 // real QML/JS sources (no copies of the buggy logic) and asserts the correct
-// behavior, so it fails now and passes after the source is fixed.
+// behavior, retaining coverage for previously fixed defects.
 
 const qmlRoot = path.join(__dirname, "../qml");
 const catalogSource = fs.readFileSync(path.join(qmlRoot, "js/CommandCatalog.js"), "utf8");
@@ -27,10 +27,8 @@ function extractFunction(source, name) {
 }
 
 // --- 1. toggleLock with unknown state sends unlock but shows locked --------
-// emptyStatus().locked is null (unknown). toggleLock computes
-// sendLock = (locked === false) -> false -> sends "unlock", but the live
-// optimistic(field) flip does `!null === true`, painting the closed-padlock
-// icon for the whole round-trip. Displayed state must match the sent intent.
+// emptyStatus().locked is null. Previously, the optimistic flip painted a
+// closed padlock for an unlock command. Displayed state must match intent.
 test("toggleLock with unknown state must display the unlock it sends", () => {
     const toggleLock = extractFunction(firstPageSource, "toggleLock");
     // optimistic() is kept as a deprecated wrapper; the fixed toggleLock
@@ -44,11 +42,12 @@ test("toggleLock with unknown state must display the unlock it sends", () => {
         setOptimistic = extractFunction(firstPageSource, "setOptimistic");
     } catch {}
     const context = vm.createContext({
-        page: { vehicleStatus: { locked: null }, statusStage: "" },
+        page: { vehicleStatus: { locked: null }, statusStage: "", statusSeq: 0,
+            statusInstance: "test", statusRequestId: "", vin: "VIN" },
         VState: { clone: (s) => ({ ...s }) },
         teslaClient: { runCommand: function (id, cmd) { this.last = cmd; } },
     });
-    vm.runInContext(`${setOptimistic}\n${optimistic}\n${toggleLock}`, context);
+    vm.runInContext(`${extractFunction(firstPageSource, "runStatus")}\n${setOptimistic}\n${optimistic}\n${toggleLock}`, context);
     vm.runInContext("toggleLock()", context);
     const sent = vm.runInContext("teslaClient.last", context);
     const shown = vm.runInContext("page.vehicleStatus.locked", context);
@@ -56,7 +55,7 @@ test("toggleLock with unknown state must display the unlock it sends", () => {
     assert.equal(
         shown,
         false,
-        `displayed locked=${shown} contradicts sent ${sent} (fails until the flip sets the intended value)`,
+        `displayed locked=${shown} contradicts sent ${sent}`,
     );
 });
 
@@ -74,7 +73,7 @@ test("coordinate slider display must round-trip the sent value", () => {
     assert.equal(
         Number(displayed),
         value,
-        `step 0.000001 renders "${displayed}" for ${value} (fails until decimals derive from step)`,
+        `step 0.000001 renders "${displayed}" for ${value}`,
     );
     // Coarse steps keep coarse labels.
     vm.runInContext("this.__dec05 = sliderDecimals(0.5);", context);
@@ -82,8 +81,8 @@ test("coordinate slider display must round-trip the sent value", () => {
 });
 
 // --- 3. schedule-remove TYPE=id accepts an empty ID ------------------------
-// ID is optional, so the live Dialog.revalidate() passes with TYPE=id and
-// ID="". The Go handler then rejects ["id"] with "missing schedule ID"
+// ID is optional; previously Dialog.revalidate() passed with TYPE=id and
+// ID="". The Go handler then rejected ["id"] with "missing schedule ID"
 // after a BLE round-trip. The test runs the live revalidate() and requires
 // the form to be invalid for that combination.
 test("schedule-remove with TYPE=id and empty ID must be invalid", () => {
@@ -102,13 +101,13 @@ test("schedule-remove with TYPE=id and empty ID must be invalid", () => {
     assert.equal(
         valid,
         false,
-        "TYPE=id with an empty ID must not validate (fails until a cross-field rule exists)",
+        "TYPE=id with an empty ID must not validate",
     );
 });
 
 // --- 4. Battery icon boundaries --------------------------------------------
-// The live batteryIconSource() tiers at > 90 / > 60 / > 40 / > 9, so exactly
-// 90% renders the 75 icon. Tier tops must belong to the higher icon.
+// Previously strict comparisons rendered 90% with the 75 icon. Tier tops
+// must belong to the higher icon.
 test("battery icon tiers include their boundary values", () => {
     const fn = extractFunction(firstPageSource, "batteryIconSource");
     function liveIcon(level) {
@@ -120,11 +119,11 @@ test("battery icon tiers include their boundary values", () => {
     assert.equal(
         liveIcon(90),
         "../../img/icons/battery100.svg",
-        "90% must render the full icon (fails until boundaries use >=)",
+        "90% must render the full icon",
     );
     assert.equal(
         liveIcon(60),
         "../../img/icons/battery75.svg",
-        "60% must render the 75 icon (fails until boundaries use >=)",
+        "60% must render the 75 icon",
     );
 });

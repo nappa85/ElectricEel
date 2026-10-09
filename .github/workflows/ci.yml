@@ -66,7 +66,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install Qt QML tools
-        run: sudo apt-get update && sudo apt-get install -y qtdeclarative5-dev-tools
+        run: sudo apt-get update && sudo apt-get install -y qtdeclarative5-dev-tools qtbase5-dev
       - name: qmllint syntax check
         # Qt 5.15 qmllint is a pure syntax verifier: it parses QML with
         # QQmlJS and never resolves imports, so the Sailfish-only modules
@@ -76,6 +76,20 @@ jobs:
           export PATH="$PATH:/usr/lib/qt5/bin:/usr/lib/x86_64-linux-gnu/qt5/bin"
           command -v qmllint
           qmllint app/qml/harbour-electric-eel.qml app/qml/cover/*.qml app/qml/pages/*.qml
+      - name: Qt command argument regression tests
+        run: |
+          g++ -std=c++11 -fPIC $(pkg-config --cflags Qt5Core) \
+            app/tests/commandarguments_test.cpp -o "$RUNNER_TEMP/commandarguments_test" \
+            $(pkg-config --libs Qt5Core)
+          "$RUNNER_TEMP/commandarguments_test"
+      - name: Qt configuration admission regression test
+        run: |
+          /usr/lib/qt5/bin/moc app/src/teslaclient.h -o "$RUNNER_TEMP/moc_teslaclient.cpp"
+          g++ -std=c++11 -fPIC -DAPP_VERSION=\"test\" \
+            -Iapp/tests/runtime_stub $(pkg-config --cflags Qt5Core Qt5Gui) \
+            app/tests/configload_test.cpp app/src/teslaclient.cpp "$RUNNER_TEMP/moc_teslaclient.cpp" \
+            -o "$RUNNER_TEMP/configload_test" $(pkg-config --libs Qt5Core Qt5Gui)
+          "$RUNNER_TEMP/configload_test"
 
   qml-logic:
     name: QML JavaScript logic regressions

@@ -418,108 +418,109 @@
   <context>
     <name>FirstPage</name>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="269" />
+      <location filename="../qml/pages/FirstPage.qml" line="298" />
       <source>The control core failed to start. Reinstall the app, then pull down to refresh.</source>
       <translation>কন্ট্রোল কোর চালু হয়নি। অ্যাপ পুনরায় ইনস্টল করুন, তারপর রিফ্রেশের জন্য নিচে টানুন।</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="271" />
+      <location filename="../qml/pages/FirstPage.qml" line="300" />
       <source>The control core is too old to report its version. Reinstall the app (%1), then pull down to refresh.</source>
       <translation>কন্ট্রোল কোর সংস্করণ জানাতে খুব পুরনো। অ্যাপ (%1) পুনরায় ইনস্টল করুন, তারপর রিফ্রেশের জন্য নিচে টানুন।</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="272" />
+      <location filename="../qml/pages/FirstPage.qml" line="301" />
       <source>Version mismatch: app %1, core %2. Reinstall the app, then pull down to refresh.</source>
       <translation>সংস্করণ mismatch: অ্যাপ %1, কোর %2। অ্যাপ পুনরায় ইনস্টল করুন, তারপর রিফ্রেশের জন্য নিচে টানুন।</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="62" />
-      <location filename="../qml/pages/FirstPage.qml" line="290" />
+      <location filename="../qml/pages/FirstPage.qml" line="66" />
+      <location filename="../qml/pages/FirstPage.qml" line="319" />
       <source>No VIN configured</source>
       <translation>VIN কনফিগার করা হয়নি</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="54" />
+      <location filename="../qml/pages/FirstPage.qml" line="58" />
       <source>Control helper unavailable</source>
       <translation type="unfinished" />
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="58" />
+      <location filename="../qml/pages/FirstPage.qml" line="62" />
       <source>No key: generate and pair a key first</source>
       <translation type="unfinished" />
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="294" />
+      <location filename="../qml/pages/FirstPage.qml" line="323" />
       <source>Key ready</source>
       <translation>চাবি প্রস্তুত</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="294" />
+      <location filename="../qml/pages/FirstPage.qml" line="323" />
       <source>No key - tap for Settings / Pairing</source>
       <translation>চাবি নেই - সেটিংস / পেয়ারিংয়ের জন্য ট্যাপ করুন</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="348" />
+      <location filename="../qml/pages/FirstPage.qml" line="377" />
       <source> • charging</source>
       <translation> • চার্জ হচ্ছে</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="357" />
+      <location filename="../qml/pages/FirstPage.qml" line="386" />
       <source>• %1°C</source>
       <translation>• %1 °C</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="382" />
+      <location filename="../qml/pages/FirstPage.qml" line="411" />
       <source>Updating...</source>
       <translation>আপডেট হচ্ছে...</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="384" />
+      <location filename="../qml/pages/FirstPage.qml" line="413" />
       <source>Status unavailable (%1). Vehicle may be asleep - try Wake Vehicle (Attention), then Refresh Status.</source>
       <translation>অবস্থা পাওয়া যায়নি (%1)। গাড়ি ঘুমিয়ে থাকতে পারে - গাড়ি জাগান (মনোযোগ) চেষ্টা করুন, তারপর অবস্থা রিফ্রেশ করুন।</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="386" />
+      <location filename="../qml/pages/FirstPage.qml" line="415" />
       <source>Pull down to refresh status</source>
       <translation>অবস্থা রিফ্রেশ করতে নিচে টানুন</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="388" />
+      <location filename="../qml/pages/FirstPage.qml" line="417" />
       <source>Updated just now</source>
       <translation>এইমাত্র আপডেট হয়েছে</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="389" />
+      <location filename="../qml/pages/FirstPage.qml" line="418" />
       <source>Updated %1m ago</source>
       <translation>%1 মি আগে আপডেট হয়েছে</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="482" />
+      <location filename="../qml/pages/FirstPage.qml" line="511" />
       <source>Categories</source>
       <translation>বিভাগ</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="531" />
+      <location filename="../qml/pages/FirstPage.qml" line="560" />
       <source>Send Destination</source>
       <translation>গন্তব্য পাঠান</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="535" />
+      <location filename="../qml/pages/FirstPage.qml" line="564" />
       <source>Pair Vehicle</source>
       <translation>গাড়ি পেয়ার করুন</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="539" />
+      <location filename="../qml/pages/FirstPage.qml" line="568" />
       <source>Settings</source>
       <translation>সেটিংস</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="543" />
+      <location filename="../qml/pages/FirstPage.qml" line="572" />
+      <location filename="../qml/pages/SettingsPage.qml" line="154" />
       <source>Refresh</source>
       <translation>রিফ্রেশ</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="547" />
+      <location filename="../qml/pages/FirstPage.qml" line="576" />
       <source>Refresh Status</source>
       <translation>অবস্থা রিফ্রেশ করুন</translation>
     </message>
@@ -527,72 +528,72 @@
   <context>
     <name>NavigationPage</name>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="46" />
+      <location filename="../qml/pages/NavigationPage.qml" line="48" />
       <source>Paste or type a destination first.</source>
       <translation>আগে গন্তব্য পেস্ট করুন বা লিখুন।</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="50" />
+      <location filename="../qml/pages/NavigationPage.qml" line="52" />
       <source>Checking...</source>
       <translation>পরীক্ষা চলছে...</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="59" />
+      <location filename="../qml/pages/NavigationPage.qml" line="63" />
       <source>Nothing to send.</source>
       <translation>পাঠানোর কিছু নেই।</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="76" />
+      <location filename="../qml/pages/NavigationPage.qml" line="80" />
       <source>Cannot use this: %1</source>
       <translation>ব্যবহার করা যাবে না: %1</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="80" />
+      <location filename="../qml/pages/NavigationPage.qml" line="84" />
       <source>Coordinates %1, %2 — navigation will start there.</source>
       <translation>স্থানাঙ্ক %1, %2 — নেভিগেশন সেখানেই শুরু হবে।</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="83" />
+      <location filename="../qml/pages/NavigationPage.qml" line="87" />
       <source>Address "%1" — the car will look it up.</source>
       <translation>ঠিকানা “%1” — গাড়ি নিজেই খুঁজবে।</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="89" />
+      <location filename="../qml/pages/NavigationPage.qml" line="93" />
       <source>Send failed: %1</source>
       <translation>পাঠানো ব্যর্থ: %1</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="109" />
+      <location filename="../qml/pages/NavigationPage.qml" line="113" />
       <source>Car Navigation</source>
       <translation>গাড়ি নেভিগেশন</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="114" />
+      <location filename="../qml/pages/NavigationPage.qml" line="118" />
       <source>Destination</source>
       <translation>গন্তব্য</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="115" />
+      <location filename="../qml/pages/NavigationPage.qml" line="119" />
       <source>Paste address, coordinates, or map link</source>
       <translation>ঠিকানা, স্থানাঙ্ক বা ম্যাপ লিঙ্ক পেস্ট করুন</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="123" />
+      <location filename="../qml/pages/NavigationPage.qml" line="127" />
       <source>Preview</source>
       <translation>প্রাকদর্শন</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="141" />
+      <location filename="../qml/pages/NavigationPage.qml" line="145" />
       <source>Send to Car</source>
       <translation>গাড়িতে পাঠান</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="163" />
+      <location filename="../qml/pages/NavigationPage.qml" line="167" />
       <source>Notes</source>
       <translation>নোট</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="172" />
+      <location filename="../qml/pages/NavigationPage.qml" line="176" />
       <source>This uses Bluetooth, like lock/unlock — the car must be in range, no internet needed on either side. Coordinates are sent exactly; addresses and links are looked up by the car itself, so unusual spellings may resolve differently than on your phone. From Android apps: copy the address or link, then paste it above.</source>
       <translation>লক/আনলকের মতো Bluetooth ব্যবহার হয় — গাড়ি রেঞ্জে থাকতে হবে, ইন্টারনেট দরকার নেই। স্থানাঙ্ক নির্ভুল পাঠানো হয়; ঠিকানা ও লিঙ্ক গাড়ি নিজেই খোঁজে, তাই অস্বাভাবিক বানান ফোনের চেয়ে আলাদা বোঝা যেতে পারে। Android অ্যাপ থেকে: ঠিকানা বা লিঙ্ক কপি করে উপরে পেস্ট করুন।</translation>
     </message>
@@ -600,77 +601,77 @@
   <context>
     <name>PairingPage</name>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="29" />
+      <location filename="../qml/pages/PairingPage.qml" line="30" />
       <source>Key generated. Tap "Pair with Vehicle", then tap your NFC card on the center console when prompted on the car's screen.</source>
       <translation>চাবি তৈরি। “গাড়ি পেয়ার করুন” ট্যাপ করুন, তারপর গাড়ির স্ক্রিন বললে NFC কার্ড সেন্টার কনসোলে ট্যাপ করুন।</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="31" />
+      <location filename="../qml/pages/PairingPage.qml" line="32" />
       <source>Key generation failed: %1</source>
       <translation>চাবি তৈরি ব্যর্থ: %1</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="36" />
+      <location filename="../qml/pages/PairingPage.qml" line="37" />
       <source>Paired.</source>
       <translation>পেয়ার হয়েছে।</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="36" />
+      <location filename="../qml/pages/PairingPage.qml" line="37" />
       <source>Pairing failed: %1</source>
       <translation>পেয়ারিং ব্যর্থ: %1</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="42" />
+      <location filename="../qml/pages/PairingPage.qml" line="43" />
       <source>No keys listed</source>
       <translation type="unfinished" />
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="70" />
+      <location filename="../qml/pages/PairingPage.qml" line="71" />
       <source>Pairing &amp; Keys</source>
       <translation>পেয়ারিং ও চাবি</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="77" />
+      <location filename="../qml/pages/PairingPage.qml" line="78" />
       <source>Set the VIN in Settings first. Then generate a key, then pair it with the car over BLE - you'll need to be next to the vehicle and tap the NFC card on the center console to approve.</source>
       <translation>আগে সেটিংসে VIN দিন। তারপর চাবি বানান এবং BLE দিয়ে গাড়ির সাথে পেয়ার করুন – গাড়ির পাশে দাঁড়ান এবং অনুমোদনের জন্য NFC কার্ড সেন্টার কনসোলে ট্যাপ করুন।</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="89" />
+      <location filename="../qml/pages/PairingPage.qml" line="90" />
       <source>Phone key starting...</source>
       <translation>ফোন চাবি চালু হচ্ছে...</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="117" />
+      <location filename="../qml/pages/PairingPage.qml" line="118" />
       <source>Generating...</source>
       <translation>তৈরি হচ্ছে...</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="117" />
+      <location filename="../qml/pages/PairingPage.qml" line="118" />
       <source>Generate Key</source>
       <translation>চাবি তৈরি করুন</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="143" />
+      <location filename="../qml/pages/PairingPage.qml" line="144" />
       <source>Waiting for NFC tap...</source>
       <translation>NFC ট্যাপের অপেক্ষা...</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="143" />
+      <location filename="../qml/pages/PairingPage.qml" line="144" />
       <source>Pair with Vehicle</source>
       <translation>গাড়ি পেয়ার করুন</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="149" />
+      <location filename="../qml/pages/PairingPage.qml" line="150" />
       <source>Requesting pairing over BLE - approve on the car's touchscreen / NFC card now.</source>
       <translation>BLE পেয়ারিং অনুরোধিত – টাচস্ক্রিন / NFC কার্ডে এখনই অনুমোদন দিন।</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="169" />
+      <location filename="../qml/pages/PairingPage.qml" line="170" />
       <source>Enrolled Keys</source>
       <translation>নিবন্ধিত চাবি</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="173" />
+      <location filename="../qml/pages/PairingPage.qml" line="174" />
       <source>List Enrolled Keys</source>
       <translation>নিবন্ধিত চাবি তালিকাভুক্ত করুন</translation>
     </message>
@@ -683,108 +684,108 @@
       <translation>কনফিগারেশন লোড হচ্ছে...</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="35" />
+      <location filename="../qml/pages/SettingsPage.qml" line="37" />
       <source>Key on file</source>
       <translation>চাবি আছে</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="35" />
+      <location filename="../qml/pages/SettingsPage.qml" line="37" />
       <source>No key yet - use Pair Vehicle from the main menu</source>
       <translation>এখনও চাবি নেই – মূল মেনু থেকে গাড়ি পেয়ার করুন ব্যবহার করুন</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="38" />
+      <location filename="../qml/pages/SettingsPage.qml" line="45" />
       <source>Saved</source>
       <translation>সেভ হয়েছে</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="38" />
+      <location filename="../qml/pages/SettingsPage.qml" line="45" />
       <source>Save failed: %1</source>
       <translation>সেভ ব্যর্থ: %1</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="53" />
+      <location filename="../qml/pages/SettingsPage.qml" line="60" />
       <source>Settings</source>
       <translation>সেটিংস</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="77" />
+      <location filename="../qml/pages/SettingsPage.qml" line="84" />
       <source>Vehicle VIN</source>
       <translation>গাড়ির VIN</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="82" />
+      <location filename="../qml/pages/SettingsPage.qml" line="89" />
       <source>17-character VIN</source>
       <translation>17-অক্ষরের VIN</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="105" />
+      <location filename="../qml/pages/SettingsPage.qml" line="112" />
       <source>Front-page car model</source>
       <translation>প্রথম পেজে গাড়ির মডেল</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="106" />
+      <location filename="../qml/pages/SettingsPage.qml" line="113" />
       <source>Auto selects the model from the VIN</source>
       <translation>VIN থেকে মডেল অটো বেছে নেয়</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="118" />
+      <location filename="../qml/pages/SettingsPage.qml" line="125" />
       <source>Key name</source>
       <translation>চাবির নাম</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="119" />
+      <location filename="../qml/pages/SettingsPage.qml" line="126" />
       <source>harbour-electric-eel</source>
       <translation>harbour-electric-eel</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="125" />
+      <location filename="../qml/pages/SettingsPage.qml" line="132" />
       <source>Connect timeout</source>
       <translation>কানেক্ট টাইমআউট</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="132" />
-      <location filename="../qml/pages/SettingsPage.qml" line="142" />
+      <location filename="../qml/pages/SettingsPage.qml" line="139" />
+      <location filename="../qml/pages/SettingsPage.qml" line="149" />
       <source>%1 s</source>
       <translation type="unfinished" />
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="138" />
+      <location filename="../qml/pages/SettingsPage.qml" line="145" />
       <source>Command timeout</source>
       <translation>কমান্ড টাইমআউট</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="147" />
+      <location filename="../qml/pages/SettingsPage.qml" line="164" />
       <source>Save</source>
       <translation>সেভ করুন</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="159" />
+      <location filename="../qml/pages/SettingsPage.qml" line="176" />
       <source>Pairing &amp; Keys</source>
       <translation>পেয়ারিং ও চাবি</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="163" />
+      <location filename="../qml/pages/SettingsPage.qml" line="180" />
       <source>About</source>
       <translation>সম্পর্কে</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="177" />
+      <location filename="../qml/pages/SettingsPage.qml" line="194" />
       <source>App: ElectricEel %1   |   core: %2</source>
       <translation>অ্যাপ: ElectricEel %1   |   কোর: %2</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="181" />
+      <location filename="../qml/pages/SettingsPage.qml" line="198" />
       <source>(too old / unknown)</source>
       <translation>(খুব পুরনো / অজানা)</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="194" />
+      <location filename="../qml/pages/SettingsPage.qml" line="211" />
       <source>The control core is too old to report a version - reinstall the app.</source>
       <translation>কন্ট্রোল কোর সংস্করণ জানাতে খুব পুরনো – অ্যাপ পুনরায় ইনস্টল করুন।</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="195" />
+      <location filename="../qml/pages/SettingsPage.qml" line="212" />
       <source>Version mismatch: core %1 vs app %2 - reinstall the app.</source>
       <translation>mismatch: কোর %1 বনাম অ্যাপ %2 – অ্যাপ পুনরায় ইনস্টল করুন।</translation>
     </message>

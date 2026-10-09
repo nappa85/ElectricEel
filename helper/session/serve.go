@@ -21,6 +21,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -47,7 +48,19 @@ func (s *session) encodeWithDeadline(v interface{}) error {
 	if s.enc == nil {
 		return fmt.Errorf("no parent connection")
 	}
-	return s.enc.Encode(v)
+	err := s.enc.Encode(v)
+	if err != nil {
+		// Do not take s.mu here: presence emits frames while holding it.
+		// Closing the transport wakes Scanner and lets serveConn own teardown.
+		s.parentFailed.Store(true)
+		if s.parentCancel != nil {
+			s.parentCancel() // Interrupt BLE work even if dispatch is still running.
+		}
+		if s.parentConn != nil {
+			_ = s.parentConn.Close()
+		}
+	}
+	return err
 }
 
 // heartbeatLoop ticks heartbeat frames until done is closed. A failed
@@ -82,6 +95,9 @@ func (s *session) heartbeatLoop(done <-chan struct{}) {
 // return and let main decide the exit code.
 func (s *session) serveConn(conn net.Conn) {
 	defer conn.Close()
+	defer s.shutdown()
+	s.parentContext, s.parentCancel = context.WithCancel(context.Background())
+	defer s.parentCancel()
 	s.parentConn = conn
 	s.enc = json.NewEncoder(conn)
 	if err := s.encodeWithDeadline(helloFrame{Type: "hello", Version: protocolVersion, BLEBackend: s.bleBackend}); err != nil {
@@ -96,6 +112,9 @@ func (s *session) serveConn(conn net.Conn) {
 	scanner := bufio.NewScanner(conn)
 	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 	for scanner.Scan() {
+		if s.parentFailed.Load() {
+			break // Scanner can still have requests buffered after transport death.
+		}
 		line := scanner.Bytes()
 		if len(line) == 0 {
 			continue
@@ -125,7 +144,6 @@ func (s *session) serveConn(conn net.Conn) {
 	} else {
 		keylog("session", "parent connection closed - shutting down")
 	}
-	s.shutdown()
 }
 
 // shutdown releases all BLE state. Idempotent; safe with no live session.

@@ -3,7 +3,7 @@
 ## Stage the in-app bundle
 
 `helper/make-app-bundle.sh` cross-builds the Rust staticlib with `app-entry`
-(Rust `main`, autonomous runtime, and MCE client)
+(Rust application entrypoint, autonomous runtime, and MCE client)
 (`aarch64-unknown-linux-gnu`, glibc) and the Go `tesla-session` child
 (`CGO_ENABLED=0 GOOS=linux GOARCH=arm64`), staging them into
 `app/thirdparty/` and `app/bin/`. Requires the `aarch64-unknown-linux-gnu`

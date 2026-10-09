@@ -7,7 +7,8 @@ capabilities, no `devel-su` install. Sailjail permissions: `Bluetooth;Documents`
 ## Components
 
 - **Application entrypoint** (`helper/src/app.rs`, Rust, `app-entry` feature):
-  supplies the executable's `main` from the static library. It calls Qt's
+  exports `electric_eel_app_main` from the static library, called by a thin
+  C++ `main` forwarding function. It calls Qt's
   platform setup to resolve Sailjail paths, constructs and owns the runtime,
   runs the UI with a borrowed runtime handle, then joins Rust's threads,
   stops presence and reaps Go before Qt teardown. There is one application
@@ -32,7 +33,10 @@ capabilities, no `devel-su` install. Sailjail permissions: `Bluetooth;Documents`
   timer, which updates presentation without touching the car. QML pages:
   FirstPage (dashboard + categories), CategoryPage (generic command list),
   ArgumentDialog (per-command form), PairingPage, SettingsPage,
-  NavigationPage.
+  NavigationPage. Configuration-load failures are explicit errors rather than
+  fabricated empty data. Dashboard requests are tagged by page, sequence and
+  VIN; changing VIN clears telemetry and rejects late replies. Per-category
+  ages keep partial refreshes from making retained readings appear fresh.
 - **Control core** (`helper/src`, Rust staticlib `libelectriceelcore.a`,
   C ABI via cbindgen `electriceelcore.h`): config + key files
   (`config.json`, `private_key.pem`, `public_key.pem` under the app data
@@ -45,6 +49,9 @@ capabilities, no `devel-su` install. Sailjail permissions: `Bluetooth;Documents`
   `tesla-control` handlers (`commands_vendor.go`, pinned
   vehicle-command v0.4.1). Navigation dispatches to `navigate.go`
   (field-53/field-21 actions, see `navigation-share.md`).
+  Fresh and reused links authenticate only the domain required by the command:
+  passive entry, locks and body-controller actions use VCSEC, while climate,
+  charging, media, windows and navigation use infotainment.
 
 ## Parent/child protocol
 
@@ -60,6 +67,9 @@ mismatch kills the child instead of parsing unknown frames):
   `event` (unsolicited presence updates, with optional structured `error_code`), `heartbeat` (every 10 s,
   including mid-command)
 
+Both Rust read phases limit each frame to 1 MiB including its newline, rejecting
+oversized or unterminated input without unbounded buffering.
+
 stdin/stdout are not the protocol: stdout is plain logs. Command handlers
 receive explicit per-command writers, so replies contain only their output
 and background diagnostics cannot race process-wide stdout/stderr swaps. On any
@@ -69,6 +79,11 @@ a silent fallback, never an unbounded buffer. A failed heartbeat
 and exit rather than linger. Any frame gap over 30 s (no response,
 event, or heartbeat) kills the child as wedged instead of hanging the
 caller until the command deadline.
+
+Any terminal outbound frame-write failure closes the child's parent transport,
+wakes its request reader, cancels in-flight work and triggers BLE teardown.
+Partially or uncertainly transmitted BLE frames retire their connection; only an explicit ATT
+write-length rejection allows safe MTU fallback on that stream.
 
 Reader failures also publish `presence_stopped` while idle. The core reaps
 the old reader/process before restarting presence; failed restarts are retried
@@ -153,6 +168,10 @@ for prompt passive entry. Daily phone-key logs record the granted period, first
 successful hold, every D-Bus failure, and display status (`0` unknown, `1` off,
 `2` dimmed, `3` on), separately from Qt app lifecycle. Periodic wakeups cannot
 preserve an authenticated GATT session and are not used.
+
+Rust and Go retain daily append handles and prune on day rollover. The shared
+daily log is capped at 10 MiB, with cross-process file locking for size checks
+and appends; additional diagnostics continue to stderr until the next day.
 
 Phone-key events are also published on the session bus through
 `org.electriceel.PhoneKey1`, including the fork's settled `presence_inside`

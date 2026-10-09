@@ -133,10 +133,8 @@ func TestCaptureOutputIsolatesAndRestores(t *testing.T) {
 	}
 }
 
-// TestSessionDomainsScopesBodyControllerState checks the one command whose
-// domain restriction actually goes through commands_vendor.go's own field
-// (session-info takes its domain as a runtime argument instead, so it's
-// correctly nil here - no static override wanted).
+// Commands must authenticate their actual domain on either fresh or reused
+// links. session-info uses an unauthenticated runtime-selected domain instead.
 func TestSessionDomainsScopesBodyControllerState(t *testing.T) {
 	cases := []struct {
 		cmd  string
@@ -144,10 +142,11 @@ func TestSessionDomainsScopesBodyControllerState(t *testing.T) {
 	}{
 		{"body-controller-state", []protocol.Domain{protocol.DomainVCSEC}},
 		{"state", []protocol.Domain{protocol.DomainInfotainment}},
-		{"session-info", nil},
-		{"lock", nil},
-		{"unlock", nil},
-		{"add-key-request", nil}, // skips StartSession entirely - see commandsWithoutSession
+		{"session-info", []protocol.Domain{}},
+		{"wake", []protocol.Domain{protocol.DomainVCSEC}},
+		{"lock", []protocol.Domain{protocol.DomainVCSEC}},
+		{"unlock", []protocol.Domain{protocol.DomainVCSEC}},
+		{"add-key-request", []protocol.Domain{}},      // skips StartSession entirely
 		{"", []protocol.Domain{protocol.DomainVCSEC}}, // presence mode: VCSEC only
 		{"not-a-real-command", nil},
 	}
@@ -544,6 +543,56 @@ func TestParsePresenceArgsOverrides(t *testing.T) {
 func TestParsePresenceArgsRejectsUnknownFlag(t *testing.T) {
 	if _, err := parsePresenceArgs([]string{"-near-rssi-typo", "-80"}); err == nil {
 		t.Fatal("expected an error for an unrecognized flag")
+	}
+}
+
+func TestPresenceArgsRejectInvalidRangesBeforeStarting(t *testing.T) {
+	for _, args := range [][]string{
+		{"--near-confirm", "0"}, {"--near-confirm", "-1"},
+		{"--near-rssi", "-32769"}, {"--near-rssi", "1"},
+		{"--away-timeout", "0s"}, {"--scan-interval", "-1s"}, {"unexpected"},
+	} {
+		s := &session{}
+		resp := s.dispatchPresenceStart(request{ID: "invalid", Args: args})
+		if resp.OK || resp.ExitCode != 2 || s.presenceCancel != nil {
+			t.Fatalf("args %v: invalid configuration started presence: %+v", args, resp)
+		}
+	}
+}
+
+func TestStaleIdleCallbackCannotExpireResetTimer(t *testing.T) {
+	s := &session{idleTimeout: time.Hour}
+	s.mu.Lock()
+	s.resetIdleTimerLocked()
+	old := s.idleGeneration
+	s.resetIdleTimerLocked()
+	current := s.idleGeneration
+	s.mu.Unlock()
+	defer s.idleTimer.Stop()
+	s.expireIdleGeneration(old)
+	if s.idleTimer == nil || s.idleGeneration != current {
+		t.Fatal("callback from previous idle deadline tore down refreshed session")
+	}
+	s.expireIdleGeneration(current)
+	if s.idleTimer != nil {
+		t.Fatal("current idle deadline did not tear down session")
+	}
+}
+
+func TestIdleCallbackCannotExpirePresenceOwnedSession(t *testing.T) {
+	s := &session{idleTimeout: time.Hour}
+	s.mu.Lock()
+	s.resetIdleTimerLocked()
+	old := s.idleGeneration
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	s.presenceCancel = cancel
+	s.resetIdleTimerLocked()
+	current := s.idleGeneration
+	s.mu.Unlock()
+	s.expireIdleGeneration(old)
+	if ctx.Err() != nil || s.idleGeneration != current || s.idleTimer != nil {
+		t.Fatal("pre-presence idle callback expired a presence-owned session")
 	}
 }
 

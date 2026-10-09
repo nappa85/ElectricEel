@@ -35,6 +35,8 @@ Page {
     // the text and re-preview instead of stacking another page.
     function setSharedText(text) {
         destField.text = text
+        page.pendingPreviewId = ""
+        page.previewing = false
         page.preview()
     }
 
@@ -49,11 +51,13 @@ Page {
         page.previewing = true
         page.previewText = qsTr("Checking...")
         page.navSeq++
-        page.pendingPreviewId = "nav:preview#" + page.navSeq + "@" + Date.now()
+        page.pendingPreviewId = "nav:preview#" + page.navSeq + "@" + Date.now() + ":" + Math.random()
         teslaClient.previewDestination(page.pendingPreviewId, destField.text)
     }
 
     function send() {
+        if (page.sending)
+            return
         var text = destField.text
         if (text.trim().length === 0) {
             page.resultText = qsTr("Nothing to send.")
@@ -62,7 +66,7 @@ Page {
         page.sending = true
         page.resultText = ""
         page.navSeq++
-        page.pendingSendId = "nav:send#" + page.navSeq + "@" + Date.now()
+        page.pendingSendId = "nav:send#" + page.navSeq + "@" + Date.now() + ":" + Math.random()
         teslaClient.shareDestination(page.pendingSendId, text)
     }
 

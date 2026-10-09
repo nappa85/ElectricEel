@@ -20,6 +20,7 @@ Page {
     // VIN. Gating Save on this makes that submission impossible instead of
     // just unlikely.
     property bool configReady: false
+    property bool configLoading: true
 
     Connections {
         target: teslaClient
@@ -32,7 +33,13 @@ Page {
             commandTimeoutSlider.value = commandTimeoutSec
             page.loadingConfig = false
             page.configReady = true
+            page.configLoading = false
             page.statusText = hasKey ? qsTr("Key on file") : qsTr("No key yet - use Pair Vehicle from the main menu")
+        }
+        onConfigLoadError: {
+            page.configLoading = false
+            page.configReady = false
+            page.statusText = message
         }
         onConfigSaved: {
             page.statusText = ok ? qsTr("Saved") : qsTr("Save failed: %1").arg(errorMessage)
@@ -67,7 +74,7 @@ Page {
                 // Spins until the first GetConfig reply lands (page.configReady
                 // gates the Save button below) so the disabled Save reads as
                 // "still loading" rather than "broken".
-                running: !page.configReady
+                running: page.configLoading
                 visible: running
             }
 
@@ -140,6 +147,16 @@ Page {
                 maximumValue: 300
                 stepSize: 1
                 valueText: qsTr("%1 s").arg(value)
+            }
+
+            Button {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: qsTranslate("FirstPage", "Refresh")
+                visible: !page.configReady && !page.configLoading
+                onClicked: {
+                    page.configLoading = true
+                    teslaClient.refreshConfig()
+                }
             }
 
             Button {

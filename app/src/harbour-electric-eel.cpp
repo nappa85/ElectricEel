@@ -11,6 +11,15 @@
 
 #include "teslaclient.h"
 
+extern "C" {
+#include "electriceelcore.h"
+}
+
+int main(int argc, char *argv[])
+{
+    return electric_eel_app_main(argc, argv);
+}
+
 // Loads harbour-electric-eel_<lang>.qm for the system locale (full
 // "it_IT" first, then bare "it") from the translations/ dir shipped in
 // the RPM. Catalogs are built by tools/build-qm.sh from qsTr() strings;

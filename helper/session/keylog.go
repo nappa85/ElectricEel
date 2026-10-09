@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -13,6 +14,7 @@ const (
 	keyLogFilePrefix = "phone-key-"
 	keyLogKeepDays   = 7
 	keyLogEnvDir     = "ELECTRIC_EEL_LOG_DIR"
+	keyLogMaxBytes   = 10 * 1024 * 1024 // shared with Rust's MAX_LOG_BYTES
 )
 
 var (
@@ -32,6 +34,11 @@ func initKeyLog(dir string) {
 	}
 	keyLogMu.Lock()
 	defer keyLogMu.Unlock()
+	if keyLogFile != nil && keyLogDir != dir {
+		_ = keyLogFile.Close()
+		keyLogFile = nil
+		keyLogDay = ""
+	}
 	keyLogDir = dir
 	_ = os.MkdirAll(dir, 0700)
 	pruneKeyLogsLocked(dir, keyLogKeepDays, time.Now())
@@ -72,9 +79,22 @@ func keylog(tag, format string, args ...interface{}) {
 		pruneKeyLogsLocked(keyLogDir, keyLogKeepDays, now)
 	}
 	if f := openKeyLogLocked(now); f != nil {
-		_, _ = f.WriteString(line)
+		writeKeyLogCapped(f, line)
 	}
 	_, _ = os.Stderr.WriteString("phone-key: " + line)
+}
+
+func writeKeyLogCapped(f *os.File, line string) {
+	// Rust locks the same inode before checking size and appending, so an
+	// error storm cannot exceed the daily ceiling through concurrent writers.
+	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX); err != nil {
+		return
+	}
+	defer syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+	info, err := f.Stat()
+	if err == nil && info.Size()+int64(len(line)) <= keyLogMaxBytes {
+		_, _ = f.WriteString(line)
+	}
 }
 
 func openKeyLogLocked(now time.Time) *os.File {
@@ -98,8 +118,9 @@ func openKeyLogLocked(now time.Time) *os.File {
 	if err != nil {
 		return nil
 	}
+	_ = f.Chmod(0600)
 	if created {
-		_, _ = fmt.Fprintf(f, "# ElectricEel phone-key log %s\n# tags: session presence connect auth link bluez\n", day)
+		writeKeyLogCapped(f, fmt.Sprintf("# ElectricEel phone-key log %s\n# tags: session presence connect auth link bluez\n", day))
 	}
 	keyLogFile = f
 	keyLogDay = day

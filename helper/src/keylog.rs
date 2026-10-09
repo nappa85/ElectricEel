@@ -3,15 +3,76 @@
 //! tesla-session child so start/stop/resume and BLE presence share one
 //! readable trail on the phone.
 
-use std::fs::{self, OpenOptions};
-use std::io::Write;
+use std::fs::{self, File, OpenOptions};
+use std::io::{self, Write};
+use std::os::fd::AsRawFd;
+use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 const ENV_DIR: &str = "ELECTRIC_EEL_LOG_DIR";
 const KEEP_DAYS: i64 = 7;
+// Shared with Go's keyLogMaxBytes. Both writers lock the same daily file.
+const MAX_LOG_BYTES: u64 = 10 * 1024 * 1024;
 
-static LOG_MU: Mutex<()> = Mutex::new(());
+static DAILY_LOG: Mutex<DailyLog> = Mutex::new(DailyLog {
+    path: None,
+    file: None,
+});
+
+struct DailyLog {
+    path: Option<PathBuf>,
+    file: Option<File>,
+}
+
+impl DailyLog {
+    fn append(&mut self, dir: &Path, day: &str, line: &[u8]) -> io::Result<()> {
+        let path = dir.join(format!("phone-key-{day}.log"));
+        if self.path.as_ref() != Some(&path) || self.file.is_none() {
+            self.file = None;
+            fs::create_dir_all(dir)?;
+            prune_old_logs(dir, day);
+            let mut options = OpenOptions::new();
+            options.create(true).append(true);
+            options.mode(0o600);
+            let mut file = options.open(&path)?;
+            file.set_permissions(fs::Permissions::from_mode(0o600))?;
+            if file.metadata()?.len() == 0 {
+                write_capped(&mut file, format!("# ElectricEel phone-key log {day}\n# tags: session presence connect auth link core keepalive ui\n").as_bytes())?;
+            }
+            self.path = Some(path);
+            self.file = Some(file);
+        }
+        let result = write_capped(self.file.as_mut().unwrap(), line);
+        if result.is_err() {
+            self.file = None; // Retry opening on the next entry after an I/O failure.
+        }
+        result
+    }
+}
+
+struct FileLock(i32);
+
+impl Drop for FileLock {
+    fn drop(&mut self) {
+        // SAFETY: the file remains open for the entire lock scope.
+        unsafe { libc::flock(self.0, libc::LOCK_UN) };
+    }
+}
+
+fn write_capped(file: &mut File, bytes: &[u8]) -> io::Result<()> {
+    let fd = file.as_raw_fd();
+    // SAFETY: fd belongs to the open file. Go uses flock on the same inode,
+    // making the size check + append atomic between the two processes.
+    if unsafe { libc::flock(fd, libc::LOCK_EX) } != 0 {
+        return Err(io::Error::last_os_error());
+    }
+    let _lock = FileLock(fd);
+    if file.metadata()?.len().saturating_add(bytes.len() as u64) <= MAX_LOG_BYTES {
+        file.write_all(bytes)?;
+    }
+    Ok(())
+}
 
 /// Directory for phone-key logs: env override, else `$HOME/Documents/ElectricEel`.
 #[must_use]
@@ -28,24 +89,13 @@ pub(crate) fn log_dir() -> PathBuf {
 /// Append one line to today's `phone-key-YYYY-MM-DD.log`. Never panics.
 pub(crate) fn log(tag: &str, message: &str) {
     let dir = log_dir();
-    let _guard = LOG_MU
+    let mut log = DAILY_LOG
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let _ = fs::create_dir_all(&dir);
-    prune_old_logs(&dir);
     let day = local_day_string();
-    let path = dir.join(format!("phone-key-{day}.log"));
-    let created = !path.exists();
-    if let Ok(mut f) = OpenOptions::new().create(true).append(true).open(&path) {
-        if created {
-            let _ = writeln!(f, "# ElectricEel phone-key log {day}");
-            let _ = writeln!(
-                f,
-                "# tags: session presence connect auth link core keepalive ui"
-            );
-        }
-        let _ = writeln!(f, "{}  {:<10}  {message}", local_stamp(), tag);
-    }
+    let line = format!("{}  {tag:<10}  {message}\n", local_stamp());
+    let _ = log.append(&dir, &day, line.as_bytes());
+    drop(log);
     eprintln!("phone-key: {tag}  {message}");
 }
 
@@ -74,7 +124,7 @@ pub(crate) fn utc_stamp() -> String {
 
 fn local_stamp() -> String {
     // SAFETY: libc time/localtime_r/gettimeofday are process-global but we
-    // only format into a stack buffer here; LOG_MU serializes file writes.
+    // only format into a stack buffer here; DAILY_LOG serializes file writes.
     unsafe {
         let mut ts: libc::time_t = 0;
         libc::time(&raw mut ts);
@@ -109,12 +159,11 @@ fn local_day_string() -> String {
     }
 }
 
-fn prune_old_logs(dir: &Path) {
+fn prune_old_logs(dir: &Path, today: &str) {
     let Ok(entries) = fs::read_dir(dir) else {
         return;
     };
-    let today = local_day_string();
-    let Ok(today_ord) = civil_ord(&today) else {
+    let Ok(today_ord) = civil_ord(today) else {
         return;
     };
     for entry in entries.flatten() {
@@ -160,6 +209,51 @@ fn civil_ord(day: &str) -> Result<i64, ()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn daily_log_rollover_prunes_and_switches_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let old = dir.path().join("phone-key-2026-01-01.log");
+        fs::write(&old, "old").unwrap();
+        let mut log = DailyLog {
+            path: None,
+            file: None,
+        };
+        log.append(dir.path(), "2026-01-10", b"first\n").unwrap();
+        assert!(!old.exists());
+        fs::write(&old, "old").unwrap();
+        log.append(dir.path(), "2026-01-10", b"second\n").unwrap();
+        assert!(
+            old.exists(),
+            "steady-state appends should not enumerate/prune the directory"
+        );
+        log.append(dir.path(), "2026-01-11", b"third\n").unwrap();
+        assert!(!old.exists());
+        let first = fs::read_to_string(dir.path().join("phone-key-2026-01-10.log")).unwrap();
+        assert!(first.ends_with("first\nsecond\n"));
+        assert!(!first.contains("third"));
+        assert!(
+            fs::read_to_string(dir.path().join("phone-key-2026-01-11.log"))
+                .unwrap()
+                .ends_with("third\n")
+        );
+    }
+
+    #[test]
+    fn daily_log_caps_appends_without_truncating_existing_entries() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(dir.path().join("log"))
+            .unwrap();
+        file.set_len(MAX_LOG_BYTES - 2).unwrap();
+        write_capped(&mut file, b"too long").unwrap();
+        assert_eq!(file.metadata().unwrap().len(), MAX_LOG_BYTES - 2);
+        write_capped(&mut file, b"ok").unwrap();
+        write_capped(&mut file, b"x").unwrap();
+        assert_eq!(file.metadata().unwrap().len(), MAX_LOG_BYTES);
+    }
 
     #[test]
     fn test_civil_ord_orders_dates() {

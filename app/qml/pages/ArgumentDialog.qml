@@ -198,11 +198,11 @@ Dialog {
                 // `unit`, which is display-only text shown in the label (e.g.
                 // "°C") and would be invalid if sent as-is.
                 onValueChanged: {
-                    if (argSpec) argSpec.__value = value.toString() + (argSpec.sendSuffix || "")
+                    if (argSpec) argSpec.__value = value.toFixed(dialog.sliderDecimals(argSpec.step || 0)) + (argSpec.sendSuffix || "")
                     dialog.revalidate()
                 }
                 Component.onCompleted: {
-                    if (argSpec) argSpec.__value = value.toString() + (argSpec.sendSuffix || "")
+                    if (argSpec) argSpec.__value = value.toFixed(dialog.sliderDecimals(argSpec.step || 0)) + (argSpec.sendSuffix || "")
                     dialog.revalidate()
                 }
             }

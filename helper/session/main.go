@@ -28,6 +28,7 @@ import (
 	"os"
 	"os/signal"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -101,7 +102,8 @@ type session struct {
 	conn  connector.Connector
 	bluez *bluez.Conn
 
-	idleTimer *time.Timer
+	idleTimer      *time.Timer
+	idleGeneration uint64
 
 	// presenceCancel is non-nil while the presence-maintenance loop (see
 	// presenceLoop) is running; presence-start/presence-stop set/clear it.
@@ -146,13 +148,26 @@ type session struct {
 	// every frame encode can set a write deadline; without one a parent
 	// that stops reading without closing wedges responses, events and
 	// heartbeats forever while the heartbeat ticker keeps proving "alive".
-	parentConn net.Conn
+	parentConn    net.Conn
+	parentFailed  atomic.Bool
+	parentContext context.Context
+	parentCancel  context.CancelFunc
+}
+
+// Requests and presence belong to the parent transport's lifetime. Tests and
+// standalone dispatch calls without a parent still use a background context.
+func (s *session) requestContext() context.Context {
+	if s.parentContext != nil {
+		return s.parentContext
+	}
+	return context.Background()
 }
 
 // teardownLocked closes the live BLE session, if any, so the vehicle (and
 // the phone's BLE radio) can go back to sleep. Safe to call when already
 // torn down. Caller holds mu.
 func (s *session) teardownLocked() {
+	s.idleGeneration++
 	if s.idleTimer != nil {
 		s.idleTimer.Stop()
 		s.idleTimer = nil
@@ -207,26 +222,27 @@ var commandsWithoutSession = map[string]bool{
 // Maximum time to keep the link open awaiting confirmed NFC enrollment.
 const addKeyRequestGracePeriod = 90 * time.Second
 
-// sessionDomains picks which domains StartSession should handshake with for
-// cmd, mirroring upstream's configureFlags (vendored into commands_vendor.go
-// but, unlike here, never actually called - see ensureConnectedLocked).
-// Requesting every domain (nil) is right for ordinary commands; only
-// commands_vendor.go's own domain field (used by body-controller-state)
-// narrows it - commandsWithoutSession commands never reach this at all.
-//
-// Presence mode (cmd == "") requests VCSEC only: that is the body controller
-// that handles passive entry, and it stays awake while the car sleeps.
-// Requesting infotainment domains against an asleep vehicle is why phone-key
-// used to work "only after an NFC unlock" - NFC wakes the whole car.
+// sessionDomains selects the domain actually used by the pinned command
+// handler. The same selection applies to fresh and reused links: the dispatcher
+// does not authenticate a missing domain lazily. VCSEC-only actions must not
+// wait for sleeping infotainment. An empty slice means no handshake is needed.
 func sessionDomains(cmd string) []protocol.Domain {
-	if cmd == "" {
+	switch cmd {
+	case "", "lock", "unlock", "drive", "wake", "add-key", "remove-key", "list-keys",
+		"trunk-open", "trunk-move", "trunk-close", "frunk-open",
+		"tonneau-open", "tonneau-close", "tonneau-stop", "autosecure-modelx":
 		return []protocol.Domain{protocol.DomainVCSEC}
-	}
-	if cmd == "state" {
+	case "state", "navigate":
 		return []protocol.Domain{protocol.DomainInfotainment}
 	}
-	if info, ok := commands[cmd]; ok && info.domain != protocol.DomainNone {
-		return []protocol.Domain{info.domain}
+	if info, ok := commands[cmd]; ok {
+		if info.domain != protocol.DomainNone {
+			return []protocol.Domain{info.domain}
+		}
+		if !info.requiresAuth {
+			return []protocol.Domain{}
+		}
+		return []protocol.Domain{protocol.DomainInfotainment}
 	}
 	return nil
 }
@@ -256,14 +272,10 @@ func sessionDomains(cmd string) []protocol.Domain {
 func (s *session) ensureConnectedLocked(ctx context.Context, cmd string, target *bluez.ScanResult) error {
 	if s.car != nil {
 		if !commandsWithoutSession[cmd] {
-			s.ensureAuthTapLocked(context.Background())
+			s.ensureAuthTapLocked(s.requestContext())
 			domains := sessionDomains(cmd)
-			// nil means "all domains" (lock/unlock/etc.). Those can use the
-			// live VCSEC session as-is; re-handshaking infotainment here
-			// would fail against a sleeping car and block RKE. A command
-			// that names a domain (state → infotainment, body-controller-
-			// state → VCSEC) still needs that handshake if presence only
-			// started VCSEC.
+			// StartSession is a no-op for an already-ready domain, and adds
+			// missing authentication when presence only established VCSEC.
 			if len(domains) > 0 {
 				keylog("connect", "StartSession additional domains=%v", domains)
 				if err := s.car.StartSession(ctx, domains); err != nil {
@@ -339,7 +351,7 @@ func (s *session) ensureConnectedLocked(ctx context.Context, cmd string, target 
 	s.car = car
 	s.conn = conn
 	if !commandsWithoutSession[cmd] {
-		s.ensureAuthTapLocked(context.Background())
+		s.ensureAuthTapLocked(s.requestContext())
 		domains := sessionDomains(cmd)
 		keylog("connect", "StartSession domains=%v", domains)
 		if err := car.StartSession(connCtx, domains); err != nil {
@@ -402,6 +414,7 @@ func (s *session) ensureBluezLocked() error {
 // capability even though the phone is still near the car.
 // Caller holds mu.
 func (s *session) resetIdleTimerLocked() {
+	s.idleGeneration++
 	if s.presenceCancel != nil {
 		if s.idleTimer != nil {
 			s.idleTimer.Stop()
@@ -417,16 +430,20 @@ func (s *session) resetIdleTimerLocked() {
 		// keeps a stale callback from tearing down a *fresh* session.
 		s.idleTimer.Stop()
 	}
-	generation := s.presenceGeneration
+	generation := s.idleGeneration
 	s.idleTimer = time.AfterFunc(s.idleTimeout, func() {
-		s.mu.Lock()
-		defer s.mu.Unlock()
-		if generation != s.presenceGeneration {
-			return
-		}
-		keylog("session", "idle timeout - tearing down BLE session")
-		s.teardownLocked()
+		s.expireIdleGeneration(generation)
 	})
+}
+
+func (s *session) expireIdleGeneration(generation uint64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if generation != s.idleGeneration {
+		return
+	}
+	keylog("session", "idle timeout - tearing down BLE session")
+	s.teardownLocked()
 }
 
 // presenceBeaconTargetLocked returns the last Watcher snapshot while phone-key
@@ -666,6 +683,9 @@ func parsePresenceArgs(args []string) (presenceConfig, error) {
 	if err := fs.Parse(args); err != nil {
 		return presenceConfig{}, err
 	}
+	if fs.NArg() != 0 || nearRSSI < -127 || nearRSSI > 0 || cfg.nearConfirm < 1 || cfg.farTimeout <= 0 || cfg.scanInterval <= 0 {
+		return presenceConfig{}, fmt.Errorf("invalid presence settings: RSSI must be -127..0, confirmation count and durations must be positive, and positional arguments are not accepted")
+	}
 	cfg.nearRSSI = int16(nearRSSI)
 	return cfg, nil
 }
@@ -812,11 +832,12 @@ func (s *session) dispatchPresenceStart(req request) response {
 		keylog("session", "presence-start: already running")
 		return response{ID: req.ID, OK: true, Stdout: "presence mode already running\n", ExitCode: 0}
 	}
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(s.requestContext())
 	s.presenceGeneration++
 	generation := s.presenceGeneration
 	s.presenceCancel = cancel
 	s.presenceCfg = cfg
+	s.resetIdleTimerLocked() // Retire any timer from before presence took ownership.
 	keylog("session", "presence-start nearRSSI=%d nearConfirm=%d away=%s scan=%s",
 		cfg.nearRSSI, cfg.nearConfirm, cfg.farTimeout, cfg.scanInterval)
 	go s.presenceLoop(ctx, cfg, generation)
@@ -864,7 +885,15 @@ func (s *session) ensureAuthTapLocked(parent context.Context) {
 		s.authInbox = inbox
 		authCtx, cancel := context.WithCancel(parent)
 		s.authCancel = cancel
-		go s.authResponderLoop(authCtx, inbox)
+		// Bind the responder to this link, not mutable session state. The
+		// vehicle dispatcher supports concurrent RPCs; an infotainment handshake
+		// or NFC poll holding mu must not delay a handle-pull response.
+		car, timeout := s.car, s.commandTimeout
+		go s.authResponderLoop(authCtx, inbox, func(ctx context.Context, level int) error {
+			sendCtx, cancel := context.WithTimeout(ctx, timeout)
+			defer cancel()
+			return sendAuthenticationResponse(sendCtx, car, level)
+		})
 		keylog("auth", "responder started")
 	}
 	inbox := s.authInbox
@@ -888,10 +917,10 @@ func (s *session) stopAuthTapLocked() {
 
 // authResponderLoop consumes observed inbound datagrams, detects VCSEC
 // AuthenticationRequest messages, and replies with a matching
-// AuthenticationResponse over the authenticated session. Holds session.mu
-// across vehicle.Send, matching dispatch(): teardown must not concurrently
-// disconnect the Vehicle while its dispatcher is signing/sending the reply.
-func (s *session) authResponderLoop(ctx context.Context, inbox <-chan []byte) {
+// AuthenticationResponse over the link captured when the tap was installed.
+// Teardown cancels its context before disconnecting; a replacement link gets
+// a new responder and can never receive replies from the old inbox.
+func (s *session) authResponderLoop(ctx context.Context, inbox <-chan []byte, send func(context.Context, int) error) {
 	var lastIgnored time.Time
 	for {
 		select {
@@ -910,28 +939,21 @@ func (s *session) authResponderLoop(ctx context.Context, inbox <-chan []byte) {
 				continue
 			}
 			keylog("auth", "request level=%s token=%dB", authLevelName(req.RequestedLevel), len(req.Token))
-			s.mu.Lock()
-			// A cancelled responder may have waited behind reconnect while
-			// holding an old request. Never grant it on the replacement link.
-			if ctx.Err() != nil || s.authInbox != inbox {
-				s.mu.Unlock()
+			if ctx.Err() != nil {
 				return
 			}
-			car := s.car
-			if car == nil {
-				s.mu.Unlock()
-				keylog("auth", "request dropped: no live session")
-				s.emitEvent("presence_auth_failed", fmt.Errorf("no live session"))
-				continue
+			err := send(ctx, req.RequestedLevel)
+			if ctx.Err() != nil {
+				return
 			}
-			sendCtx, cancel := context.WithTimeout(ctx, s.commandTimeout)
-			err := sendAuthenticationResponse(sendCtx, car, req.RequestedLevel)
-			cancel()
 			if sessionDroppedError(err) {
-				s.teardownLocked()
-				s.emitPresenceDisconnectedLocked(err)
+				s.mu.Lock()
+				if ctx.Err() == nil && s.authInbox == inbox {
+					s.teardownLocked()
+					s.emitPresenceDisconnectedLocked(err)
+				}
+				s.mu.Unlock()
 			}
-			s.mu.Unlock()
 			if err == nil {
 				keylog("auth", "response ok level=%s", authLevelName(req.RequestedLevel))
 				s.emitEvent("presence_auth_ok", nil)
@@ -1360,14 +1382,14 @@ func (s *session) dispatch(req request) response {
 	}
 
 	connectTarget := s.presenceBeaconTargetLocked()
-	connectCtx, cancel := context.WithTimeout(context.Background(), s.connectTimeout)
+	connectCtx, cancel := context.WithTimeout(s.requestContext(), s.connectTimeout)
 	connectErr := s.ensureConnectedLocked(connectCtx, req.Cmd, connectTarget)
 	cancel()
 	if connectErr != nil {
 		return response{ID: req.ID, OK: false, Stderr: connectErr.Error(), ExitCode: 1}
 	}
 
-	cmdCtx, cancel := context.WithTimeout(context.Background(), s.commandTimeout)
+	cmdCtx, cancel := context.WithTimeout(s.requestContext(), s.commandTimeout)
 	defer cancel()
 
 	args := append([]string{req.Cmd}, req.Args...)
@@ -1381,7 +1403,7 @@ func (s *session) dispatch(req request) response {
 			if len(req.Args) == 0 {
 				execErr = fmt.Errorf("missing key argument for enrollment check")
 			} else {
-				enrollmentCtx, enrollmentCancel := context.WithTimeout(context.Background(), addKeyRequestGracePeriod)
+				enrollmentCtx, enrollmentCancel := context.WithTimeout(s.requestContext(), addKeyRequestGracePeriod)
 				execErr = s.confirmEnrollment(enrollmentCtx, req.Args[0])
 				enrollmentCancel()
 			}

@@ -306,8 +306,12 @@ pub unsafe extern "C" fn core_set_config(
     let Some(vin) = cstr(vin) else {
         return CoreError::BadArg;
     };
-    let model = cstr(model).unwrap_or_default();
-    let key_name = cstr(key_name).unwrap_or_default();
+    let Some(model) = cstr(model) else {
+        return CoreError::BadArg;
+    };
+    let Some(key_name) = cstr(key_name) else {
+        return CoreError::BadArg;
+    };
 
     match core.set_config(
         &vin,
@@ -421,6 +425,10 @@ pub unsafe extern "C" fn core_pair(
             CoreError::Ok
         }
         Err(e) => {
+            if !stdout_out.is_null() {
+                // SAFETY: caller-owned slot.
+                unsafe { *stdout_out = into_cstring(String::new()) };
+            }
             if !ok.is_null() {
                 // SAFETY: caller-owned slot.
                 unsafe { *ok = false };
@@ -627,6 +635,18 @@ pub unsafe extern "C" fn core_run(
             CoreError::Ok
         }
         Err(e) => {
+            if !out_stdout.is_null() {
+                // SAFETY: caller-owned slot.
+                unsafe { *out_stdout = into_cstring(String::new()) };
+            }
+            if !out_stderr.is_null() {
+                // SAFETY: caller-owned slot.
+                unsafe { *out_stderr = into_cstring(String::new()) };
+            }
+            if !out_exit_code.is_null() {
+                // SAFETY: caller-owned slot.
+                unsafe { *out_exit_code = -1 };
+            }
             if !ok.is_null() {
                 // SAFETY: caller-owned slot.
                 unsafe { *ok = false };
@@ -956,5 +976,148 @@ mod tests {
         let rc = unsafe { core_handle_resume(ptr::null_mut()) };
         assert_eq!(rc, CoreError::BadArg);
         unsafe { core_free(core) };
+    }
+
+    #[test]
+    fn production_core_run_clears_outputs_on_hard_error() {
+        // core_run's hard-error path (unknown command) writes only ok=false +
+        // error_message, leaving out_stdout/out_stderr/out_exit_code untouched.
+        // A caller reusing slots reads the previous command's stale output.
+        // core_poll_phone_key_event already NULLs empty slots and
+        // core_generate_key clears to "" — core_run/core_pair must do the same.
+        let (core, _dir) = tmp_core();
+        assert!(!core.is_null());
+        let cmd = CString::new("definitely-not-a-command").unwrap();
+        let mut ok = true;
+        let mut stdout: *mut c_char = ptr::null_mut();
+        let mut stderr: *mut c_char = ptr::null_mut();
+        let mut exit_status: i32 = 12345;
+        let mut err: *mut c_char = ptr::null_mut();
+        // SAFETY: valid core, NULL-terminated empty argv, all slots valid.
+        let rc = unsafe {
+            core_run(
+                core,
+                cmd.as_ptr(),
+                ptr::null(),
+                ptr::addr_of_mut!(ok),
+                ptr::addr_of_mut!(stdout),
+                ptr::addr_of_mut!(stderr),
+                ptr::addr_of_mut!(exit_status),
+                ptr::addr_of_mut!(err),
+            )
+        };
+        assert_eq!(rc, CoreError::Ok);
+        assert!(!ok);
+        assert!(!err.is_null(), "hard error must carry a message");
+        assert!(
+            !stdout.is_null(),
+            "hard error must clear stdout (currently left untouched, leaking stale output)"
+        );
+        assert!(
+            !stderr.is_null(),
+            "hard error must clear stderr (currently left untouched, leaking stale output)"
+        );
+        assert_eq!(
+            exit_status, -1,
+            "hard error must reset exit_code (currently left untouched)"
+        );
+        // SAFETY: owned by the callee on the fixed behavior; on the buggy
+        // behavior stdout/stderr are still NULL so freeing is a no-op.
+        unsafe {
+            core_string_free(stdout);
+            core_string_free(stderr);
+            core_string_free(err);
+            core_free(core);
+        }
+    }
+
+    #[test]
+    fn production_core_pair_clears_stdout_on_transport_error() {
+        // Same stale-slot shape as core_run, for core_pair's Err arm:
+        // core_generate_key clears public_key_pem to "" on failure, but
+        // core_pair leaves stdout_out untouched.
+        let (core, _dir) = tmp_core();
+        assert!(!core.is_null());
+        let mut ok = true;
+        let mut stdout: *mut c_char = ptr::null_mut();
+        let mut err: *mut c_char = ptr::null_mut();
+        // SAFETY: valid core, no session configured so pair() hard-fails.
+        let rc = unsafe {
+            core_pair(
+                core,
+                ptr::addr_of_mut!(ok),
+                ptr::addr_of_mut!(stdout),
+                ptr::addr_of_mut!(err),
+            )
+        };
+        assert_eq!(rc, CoreError::Ok);
+        assert!(!ok);
+        assert!(
+            !stdout.is_null(),
+            "pair transport error must clear stdout (currently left untouched)"
+        );
+        unsafe {
+            core_string_free(stdout);
+            core_string_free(err);
+            core_free(core);
+        }
+    }
+
+    #[test]
+    fn production_core_set_config_null_model_is_badarg() {
+        // cstr(model).unwrap_or_default() turns a NULL model/key_name into ""
+        // and clears the stored config — a caller bug wipes settings instead
+        // of being told about it. vin already returns BadArg on NULL; model
+        // and key_name must do the same.
+        let (core, _dir) = tmp_core();
+        assert!(!core.is_null());
+        let vin = CString::new("5YJ3E1EA0PF000000").unwrap();
+        let key_name = CString::new("harbour-electric-eel").unwrap();
+        let mut ok = false;
+        let mut msg: *mut c_char = ptr::null_mut();
+        // SAFETY: valid core, NULL model slot.
+        let rc = unsafe {
+            core_set_config(
+                core,
+                vin.as_ptr(),
+                ptr::null(),
+                key_name.as_ptr(),
+                20,
+                5,
+                ptr::addr_of_mut!(ok),
+                ptr::addr_of_mut!(msg),
+            )
+        };
+        assert_eq!(
+            rc,
+            CoreError::BadArg,
+            "NULL model must be BadArg, not silently cleared to empty"
+        );
+        let mut ok2 = false;
+        let mut msg2: *mut c_char = ptr::null_mut();
+        let model = CString::new("").unwrap();
+        // SAFETY: valid core, NULL key_name slot.
+        let rc2 = unsafe {
+            core_set_config(
+                core,
+                vin.as_ptr(),
+                model.as_ptr(),
+                ptr::null(),
+                20,
+                5,
+                ptr::addr_of_mut!(ok2),
+                ptr::addr_of_mut!(msg2),
+            )
+        };
+        assert_eq!(
+            rc2,
+            CoreError::BadArg,
+            "NULL key_name must be BadArg, not silently cleared to empty"
+        );
+        unsafe {
+            core_string_free(msg);
+            core_string_free(msg2);
+            core_free(core);
+        }
     }
 }

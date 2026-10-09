@@ -72,3 +72,23 @@ test("mergeChargeState preserves known charge state when wrapper is missing", ()
         "an empty payload without chargeState must not clear a known chargingState",
     );
 });
+
+test("fresh body telemetry cannot refresh older climate and battery timestamps", () => {
+    let now = 1000;
+    const ctx = vm.createContext({ qsTr: (s) => s, console, Date: { now: () => now } });
+    vm.runInContext(vehicleStateSource.replace(/^\.pragma library\s*$/m, ""), ctx);
+    let status = ctx.mergeChargeState(ctx.emptyStatus(), '{"chargeState":{"batteryLevel":80}}');
+    now = 2000;
+    status = ctx.mergeClimateState(status, '{"climateState":{"insideTempCelsius":21}}');
+    now = 3000;
+    status = ctx.mergeBodyControllerState(status, '{"vehicleLockState":"VEHICLELOCKSTATE_LOCKED"}');
+    assert.equal(status.bodyUpdatedAt, 3000);
+    assert.equal(status.climateUpdatedAt, 2000);
+    assert.equal(status.chargeUpdatedAt, 1000);
+    assert.equal(status.updatedAt, 1000);
+    status = ctx.mergeChargeState(status, '{}');
+    assert.equal(status.chargeUpdatedAt, 1000, "missing category must preserve its real age");
+    now = 4000;
+    status = ctx.mergeChargeState(status, '{"chargeState":{"batteryLevel":81}}');
+    assert.equal(status.updatedAt, 2000, "overall age advances only as the oldest category is refreshed");
+});

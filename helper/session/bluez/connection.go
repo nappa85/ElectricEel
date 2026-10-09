@@ -2,12 +2,15 @@ package bluez
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/godbus/dbus"
 	"github.com/teslamotors/vehicle-command/pkg/connector"
+	"github.com/teslamotors/vehicle-command/pkg/protocol"
 )
 
 // Connection implements connector.Connector over a BlueZ GATT link. It
@@ -33,9 +36,10 @@ type Connection struct {
 	inbox       chan []byte
 	blockLength int
 
-	mu        sync.Mutex // serializes Send
-	closeOnce sync.Once
-	done      chan struct{}
+	mu         sync.Mutex // serializes Send
+	sendFailed bool       // guarded by mu; an uncertain/partial frame retires this stream
+	closeOnce  sync.Once
+	done       chan struct{}
 	// Each link gets a fresh signal subscription. Reusing a process-lifetime
 	// queue would replay Connected=false from the previous link on reconnect.
 	// Close waits for rxLoop before releasing the subscription. loopDone is
@@ -143,12 +147,22 @@ func (c *Connection) AllowedLatency() time.Duration {
 
 // Send frames buffer with a 2-byte big-endian length prefix and writes it in
 // blockLength-sized chunks (mirroring upstream ble.go Send). If a chunk write
-// fails while blockLength is still at the assumed maximum MTU, blockLength is
-// shrunk to the guaranteed minimum (ATT MTU 23 - 3) and the chunk is retried
-// once. Thread-safe.
+// is explicitly rejected for excessive length, blockLength is shrunk to the
+// guaranteed minimum (ATT MTU 23 - 3). Uncertain failures retire the stream
+// rather than appending retries to an incomplete frame. Thread-safe.
 func (c *Connection) Send(ctx context.Context, buffer []byte) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if c.sendFailed {
+		return protocol.ErrNotConnected
+	}
+	select {
+	case <-c.done:
+		return protocol.ErrNotConnected
+	case <-c.dropped:
+		return protocol.ErrNotConnected
+	default:
+	}
 
 	if c.blockLength <= 0 {
 		c.blockLength = defaultMTU - 3
@@ -157,9 +171,13 @@ func (c *Connection) Send(ctx context.Context, buffer []byte) error {
 	out := make([]byte, 0, len(buffer)+2)
 	out = append(out, byte(len(buffer)>>8), byte(len(buffer)))
 	out = append(out, buffer...)
+	transmitted := false
 
 	for len(out) > 0 {
 		if err := ctx.Err(); err != nil {
+			if transmitted {
+				return c.retireSend(err)
+			}
 			return err
 		}
 		blk := len(out)
@@ -170,11 +188,11 @@ func (c *Connection) Send(ctx context.Context, buffer []byte) error {
 			return fmt.Errorf("bluez: invalid block length %d", c.blockLength)
 		}
 		if err := c.writeChunk(ctx, out[:blk]); err != nil {
-			if ctx.Err() != nil {
-				return ctx.Err()
-			}
-			if c.blockLength <= defaultMTU-3 {
-				return err
+			// Only an explicit length rejection proves this chunk was not
+			// accepted. Timeout/generic errors can have transmitted bytes and
+			// must never be retried into an uncertain framing stream.
+			if ctx.Err() != nil || c.blockLength <= defaultMTU-3 || !isWriteLengthError(err) {
+				return c.retireSend(err)
 			}
 			// The remote may have negotiated a smaller ATT MTU than the
 			// assumed maximum; fall back to the guaranteed chunk size and
@@ -183,9 +201,27 @@ func (c *Connection) Send(ctx context.Context, buffer []byte) error {
 			c.blockLength = defaultMTU - 3
 			continue
 		}
+		transmitted = true
 		out = out[blk:]
 	}
 	return nil
+}
+
+func isWriteLengthError(err error) bool {
+	name, detail := dbusErrorParts(err)
+	return name == "org.bluez.Error.InvalidValueLength" || strings.Contains(detail, "attribute value too large") ||
+		strings.Contains(err.Error(), "attribute value too large")
+}
+
+// Caller holds mu. The owner reacts to Dropped and closes the physical link.
+func (c *Connection) retireSend(err error) error {
+	c.sendFailed = true
+	c.notifyDropped()
+	return &protocol.CommandError{
+		Err:               errors.Join(protocol.ErrNotConnected, err),
+		PossibleSuccess:   true,
+		PossibleTemporary: false,
+	}
 }
 
 // writeChunk calls org.bluez.GattCharacteristic1.WriteValue(ay value, a{sv}

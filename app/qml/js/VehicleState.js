@@ -150,7 +150,11 @@ function emptyStatus() {
         minutesToFullCharge: 0,
         chargeLimitSoc: null,
         chargeCurrent: null,
-        updatedAt: 0
+        updatedAt: 0,
+        bodyUpdatedAt: 0,
+        closuresUpdatedAt: 0,
+        climateUpdatedAt: 0,
+        chargeUpdatedAt: 0
     }
 }
 
@@ -159,6 +163,20 @@ function clone(status) {
     for (var k in status)
         copy[k] = status[k]
     return copy
+}
+
+// The dashboard's aggregate age is the oldest category still represented in
+// its snapshot. A fresh lock reply must not make an old battery reading fresh.
+function markUpdated(status, category) {
+    status[category + "UpdatedAt"] = Date.now()
+    var oldest = 0
+    var categories = ["body", "closures", "climate", "charge"]
+    for (var i = 0; i < categories.length; i++) {
+        var stamp = status[categories[i] + "UpdatedAt"] || 0
+        if (stamp > 0 && (oldest === 0 || stamp < oldest))
+            oldest = stamp
+    }
+    status.updatedAt = oldest
 }
 
 function closureIsOpen(state) {
@@ -202,7 +220,7 @@ function mergeBodyControllerState(status, jsonText) {
             // readings, but still fall through to bump updatedAt since the
             // lock readout above may be fresh.
         }
-        s.updatedAt = Date.now()
+        markUpdated(s, "body")
     } catch (e) {
         console.log("VehicleState: body-controller-state parse failed:", e, jsonText)
     }
@@ -224,7 +242,7 @@ function mergeClosuresState(status, jsonText) {
         s.trunkRearOpen = !!obj.doorOpenTrunkRear
         s.windowsOpen = !!(obj.windowOpenDriverFront || obj.windowOpenPassengerFront ||
                             obj.windowOpenDriverRear || obj.windowOpenPassengerRear)
-        s.updatedAt = Date.now()
+        markUpdated(s, "closures")
     } catch (e) {
         console.log("VehicleState: closures parse failed:", e, jsonText)
     }
@@ -242,7 +260,7 @@ function mergeClimateState(status, jsonText) {
         s.outsideTemp = obj.outsideTempCelsius !== undefined ? obj.outsideTempCelsius : null
         s.driverTempSetting = obj.driverTempSetting !== undefined ? obj.driverTempSetting : null
         s.isClimateOn = !!obj.isClimateOn
-        s.updatedAt = Date.now()
+        markUpdated(s, "climate")
     } catch (e) {
         console.log("VehicleState: climate parse failed:", e, jsonText)
     }
@@ -285,7 +303,7 @@ function mergeChargeState(status, jsonText) {
         s.chargeLimitSoc = obj.chargeLimitSoc !== undefined ? obj.chargeLimitSoc : null
         s.chargeCurrent = obj.chargeCurrentRequest !== undefined ? obj.chargeCurrentRequest
             : (obj.chargingAmps !== undefined ? obj.chargingAmps : null)
-        s.updatedAt = Date.now()
+        markUpdated(s, "charge")
     } catch (e) {
         console.log("VehicleState: charge parse failed:", e, jsonText)
     }

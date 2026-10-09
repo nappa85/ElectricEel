@@ -88,8 +88,7 @@ pub(crate) fn parse_shared_text(input: &str) -> Result<Destination, ShareParseEr
         if let Some(dest) = parse_geo_uri(rest)? {
             return Ok(dest);
         }
-        // parse_geo_uri returns Ok(None) only when coords are 0,0 with no
-        // usable query — fall through to address handling below.
+        return Err(ShareParseError::Empty);
     }
 
     // Bare coordinate pair pasted from any app.
@@ -107,8 +106,7 @@ pub(crate) fn parse_shared_text(input: &str) -> Result<Destination, ShareParseEr
     Ok(Destination::Address(first_line.to_string()))
 }
 
-/// `Ok(Some)` = parsed, `Ok(None)` = `geo:0,0` without a query (caller falls
-/// through to address handling), `Err` = coordinate-looking but out of range.
+/// `Ok(Some)` = parsed, `Err` = empty destination or out-of-range coordinates.
 fn parse_geo_uri(rest: &str) -> Result<Option<Destination>, ShareParseError> {
     let (coords_part, query_part) = match rest.find('?') {
         Some(i) => (&rest[..i], Some(&rest[i + 1..])),
@@ -131,7 +129,7 @@ fn parse_geo_uri(rest: &str) -> Result<Option<Destination>, ShareParseError> {
             if let Some(addr) = query_addr {
                 return Ok(Some(Destination::Address(addr)));
             }
-            return Ok(None);
+            return Err(ShareParseError::Empty);
         }
         return Ok(Some(Destination::LatLon { lat, lon }));
     }
@@ -213,7 +211,7 @@ fn parse_map_url(url: &str) -> Result<Option<Destination>, ShareParseError> {
             check_range(value)?;
         }
     }
-    if let Some((lat, lon)) = google_3d4d_coords(parsed.path()) {
+    if let Some((lat, lon)) = google_3d4d_coords(parsed.path())? {
         return Ok(Some(Destination::LatLon { lat, lon }));
     }
     // lat + lon split across two params.
@@ -244,10 +242,18 @@ fn parse_map_url(url: &str) -> Result<Option<Destination>, ShareParseError> {
         }
     }
     // Path patterns, most specific first.
-    if let Some((lat, lon)) = url_path_at_coords(parsed.path()) {
+    if let Some((lat, lon)) = url_path_at_coords(parsed.path())? {
         return Ok(Some(Destination::LatLon { lat, lon }));
     }
-    if let Some((lat, lon)) = slash_run_coords(url) {
+    // Tile resources contain z/x/y indices, not geographic coordinates.
+    let is_tile = [".png", ".jpg", ".jpeg", ".webp"]
+        .iter()
+        .any(|extension| parsed.path().to_ascii_lowercase().ends_with(extension));
+    if let Some((lat, lon)) = if is_tile {
+        None
+    } else {
+        slash_run_coords(url)?
+    } {
         return Ok(Some(Destination::LatLon { lat, lon }));
     }
     // A named text param (address or opaque link target) becomes the
@@ -275,15 +281,13 @@ fn destination_value(value: &str) -> Destination {
 /// — `map=17` is not bare-numeric so the zoom never leaks in; tile
 /// `z/x/y` runs fail the range check downstream in `parse_latlon_pair`
 /// semantics via [`valid_latlon`]).
-fn slash_run_coords(url: &str) -> Option<(f64, f64)> {
+fn slash_run_coords(url: &str) -> Result<Option<(f64, f64)>, ShareParseError> {
     let mut run: Vec<f64> = Vec::new();
     let mut best: Option<(f64, f64)> = None;
     let flush = |run: &mut Vec<f64>, best: &mut Option<(f64, f64)>| {
         if run.len() == 2 {
             let (lat, lon) = (run[0], run[1]);
-            if valid_latlon(lat, lon) {
-                *best = Some((lat, lon));
-            }
+            *best = Some((lat, lon));
         }
         run.clear();
     };
@@ -304,7 +308,7 @@ fn slash_run_coords(url: &str) -> Option<(f64, f64)> {
         }
     }
     flush(&mut run, &mut best);
-    best
+    checked_path_coords(best)
 }
 
 /// Strict pair: the whole string must be exactly two finite numbers
@@ -399,7 +403,7 @@ fn query_param(query: &str, key: &str) -> Option<String> {
 }
 
 /// `/@lat,lon` in a Google Maps path (also `/place/.../@lat,lon,zoom`).
-fn url_path_at_coords(url: &str) -> Option<(f64, f64)> {
+fn url_path_at_coords(url: &str) -> Result<Option<(f64, f64)>, ShareParseError> {
     for marker in ["/@", "/place/"] {
         let mut search = url;
         while let Some(i) = search.find(marker) {
@@ -422,20 +426,18 @@ fn url_path_at_coords(url: &str) -> Option<(f64, f64)> {
             let nums: Vec<&str> = pair.split(',').collect();
             if nums.len() >= 2 {
                 if let (Ok(lat), Ok(lon)) = (nums[0].parse::<f64>(), nums[1].parse::<f64>()) {
-                    if valid_latlon(lat, lon) {
-                        return Some((lat, lon));
-                    }
+                    return checked_path_coords(Some((lat, lon)));
                 }
             }
             search = after;
         }
     }
-    None
+    Ok(None)
 }
 
 /// Google's embedded `!3dLAT!4dLON` markers. Takes the LAST pair (most
 /// specific = the destination, earlier ones are viewport hints).
-fn google_3d4d_coords(url: &str) -> Option<(f64, f64)> {
+fn google_3d4d_coords(url: &str) -> Result<Option<(f64, f64)>, ShareParseError> {
     let mut result = None;
     let mut search = url;
     while let Some(i) = search.find("!3d") {
@@ -452,16 +454,21 @@ fn google_3d4d_coords(url: &str) -> Option<(f64, f64)> {
                 search[lat_start..lat_end].parse::<f64>(),
                 search[lon_start..lon_end].parse::<f64>(),
             ) {
-                if valid_latlon(lat, lon) {
-                    result = Some((lat, lon));
-                }
+                result = Some((lat, lon));
             }
             search = &search[lon_end..];
         } else {
             break;
         }
     }
-    result
+    checked_path_coords(result)
+}
+
+fn checked_path_coords(coords: Option<(f64, f64)>) -> Result<Option<(f64, f64)>, ShareParseError> {
+    if coords.is_some_and(|(lat, lon)| !valid_latlon(lat, lon)) {
+        return Err(ShareParseError::OutOfRange);
+    }
+    Ok(coords)
 }
 
 fn strip_prefix_case_insensitive<'a>(s: &'a str, prefix: &str) -> Option<&'a str> {
@@ -764,6 +771,44 @@ mod tests {
                 got,
                 Ok(addr("999,999")),
                 "URL-embedded out-of-range coords must not become a bare address: {url:?} got {got:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn production_path_coords_out_of_range_must_error_not_address() {
+        // Bare "999,999" is Err(OutOfRange), and param-embedded "daddr=999,999"
+        // is guarded by check_range — but path-embedded coordinates
+        // ("/@lat,lon", "!3d/!4d", OSM "#map=z/lat/lon") silently fall through
+        // to Ok(None) and become Ok(Address(url)) for a lone URL, routing an
+        // obvious coordinate typo to the car geocoder instead of failing fast
+        // like the identical bare pair.
+        for url in [
+            "https://www.google.com/maps/@999,999,17z",
+            "https://www.google.com/maps/place/X/@48.0,2.0,17z/data=!3m1!4b1!4m6!3m5!1s0x0!7e2!8m2!3d999!4d999",
+            "https://www.openstreetmap.org/#map=17/999/999",
+            "https://www.openstreetmap.org/#map=17/200/2.2945",
+        ] {
+            let got = parse_shared_text(url);
+            assert_eq!(
+                got,
+                Err(ShareParseError::OutOfRange),
+                "path-embedded out-of-range coords must error like bare pairs: {url:?} got {got:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn production_geo_zero_without_query_must_error_not_literal() {
+        // geo:0,0 without ?q= is the RFC 5870 "no destination" placeholder.
+        // parse_geo_uri returns Ok(None) for it, and the caller falls through
+        // to Ok(Address("geo:0,0")) — sending the literal string "geo:0,0" to
+        // the car geocoder. It must fail instead of becoming an address.
+        for input in ["geo:0,0", "geo:0,0;u=10", "GEO:0,0"] {
+            let got = parse_shared_text(input);
+            assert!(
+                got.is_err(),
+                "placeholder {input:?} must error, not become {got:?}"
             );
         }
     }

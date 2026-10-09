@@ -15,7 +15,7 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Mutex;
+use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -43,6 +43,15 @@ pub(crate) struct RunOutcome {
     pub exit_code: i32,
 }
 
+const fn envelope(connect: i32, command: i32, extra: u32) -> Duration {
+    let seconds = connect as i64 + command as i64 + 10 + extra as i64;
+    Duration::from_secs(if seconds > 0 {
+        seconds.cast_unsigned()
+    } else {
+        0
+    })
+}
+
 pub struct Core {
     cfg: Mutex<Config>,
     /// Capacity-1 semaphore serializing Run/Pair through the single HCI
@@ -62,6 +71,7 @@ pub struct Core {
     /// Whether the `BlueZ` proximity/authentication service is currently started.
     phone_key_started: AtomicBool,
     phone_key_enabled: AtomicBool,
+    pub(crate) keepalive_wakeup: Arc<(Mutex<u64>, Condvar)>,
     phone_key_retry_at: Mutex<Option<Instant>>,
     shutdown: AtomicBool,
 }
@@ -116,6 +126,7 @@ impl Core {
             phone_key_gate: Mutex::new(()),
             phone_key_started: AtomicBool::new(false),
             phone_key_enabled: AtomicBool::new(false),
+            keepalive_wakeup: Arc::new((Mutex::new(0), Condvar::new())),
             phone_key_retry_at: Mutex::new(None),
             shutdown: AtomicBool::new(false),
         })
@@ -211,13 +222,10 @@ impl Core {
             // deadline - a previously-fixed bug, preserved here. Clamped at
             // zero so a hand-edited negative timeout can never cast into a
             // near-infinite u64 deadline.
-            let secs =
-                (i64::from(cfg.connect_timeout_sec) + i64::from(cfg.command_timeout_sec) + 10)
-                    .max(0)
-                    .cast_unsigned();
+            let timeout = envelope(cfg.connect_timeout_sec, cfg.command_timeout_sec, 0);
             (
                 common,
-                Duration::from_secs(secs),
+                timeout,
                 cfg.vin.clone(),
                 cfg.connect_timeout_sec,
                 cfg.command_timeout_sec,
@@ -464,16 +472,13 @@ impl Core {
             // 20+5+10+30 = 65s < 90s.) 95s comfortably tops the 90s grace.
             // Clamped at zero like run() so a negative timeout can never
             // cast into a near-infinite deadline.
-            let secs =
-                (i64::from(cfg.connect_timeout_sec) + i64::from(cfg.command_timeout_sec) + 10 + 95)
-                    .max(0)
-                    .cast_unsigned();
+            let timeout = envelope(cfg.connect_timeout_sec, cfg.command_timeout_sec, 95);
             (
                 cfg.vin.clone(),
                 self.private_key_path().to_string_lossy().into_owned(),
                 cfg.connect_timeout_sec,
                 cfg.command_timeout_sec,
-                Duration::from_secs(secs),
+                timeout,
             )
         };
         let pubkey_path = self.public_key_path();
@@ -583,7 +588,7 @@ impl Core {
             )
         };
         if !eligible {
-            self.phone_key_enabled.store(false, Ordering::SeqCst);
+            self.set_phone_key_enabled(false);
             crate::keylog::log("core", "phone-key start refused: not paired");
             return Err(OperationError::NotPaired);
         }
@@ -600,7 +605,7 @@ impl Core {
             // Its pending stopped event must not restart the replacement again.
             session.invalidate();
         }
-        self.phone_key_enabled.store(true, Ordering::SeqCst);
+        self.set_phone_key_enabled(true);
         crate::keylog::log(
             "core",
             &format!("phone-key start vin={vin} connect={connect_timeout_sec}s"),
@@ -608,15 +613,12 @@ impl Core {
         // Same envelope as run(): presence must also survive a slow adapter
         // (BLE connect + command + margin). A flat 10s guaranteed spurious
         // PresenceFailed on slow hardware and a 5s retry storm.
-        let presence_secs = (i64::from(connect_timeout_sec) + i64::from(command_timeout_sec) + 10)
-            .max(0)
-            .cast_unsigned();
         match session.start_presence(
             &vin,
             &key_path,
             connect_timeout_sec,
             command_timeout_sec,
-            Duration::from_secs(presence_secs),
+            envelope(connect_timeout_sec, command_timeout_sec, 0),
         ) {
             Ok(outcome) if outcome.ok => {
                 self.phone_key_started.store(true, Ordering::SeqCst);
@@ -662,7 +664,7 @@ impl Core {
     }
 
     fn stop_phone_key_locked(&self, cfg: &Config) {
-        self.phone_key_enabled.store(false, Ordering::SeqCst);
+        self.set_phone_key_enabled(false);
         *self
             .phone_key_retry_at
             .lock()
@@ -688,6 +690,17 @@ impl Core {
 
     pub(crate) fn phone_key_enabled(&self) -> bool {
         self.phone_key_enabled.load(Ordering::SeqCst)
+    }
+
+    fn set_phone_key_enabled(&self, enabled: bool) {
+        let mut generation = self
+            .keepalive_wakeup
+            .0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        self.phone_key_enabled.store(enabled, Ordering::SeqCst);
+        *generation = generation.wrapping_add(1);
+        self.keepalive_wakeup.1.notify_all();
     }
 
     /// Event observation is independent of lifecycle locks and radio I/O.
@@ -742,7 +755,7 @@ impl Core {
 
     pub(crate) fn cancel_session(&self) {
         self.shutdown.store(true, Ordering::SeqCst);
-        self.phone_key_enabled.store(false, Ordering::SeqCst);
+        self.set_phone_key_enabled(false);
         if let Some(session) = &self.session {
             session.cancel();
         }
@@ -978,16 +991,13 @@ impl Core {
             // with a clear error, not as an obscure Go child failure.
             self.common_args_locked(&cfg)?;
             // Same envelope as run(): connect + command + 10s, clamped at zero.
-            let secs =
-                (i64::from(cfg.connect_timeout_sec) + i64::from(cfg.command_timeout_sec) + 10)
-                    .max(0)
-                    .cast_unsigned();
+            let timeout = envelope(cfg.connect_timeout_sec, cfg.command_timeout_sec, 0);
             (
                 cfg.vin.clone(),
                 self.private_key_path().to_string_lossy().into_owned(),
                 cfg.connect_timeout_sec,
                 cfg.command_timeout_sec,
-                Duration::from_secs(secs),
+                timeout,
             )
         };
         let Some(session) = &self.session else {
@@ -1063,7 +1073,7 @@ impl Drop for Core {
         // that can stall for seconds and lock cfg/gate (deadlock if dropped
         // while the same thread holds them). Best-effort non-blocking
         // teardown only; the runtime already stops presence explicitly.
-        self.phone_key_enabled.store(false, Ordering::SeqCst);
+        self.set_phone_key_enabled(false);
         *self
             .phone_key_retry_at
             .lock()

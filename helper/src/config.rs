@@ -375,7 +375,7 @@ fn backup_corrupt_config(path: &Path, data: &[u8]) {
         .duration_since(UNIX_EPOCH)
         .map_or((0, 0), |d| (d.as_secs(), d.subsec_nanos()));
     let backup = path.with_extension(format!(
-        "corrupt-{secs}-{nanos}-{}.json",
+        "corrupt-{secs}-{nanos:09}-{}.json",
         std::process::id()
     ));
     // Create with 0600 atomically (no world-readable window) and fail if the
@@ -446,7 +446,27 @@ fn prune_corrupt_backups(path: &Path) {
                     .is_some_and(|e| e.eq_ignore_ascii_case("json"))
         })
         .collect();
-    backups.sort();
+    // Parse timestamps so existing, unpadded backup names sort correctly too.
+    backups.sort_by_key(|p| {
+        let name = p.file_name().and_then(|n| n.to_str()).unwrap_or("");
+        let mut fields = name
+            .trim_start_matches("config.corrupt-")
+            .trim_end_matches(".json")
+            .split('-');
+        let secs = fields
+            .next()
+            .and_then(|s| s.parse::<u64>().ok())
+            .unwrap_or(0);
+        let nanos = fields
+            .next()
+            .and_then(|s| s.parse::<u32>().ok())
+            .unwrap_or(0);
+        let pid = fields
+            .next()
+            .and_then(|s| s.parse::<u32>().ok())
+            .unwrap_or(0);
+        (secs, nanos, pid)
+    });
     while backups.len() > 5 {
         if let Some(oldest) = backups.first() {
             let _ = std::fs::remove_file(oldest);
@@ -965,6 +985,44 @@ mod tests {
         assert_eq!(
             cfg.key_name, "mykey",
             "key_name with surrounding spaces must load trimmed"
+        );
+    }
+
+    #[test]
+    fn production_prune_keeps_newest_despite_unpadded_nanos() {
+        // prune_corrupt_backups sorts backup paths lexicographically, but the
+        // nanosecond stamp is unpadded decimal: "100" sorts before "99"
+        // ('1' < '9') even though 99ns is older. With 6 backups the prune
+        // must delete the chronologically oldest (99ns) and keep the newest
+        // five — lexicographic order deletes a newer file and keeps the
+        // oldest beyond the retention window.
+        let dir = tempfile::tempdir().unwrap();
+        let config = dir.path().join("config.json");
+        fs::write(&config, "{}").unwrap();
+        let secs = 1_700_000_000_u64;
+        for nanos in [99_u32, 100, 101, 102, 103, 104] {
+            let name = format!("config.corrupt-{secs}-{nanos}-1.json");
+            fs::write(dir.path().join(name), b"evidence").unwrap();
+        }
+        super::prune_corrupt_backups(&config);
+        let remaining: Vec<String> = fs::read_dir(dir.path())
+            .unwrap()
+            .filter_map(Result::ok)
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .filter(|n| n.starts_with("config.corrupt-"))
+            .collect();
+        assert_eq!(
+            remaining.len(),
+            5,
+            "prune must keep exactly 5 backups, kept {remaining:?}"
+        );
+        assert!(
+            !remaining.iter().any(|n| n.contains("-99-")),
+            "chronologically oldest (99ns) must be deleted, kept {remaining:?}"
+        );
+        assert!(
+            remaining.iter().any(|n| n.contains("-104-")),
+            "newest (104ns) must be kept, kept {remaining:?}"
         );
     }
 }

@@ -84,7 +84,7 @@ Page {
 
     function execute(commandDef, argValues) {
         page.requestSeq++
-        page.pendingCmd = commandDef.id + "#" + page.requestSeq + "@" + Date.now()
+        page.pendingCmd = commandDef.id + "#" + page.requestSeq + "@" + Date.now() + ":" + Math.random()
         page.pendingLabel = commandDef.label
         page.lastResult = ""
         teslaClient.runCommand(page.pendingCmd, commandDef.id, argValues || [])

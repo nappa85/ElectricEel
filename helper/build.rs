@@ -12,8 +12,6 @@ fn main() {
             language: cbindgen::Language::C,
             export: cbindgen::ExportConfig {
                 exclude: vec![
-                    "main".into(),
-                    "app_main".into(),
                     "electric_eel_ui_prepare".into(),
                     "electric_eel_ui_run".into(),
                     "electric_eel_ui_cleanup".into(),
@@ -27,4 +25,5 @@ fn main() {
         .write_to_file(out);
     println!("cargo:rerun-if-changed=src/ffi.rs");
     println!("cargo:rerun-if-changed=src/runtime.rs");
+    println!("cargo:rerun-if-changed=src/app.rs");
 }

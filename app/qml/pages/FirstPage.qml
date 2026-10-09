@@ -17,7 +17,11 @@ Page {
     // BLE round-trip. statusStage tracks which leg is in flight so the UI
     // can show a single busy indicator and refuse to stack requests.
     property var vehicleStatus: VState.emptyStatus()
+    property var statusBeforeToggle: null
     property string statusStage: ""
+    property string statusRequestId: ""
+    property int statusSeq: 0
+    property string statusInstance: Date.now() + ":" + Math.random()
     // Set from stdErr when a status leg fails. Climate/charge/closures go
     // through Infotainment and fail on a sleeping vehicle; lock/unlock and
     // body-controller-state use VCSEC and still work then (see
@@ -63,8 +67,14 @@ Page {
             return
         }
         page.statusError = ""
-        page.statusStage = "body"
-        teslaClient.runCommand("status:body", "body-controller-state", [])
+        runStatus("body", "body-controller-state", [])
+    }
+
+    function runStatus(stage, command, args, refresh) {
+        page.statusStage = stage
+        page.statusSeq++
+        page.statusRequestId = "status:" + stage + "#" + page.statusSeq + "@" + page.statusInstance + ":" + page.vin
+        teslaClient.runCommand(page.statusRequestId, command, args, refresh || false)
     }
 
     // Sets field to an explicit value on a clone of vehicleStatus and
@@ -84,6 +94,7 @@ Page {
     // unknown null into a confident true (`!null === true`), so the first
     // lock tap (unknown -> sends unlock) painted the closed padlock.
     function setOptimistic(field, value) {
+        page.statusBeforeToggle = page.vehicleStatus
         var next = VState.clone(page.vehicleStatus)
         next[field] = value
         page.vehicleStatus = next
@@ -102,8 +113,7 @@ Page {
         // in `locked`. Unlock unless we know the doors are already open.
         var sendLock = page.vehicleStatus.locked === false
         setOptimistic("locked", sendLock)
-        page.statusStage = "toggle"
-        teslaClient.runCommand("status:toggle", sendLock ? "lock" : "unlock", [], true)
+        runStatus("toggle", sendLock ? "lock" : "unlock", [], true)
     }
 
     function toggleClimate() {
@@ -111,8 +121,7 @@ Page {
             return
         var wasOn = page.vehicleStatus.isClimateOn
         setOptimistic("isClimateOn", !wasOn)
-        page.statusStage = "toggle"
-        teslaClient.runCommand("status:toggle", wasOn ? "climate-off" : "climate-on", [], true)
+        runStatus("toggle", wasOn ? "climate-off" : "climate-on", [], true)
     }
 
     function toggleWindows() {
@@ -120,22 +129,19 @@ Page {
             return
         var wereOpen = page.vehicleStatus.windowsOpen
         setOptimistic("windowsOpen", !wereOpen)
-        page.statusStage = "toggle"
-        teslaClient.runCommand("status:toggle", wereOpen ? "windows-close" : "windows-vent", [], true)
+        runStatus("toggle", wereOpen ? "windows-close" : "windows-vent", [], true)
     }
 
     function openFrunk() {
         if (page.statusStage.length > 0)
             return
-        page.statusStage = "toggle"
-        teslaClient.runCommand("status:toggle", "frunk-open", [], true)
+        runStatus("toggle", "frunk-open", [], true)
     }
 
     function openTrunk() {
         if (page.statusStage.length > 0)
             return
-        page.statusStage = "toggle"
-        teslaClient.runCommand("status:toggle", "trunk-open", [], true)
+        runStatus("toggle", "trunk-open", [], true)
     }
 
     function batteryIconSource() {
@@ -151,41 +157,55 @@ Page {
     Connections {
         target: teslaClient
         onConfigLoaded: {
+            if (page.vin !== vin) {
+                page.vehicleStatus = VState.emptyStatus()
+                page.statusBeforeToggle = null
+                page.statusStage = ""
+                page.statusRequestId = ""
+                page.statusError = ""
+            }
             page.vin = vin
             page.model = model
             page.hasKey = hasKey
             page.refreshStatus()
         }
+        onConfigLoadError: page.statusError = message
         onStatusRefreshRequested: page.refreshStatus()
         onCommandFinished: {
-            if (requestId === "status:body") {
+            if (requestId !== page.statusRequestId || page.statusStage.length === 0)
+                return
+            if (page.statusStage === "body") {
                 if (ok)
                     page.vehicleStatus = VState.mergeBodyControllerState(page.vehicleStatus, stdOut)
                 else
                     page.statusError = stdErr.length ? stdErr : ("exit code " + exitCode)
-                page.statusStage = "closures"
-                teslaClient.runCommand("status:closures", "state", ["closures"])
-            } else if (requestId === "status:closures") {
+                runStatus("closures", "state", ["closures"])
+            } else if (page.statusStage === "closures") {
                 if (ok)
                     page.vehicleStatus = VState.mergeClosuresState(page.vehicleStatus, stdOut)
                 else if (page.statusError.length === 0)
                     page.statusError = stdErr.length ? stdErr : ("exit code " + exitCode)
-                page.statusStage = "climate"
-                teslaClient.runCommand("status:climate", "state", ["climate"])
-            } else if (requestId === "status:climate") {
+                runStatus("climate", "state", ["climate"])
+            } else if (page.statusStage === "climate") {
                 if (ok)
                     page.vehicleStatus = VState.mergeClimateState(page.vehicleStatus, stdOut)
                 else if (page.statusError.length === 0)
                     page.statusError = stdErr.length ? stdErr : ("exit code " + exitCode)
-                page.statusStage = "charge"
-                teslaClient.runCommand("status:charge", "state", ["charge"])
-            } else if (requestId === "status:charge") {
+                runStatus("charge", "state", ["charge"])
+            } else if (page.statusStage === "charge") {
                 if (ok)
                     page.vehicleStatus = VState.mergeChargeState(page.vehicleStatus, stdOut)
                 else if (page.statusError.length === 0)
                     page.statusError = stdErr.length ? stdErr : ("exit code " + exitCode)
                 page.statusStage = ""
-            } else if (requestId === "status:toggle") {
+                page.statusRequestId = ""
+            } else if (page.statusStage === "toggle") {
+                if (!ok) {
+                    page.statusError = stdErr.length ? stdErr : ("exit code " + exitCode)
+                    if (page.statusBeforeToggle !== null)
+                        page.vehicleStatus = page.statusBeforeToggle
+                }
+                page.statusBeforeToggle = null
                 // Whether the lock/climate/windows toggle or the frunk/trunk
                 // open succeeded or not, re-fetch so the dashboard reflects
                 // reality rather than an assumed new state (the command can
@@ -193,11 +213,20 @@ Page {
                 // protocol.MayHaveSucceeded usage elsewhere in this app).
                 // Rust waits for vehicle telemetry to settle before refresh.
                 page.statusStage = ""
+                page.statusRequestId = ""
             }
         }
         onCommandError: {
-            if (requestId.indexOf("status:") === 0) {
+            if (requestId !== page.statusRequestId || page.statusStage.length === 0)
+                return
+            if (page.statusStage === "toggle") {
+                if (page.statusBeforeToggle !== null)
+                    page.vehicleStatus = page.statusBeforeToggle
+                page.statusBeforeToggle = null
+            }
+            if (requestId === page.statusRequestId) {
                 page.statusStage = ""
+                page.statusRequestId = ""
                 if (page.statusError.length === 0)
                     page.statusError = message
                 // status:toggle's optimistic() flip (toggleLock/toggleClimate/
@@ -380,7 +409,7 @@ Page {
                                 var age = VState.minutesAgo(page.vehicleStatus.updatedAt)
                                 if (page.statusStage.length > 0)
                                     return qsTr("Updating...")
-                                if (page.statusError.length > 0 && age < 0)
+                                if (page.statusError.length > 0)
                                     return qsTr("Status unavailable (%1). Vehicle may be asleep - try Wake Vehicle (Attention), then Refresh Status.").arg(page.statusError)
                                 if (age < 0)
                                     return qsTr("Pull down to refresh status")

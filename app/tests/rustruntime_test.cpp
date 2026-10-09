@@ -5,8 +5,17 @@
 #include <QThread>
 #include <QtTest>
 
-// Link the actual Rust main and runtime to the actual Qt adapter, replacing
+extern "C" {
+#include "electriceelcore.h"
+}
+
+// Link the actual Rust entrypoint and runtime to the actual Qt adapter, replacing
 // only the Sailfish view callbacks with this headless test UI.
+int main(int argc, char *argv[])
+{
+    return electric_eel_app_main(argc, argv);
+}
+
 static QGuiApplication *application = nullptr;
 static Runtime *runtime = nullptr;
 static QTemporaryDir directory;

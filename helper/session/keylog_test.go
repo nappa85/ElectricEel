@@ -57,3 +57,25 @@ func TestDefaultKeyLogDirPrefersEnv(t *testing.T) {
 		t.Fatalf("defaultKeyLogDir = %q, want env override", got)
 	}
 }
+
+func TestDailyKeyLogCapPreservesExistingEntries(t *testing.T) {
+	f, err := os.OpenFile(filepath.Join(t.TempDir(), "log"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	if err := f.Truncate(keyLogMaxBytes - 2); err != nil {
+		t.Fatal(err)
+	}
+	writeKeyLogCapped(f, "too long")
+	info, err := f.Stat()
+	if err != nil || info.Size() != keyLogMaxBytes-2 {
+		t.Fatalf("oversized entry changed log: %v, %v", info, err)
+	}
+	writeKeyLogCapped(f, "ok")
+	writeKeyLogCapped(f, "x")
+	info, err = f.Stat()
+	if err != nil || info.Size() != keyLogMaxBytes {
+		t.Fatalf("daily cap exceeded: %v, %v", info, err)
+	}
+}

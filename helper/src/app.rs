@@ -13,8 +13,16 @@ extern "C" {
     fn electric_eel_ui_cleanup();
 }
 
-#[export_name = "main"]
-pub unsafe extern "C" fn app_main(argument_count: c_int, arguments: *mut *mut c_char) -> c_int {
+/// Run the application lifecycle from the executable's forwarding entrypoint.
+///
+/// # Safety
+/// `arguments` must contain `argument_count` valid C argument strings and remain
+/// live until this function returns, as required by Qt's application setup.
+#[no_mangle]
+pub unsafe extern "C" fn electric_eel_app_main(
+    argument_count: c_int,
+    arguments: *mut *mut c_char,
+) -> c_int {
     // Qt resolves Sailjail's writable paths before we load persisted state.
     let state = unsafe { electric_eel_ui_prepare(argument_count, arguments) };
     if state.is_null() {

@@ -2,8 +2,10 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/godbus/dbus"
 	"github.com/teslamotors/vehicle-command/pkg/protocol"
@@ -17,6 +19,51 @@ import (
 // Wire: field 3 { field 2 { field 1 = token }, field 3 = 2 }.
 var teslabtapiExampleAuthRequest = []byte{
 	0x1a, 0x0a, 0x12, 0x06, 0x0a, 0x04, 0x00, 0x01, 0x0f, 0x2c, 0x18, 0x02,
+}
+
+func TestAuthResponderProgressesWhileCommandHoldsSessionLock(t *testing.T) {
+	s := &session{}
+	inbox := make(chan []byte, 1)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	sent := make(chan int, 1)
+	done := make(chan struct{})
+	s.mu.Lock() // A connect, command or NFC confirmation is still in flight.
+	defer s.mu.Unlock()
+	go func() {
+		defer close(done)
+		s.authResponderLoop(ctx, inbox, func(ctx context.Context, level int) error {
+			sent <- level
+			return nil
+		})
+	}()
+	inbox <- teslabtapiExampleAuthRequest
+	select {
+	case level := <-sent:
+		if level != authLevelDrive {
+			t.Fatalf("level = %d, want DRIVE", level)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("handle-pull responder blocked behind session command")
+	}
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("responder shutdown blocked behind session command")
+	}
+}
+
+func TestCancelledAuthResponderDoesNotSendQueuedRequest(t *testing.T) {
+	s := &session{}
+	inbox := make(chan []byte, 1)
+	inbox <- teslabtapiExampleAuthRequest
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // Teardown retired this link before the queued request was handled.
+	s.authResponderLoop(ctx, inbox, func(context.Context, int) error {
+		t.Fatal("cancelled link must not grant a queued request")
+		return nil
+	})
 }
 
 func TestParseAuthenticationRequestBareFromVCSEC(t *testing.T) {

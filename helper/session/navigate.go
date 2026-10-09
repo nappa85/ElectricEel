@@ -15,6 +15,7 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"unicode"
 )
 
 // maxNavigateTextLen mirrors helper/src/share.rs MAX_SHARE_TEXT_LEN.
@@ -59,18 +60,15 @@ func (s *session) dispatchNavigate(req request) response {
 			return response{ID: req.ID, OK: false, Stderr: "navigate: address needs text\n", ExitCode: 2}
 		}
 		text = strings.TrimSpace(req.Args[1])
-		if text == "" || len([]rune(text)) > maxNavigateTextLen {
+		if text == "" || len([]rune(text)) > maxNavigateTextLen || strings.ContainsFunc(req.Args[1], unicode.IsControl) {
 			return response{ID: req.ID, OK: false, Stderr: "navigate: invalid address text\n", ExitCode: 2}
 		}
 	default:
 		return response{ID: req.ID, OK: false, Stderr: "navigate: unknown kind (want gps or address)\n", ExitCode: 2}
 	}
 
-	// A general-purpose session (all domains, infotainment included):
-	// "navigate" is not in the commands table, so sessionDomains returns
-	// nil (all domains) and ensureConnectedLocked performs the full
-	// StartSession handshake like any ordinary command.
-	connectCtx, cancel := context.WithTimeout(context.Background(), s.connectTimeout)
+	// Navigation needs infotainment authentication even on a presence-only link.
+	connectCtx, cancel := context.WithTimeout(s.requestContext(), s.connectTimeout)
 	s.mu.Lock()
 	connectErr := s.ensureConnectedLocked(connectCtx, "navigate", s.presenceBeaconTargetLocked())
 	s.mu.Unlock()
@@ -79,7 +77,7 @@ func (s *session) dispatchNavigate(req request) response {
 		return response{ID: req.ID, OK: false, Stderr: "navigate: " + connectErr.Error() + "\n", ExitCode: 1}
 	}
 
-	cmdCtx, cancel := context.WithTimeout(context.Background(), s.commandTimeout)
+	cmdCtx, cancel := context.WithTimeout(s.requestContext(), s.commandTimeout)
 	defer cancel()
 
 	s.mu.Lock()

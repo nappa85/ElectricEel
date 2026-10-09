@@ -55,6 +55,7 @@ signals:
     void keyGenerated(bool ok, const QString &publicKeyPem, const QString &errorMessage);
     void paired(bool ok, const QString &output, const QString &errorMessage);
     void configSaved(bool ok, const QString &errorMessage);
+    void configLoadError(const QString &message);
     void configLoaded(const QString &vin, const QString &model, const QString &keyName,
                       int connectTimeoutSec, int commandTimeoutSec,
                       bool hasKey, const QString &publicKeyPem);

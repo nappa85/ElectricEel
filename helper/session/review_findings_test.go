@@ -6,10 +6,9 @@ import (
 	"testing"
 )
 
-// Production-review regressions. Each test asserts correct behavior and
-// fails against the live code until the fix lands.
+// Production-review regressions retained after the corresponding fixes.
 
-// GetDegree("NaN") currently parses successfully and returns NaN with a nil
+// GetDegree("NaN") previously parsed successfully and returned NaN with a nil
 // error: strconv.ParseFloat accepts it, and `NaN < -180 || NaN > 180` is
 // false for NaN, so the range check passes. A NaN coordinate must never be
 // forwarded to the vehicle.
@@ -20,13 +19,13 @@ func TestReviewGetDegreeRejectsNaN(t *testing.T) {
 	}
 }
 
-// categoryNames() iterates a Go map, so `state --help` lists categories in a
-// random order on every invocation. Help output must be stable (sorted).
+// Map iteration previously made `state --help` list categories in random
+// order on every invocation. Help output must remain stable (sorted).
 func TestReviewCategoryNamesAreSorted(t *testing.T) {
 	names := categoryNames()
 	if !sort.StringsAreSorted(names) {
 		sorted := append([]string(nil), names...)
 		sort.Strings(sorted)
-		t.Fatalf("categoryNames() unsorted: got %q, want %q (fails until names are sorted)", names, sorted)
+		t.Fatalf("categoryNames() unsorted: got %q, want %q", names, sorted)
 	}
 }

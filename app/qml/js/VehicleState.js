@@ -51,30 +51,33 @@ var MODELS = [
     { id: "cybertruck", name: qsTr("Cybertruck"),  image: "../../img/cybertruck.png" },
 ]
 
-function modelImage(id) {
+function findModel(id) {
     for (var i = 0; i < MODELS.length; i++) {
-        if (MODELS[i].id === id && MODELS[i].image.length > 0)
-            return MODELS[i].image
+        if (MODELS[i].id === id)
+            return { entry: MODELS[i], index: i }
     }
+    return { entry: null, index: -1 }
+}
+
+function modelImage(id) {
+    var found = findModel(id)
+    if (found.entry && found.entry.image.length > 0)
+        return found.entry.image
     // Unknown/empty id (and the Auto entry, which has no image of its own)
     // fall back to the Model 3 silhouette.
     return "../../img/model3.png"
 }
 
 function modelName(id) {
-    for (var i = 0; i < MODELS.length; i++) {
-        if (MODELS[i].id === id)
-            return MODELS[i].name
-    }
+    var found = findModel(id)
+    if (found.entry)
+        return found.entry.name
     return qsTr("Model 3")
 }
 
 function modelIndex(id) {
-    for (var i = 0; i < MODELS.length; i++) {
-        if (MODELS[i].id === id)
-            return i
-    }
-    return 0
+    var found = findModel(id)
+    return found.index >= 0 ? found.index : 0
 }
 
 // Effective model id to render on the front page: an explicit config
@@ -179,13 +182,25 @@ function mergeBodyControllerState(status, jsonText) {
             s.locked = false
         // Only touch closure fields when the payload actually carries them:
         // a lock-only reply must preserve the previous door/trunk reading
-        // instead of clearing it to closed.
+        // instead of clearing it to closed. An empty object carries no door
+        // keys either, so it must also preserve rather than clear.
         if (obj.closureStatuses !== undefined && obj.closureStatuses !== null) {
             var c = obj.closureStatuses
-            s.doorsOpen = closureIsOpen(c.frontDriverDoor) || closureIsOpen(c.frontPassengerDoor)
-                || closureIsOpen(c.rearDriverDoor) || closureIsOpen(c.rearPassengerDoor)
-            s.trunkFrontOpen = closureIsOpen(c.frontTrunk)
-            s.trunkRearOpen = closureIsOpen(c.rearTrunk)
+            var knownKeys = ["frontDriverDoor", "frontPassengerDoor", "rearDriverDoor",
+                "rearPassengerDoor", "frontTrunk", "rearTrunk"]
+            var hasKnown = false
+            for (var i = 0; i < knownKeys.length; i++) {
+                if (knownKeys[i] in c) { hasKnown = true; break }
+            }
+            if (hasKnown) {
+                s.doorsOpen = closureIsOpen(c.frontDriverDoor) || closureIsOpen(c.frontPassengerDoor)
+                    || closureIsOpen(c.rearDriverDoor) || closureIsOpen(c.rearPassengerDoor)
+                s.trunkFrontOpen = closureIsOpen(c.frontTrunk)
+                s.trunkRearOpen = closureIsOpen(c.rearTrunk)
+            }
+            // else: no door keys present — preserve previous door/trunk
+            // readings, but still fall through to bump updatedAt since the
+            // lock readout above may be fresh.
         }
         s.updatedAt = Date.now()
     } catch (e) {
@@ -197,7 +212,10 @@ function mergeBodyControllerState(status, jsonText) {
 function mergeClosuresState(status, jsonText) {
     var s = clone(status)
     try {
-        var obj = JSON.parse(jsonText).closuresState || {}
+        var root = JSON.parse(jsonText)
+        if (!root || !root.closuresState)
+            return s
+        var obj = root.closuresState
         s.locked = !!obj.locked
         s.doorsOpen = !!(obj.doorOpenDriverFront || obj.doorOpenDriverRear ||
                           obj.doorOpenPassengerFront || obj.doorOpenPassengerRear ||
@@ -216,7 +234,10 @@ function mergeClosuresState(status, jsonText) {
 function mergeClimateState(status, jsonText) {
     var s = clone(status)
     try {
-        var obj = JSON.parse(jsonText).climateState || {}
+        var root = JSON.parse(jsonText)
+        if (!root || !root.climateState)
+            return s
+        var obj = root.climateState
         s.insideTemp = obj.insideTempCelsius !== undefined ? obj.insideTempCelsius : null
         s.outsideTemp = obj.outsideTempCelsius !== undefined ? obj.outsideTempCelsius : null
         s.driverTempSetting = obj.driverTempSetting !== undefined ? obj.driverTempSetting : null
@@ -248,7 +269,10 @@ function oneofVariantName(oneofObj) {
 function mergeChargeState(status, jsonText) {
     var s = clone(status)
     try {
-        var obj = JSON.parse(jsonText).chargeState || {}
+        var root = JSON.parse(jsonText)
+        if (!root || !root.chargeState)
+            return s
+        var obj = root.chargeState
         s.batteryLevel = obj.batteryLevel !== undefined ? obj.batteryLevel : null
         s.chargingState = oneofVariantName(obj.chargingState)
         s.chargePortOpen = !!obj.chargePortDoorOpen

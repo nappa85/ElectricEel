@@ -36,6 +36,20 @@ type taggedEvent struct {
 	event
 }
 
+// encodeWithDeadline writes one frame with a 5s write deadline so a parent
+// that stops reading without closing cannot wedge responses, events or
+// heartbeats forever while holding writeMu.
+func (s *session) encodeWithDeadline(v interface{}) error {
+	if s.parentConn != nil {
+		_ = s.parentConn.SetWriteDeadline(time.Now().Add(5 * time.Second))
+		defer s.parentConn.SetWriteDeadline(time.Time{})
+	}
+	if s.enc == nil {
+		return fmt.Errorf("no parent connection")
+	}
+	return s.enc.Encode(v)
+}
+
 // heartbeatLoop ticks heartbeat frames until done is closed. A failed
 // write means the parent is gone; it returns and lets the read loop drive
 // the shutdown below (which also fires, since the connection is dead).
@@ -49,9 +63,9 @@ func (s *session) heartbeatLoop(done <-chan struct{}) {
 		case <-ticker.C:
 			s.writeMu.Lock()
 			if s.enc != nil {
-				if err := s.enc.Encode(heartbeatFrame{Type: "heartbeat", Unix: time.Now().Unix()}); err != nil {
+				if err := s.encodeWithDeadline(heartbeatFrame{Type: "heartbeat", Unix: time.Now().Unix()}); err != nil {
 					s.writeMu.Unlock()
-					keylog("session", "heartbeat write failed - parent gone")
+					keylog("session", "heartbeat write failed - parent gone: %v", err)
 					return
 				}
 			}
@@ -64,13 +78,15 @@ func (s *session) heartbeatLoop(done <-chan struct{}) {
 // It returns only when the connection breaks (parent gone): it tears down
 // BLE state and returns instead of buffering work for a parent that will
 // never read it. The process exit lives in main, not here, so tests can
-// drive this loop over net.Pipe.
+// drive this loop over net.Pipe. Never calls os.Exit: hello-write failures
+// return and let main decide the exit code.
 func (s *session) serveConn(conn net.Conn) {
 	defer conn.Close()
+	s.parentConn = conn
 	s.enc = json.NewEncoder(conn)
-	if err := s.enc.Encode(helloFrame{Type: "hello", Version: protocolVersion, BLEBackend: s.bleBackend}); err != nil {
+	if err := s.encodeWithDeadline(helloFrame{Type: "hello", Version: protocolVersion, BLEBackend: s.bleBackend}); err != nil {
 		keylog("session", "hello write failed: %v", err)
-		os.Exit(1)
+		return
 	}
 
 	hbDone := make(chan struct{})
@@ -86,7 +102,15 @@ func (s *session) serveConn(conn net.Conn) {
 		}
 		var req request
 		if err := json.Unmarshal(line, &req); err != nil {
-			s.writeResponse(response{OK: false, Stderr: fmt.Sprintf("tesla-session: malformed request: %s", err), ExitCode: 1})
+			// Best-effort ID correlation: if the line carries a parseable
+			// "id" field, echo it so the parent can match the error.
+			var idProbe struct {
+				ID string `json:"id"`
+			}
+			if idErr := json.Unmarshal(line, &idProbe); idErr == nil {
+				req.ID = idProbe.ID
+			}
+			s.writeResponse(response{ID: req.ID, OK: false, Stderr: fmt.Sprintf("tesla-session: malformed request: %s", err), ExitCode: 1})
 			continue
 		}
 		if req.Type != "request" {
@@ -96,7 +120,11 @@ func (s *session) serveConn(conn net.Conn) {
 		s.writeResponse(s.dispatch(req))
 	}
 
-	keylog("session", "parent connection closed - shutting down")
+	if err := scanner.Err(); err != nil {
+		keylog("session", "parent connection read error: %v", err)
+	} else {
+		keylog("session", "parent connection closed - shutting down")
+	}
 	s.shutdown()
 }
 

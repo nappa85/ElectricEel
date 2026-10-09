@@ -115,14 +115,18 @@ func (c *Connection) DeviceConnected(ctx context.Context) (bool, error) {
 // SetTrusted marks the vehicle as a trusted BlueZ device so reconnects do
 // not require interactive pairing prompts.
 func (c *Connection) SetTrusted(trusted bool) error {
-	return c.bus.object(bluezService, c.devPath).setProp(context.Background(), deviceIface, "Trusted", trusted)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	return c.bus.object(bluezService, c.devPath).setProp(ctx, deviceIface, "Trusted", trusted)
 }
 
 // SetAutoConnect asks bluetoothd to reconnect when the vehicle advertises.
 // Uses Properties.Set (Device1 has no SetProperty method). Presence mode
 // still watches Dropped() and re-runs StartSession after a reconnect.
 func (c *Connection) SetAutoConnect(enabled bool) error {
-	return c.bus.object(bluezService, c.devPath).setProp(context.Background(), deviceIface, "AutoConnect", enabled)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	return c.bus.object(bluezService, c.devPath).setProp(ctx, deviceIface, "AutoConnect", enabled)
 }
 
 func (c *Connection) PreferredAuthMethod() connector.AuthMethod {
@@ -146,6 +150,10 @@ func (c *Connection) Send(ctx context.Context, buffer []byte) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	if c.blockLength <= 0 {
+		c.blockLength = defaultMTU - 3
+	}
+
 	out := make([]byte, 0, len(buffer)+2)
 	out = append(out, byte(len(buffer)>>8), byte(len(buffer)))
 	out = append(out, buffer...)
@@ -157,6 +165,9 @@ func (c *Connection) Send(ctx context.Context, buffer []byte) error {
 		blk := len(out)
 		if c.blockLength < blk {
 			blk = c.blockLength
+		}
+		if blk <= 0 {
+			return fmt.Errorf("bluez: invalid block length %d", c.blockLength)
 		}
 		if err := c.writeChunk(ctx, out[:blk]); err != nil {
 			if ctx.Err() != nil {
@@ -289,13 +300,18 @@ func (c *Connection) handleDeviceSignal(sig *dbus.Signal) {
 
 // rx appends inbound bytes to the reassembly buffer and flushes any complete
 // length-prefixed messages. A gap longer than rxTimeout resets the buffer,
-// mirroring upstream ble.rx.
+// mirroring upstream ble.rx. The buffer is capped so a garbage stream
+// without a valid length prefix cannot grow it without bound.
 func (c *Connection) rx(p []byte) {
 	if time.Since(c.lastRx) > rxTimeout {
 		c.rxBuf = nil
 	}
 	c.lastRx = time.Now()
 	c.rxBuf = append(c.rxBuf, p...)
+	if len(c.rxBuf) > 2*maxMessageSize {
+		c.rxBuf = nil
+		return
+	}
 	for c.flush() {
 	}
 }

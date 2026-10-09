@@ -129,7 +129,7 @@ Page {
                 minimumValue: 5
                 maximumValue: 300
                 stepSize: 1
-                valueText: value + qsTr(" s")
+                valueText: qsTr("%1 s").arg(value)
             }
 
             Slider {
@@ -139,7 +139,7 @@ Page {
                 minimumValue: 2
                 maximumValue: 300
                 stepSize: 1
-                valueText: value + qsTr(" s")
+                valueText: qsTr("%1 s").arg(value)
             }
 
             Button {

@@ -15,12 +15,14 @@ import Sailfish.Silica 1.0
 // No network, no token, no Fleet API.
 Page {
     id: page
+    objectName: "navigationPage"
     property var teslaClient
     // Prefilled by the Share handler (harbour-electric-eel.qml) or left
     // empty for manual paste/typing.
     property string initialText: ""
 
     property bool sending: false
+    property bool previewing: false
     property string previewText: ""
     property string resultText: ""
     // Per-page request ids so two NavigationPages on the stack never consume
@@ -29,12 +31,22 @@ Page {
     property string pendingPreviewId: ""
     property string pendingSendId: ""
 
+    // Called by openNavigation() when this page is already on top: replace
+    // the text and re-preview instead of stacking another page.
+    function setSharedText(text) {
+        destField.text = text
+        page.preview()
+    }
+
     function preview() {
+        if (page.previewing)
+            return
         page.resultText = ""
         if (destField.text.trim().length === 0) {
             page.previewText = qsTr("Paste or type a destination first.")
             return
         }
+        page.previewing = true
         page.previewText = qsTr("Checking...")
         page.navSeq++
         page.pendingPreviewId = "nav:preview#" + page.navSeq + "@" + Date.now()
@@ -59,6 +71,7 @@ Page {
         onDestinationPreviewed: {
             if (requestId !== page.pendingPreviewId)
                 return
+            page.previewing = false
             if (!ok) {
                 page.previewText = qsTr("Cannot use this: %1").arg(errorMessage)
                 return
@@ -108,7 +121,7 @@ Page {
             Button {
                 anchors.horizontalCenter: parent.horizontalCenter
                 text: qsTr("Preview")
-                enabled: !page.sending
+                enabled: !page.sending && !page.previewing
                 onClicked: page.preview()
             }
 

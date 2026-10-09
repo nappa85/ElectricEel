@@ -70,6 +70,10 @@ pub enum CoreError {
     Internal = 2,
 }
 
+/// Cap on the NULL-terminated argv walk in `core_run`. 64 slots far
+/// exceeds the longest real command (schedule-add: 7 args).
+const MAX_ARGV: usize = 64;
+
 fn cstr(ptr: *const c_char) -> Option<String> {
     if ptr.is_null() {
         return None;
@@ -171,7 +175,27 @@ pub unsafe extern "C" fn core_new(
             }
             return std::ptr::null_mut();
         };
-        let backend = cstr(ble_backend).unwrap_or_else(|| "hci".to_string());
+        // NULL backend means the default "hci" (documented above). A present
+        // but invalid value is a caller bug: fail instead of silently
+        // enabling the raw-HCI fallback, which takes exclusive adapter
+        // control.
+        let backend = if ble_backend.is_null() {
+            "hci".to_string()
+        } else {
+            match cstr(ble_backend) {
+                Some(b) if b == "hci" || b == "bluez" => b,
+                _ => {
+                    if !err_out.is_null() {
+                        // SAFETY: caller-owned output slot.
+                        unsafe {
+                            *err_out =
+                                err_str("core_new: ble_backend must be \"hci\" or \"bluez\"");
+                        }
+                    }
+                    return std::ptr::null_mut();
+                }
+            }
+        };
         Some(SessionClient::new(
             PathBuf::from(path),
             &backend,
@@ -499,6 +523,8 @@ pub unsafe extern "C" fn core_poll_phone_key_event(
     if !has_event.is_null() {
         unsafe { *has_event = event.is_some() };
     }
+    // Clear output slots when there is no event: leaving stale pointers
+    // would let callers read the previous event's freed strings.
     if let Some(event) = event {
         if !kind.is_null() {
             unsafe { *kind = into_cstring(event.kind) };
@@ -511,6 +537,19 @@ pub unsafe extern "C" fn core_poll_phone_key_event(
         }
         if !error_message.is_null() {
             unsafe { *error_message = into_cstring(event.error) };
+        }
+    } else {
+        if !kind.is_null() {
+            unsafe { *kind = std::ptr::null_mut() };
+        }
+        if !vin.is_null() {
+            unsafe { *vin = std::ptr::null_mut() };
+        }
+        if !time.is_null() {
+            unsafe { *time = std::ptr::null_mut() };
+        }
+        if !error_message.is_null() {
+            unsafe { *error_message = std::ptr::null_mut() };
         }
     }
     CoreError::Ok
@@ -545,12 +584,16 @@ pub unsafe extern "C" fn core_run(
         return CoreError::BadArg;
     };
 
-    // Walk the NULL-terminated argv array.
+    // Walk the NULL-terminated argv array, capped (MAX_ARGV) so a
+    // non-terminated array cannot cause an out-of-bounds read.
     let mut cmd_args: Vec<String> = Vec::new();
     if !args.is_null() {
         let mut i = 0usize;
         loop {
-            // SAFETY: the array is NULL-terminated (caller contract).
+            if i >= MAX_ARGV {
+                return CoreError::BadArg;
+            }
+            // SAFETY: the array is NULL-terminated within MAX_ARGV (caller contract).
             let p = unsafe { *args.add(i) };
             if p.is_null() {
                 break;
@@ -600,10 +643,10 @@ pub unsafe extern "C" fn core_run(
 /// Preview a navigation share without sending: parses `text` and reports
 /// (kind, value1, value2) = ("gps", lat, lon) or ("address", text, "").
 /// A parse failure is `ok=false` + `error_message`, same soft shape as
-/// `core_generate_key`.
+/// `core_generate_key`. Pure computation: `core` may be NULL.
 ///
 /// # Safety
-/// `core` must be valid; strings NUL-terminated UTF-8; outputs writable/NULL.
+/// Strings NUL-terminated UTF-8; outputs writable/NULL.
 #[no_mangle]
 pub unsafe extern "C" fn core_preview_destination(
     core: *mut Core,
@@ -614,9 +657,8 @@ pub unsafe extern "C" fn core_preview_destination(
     value2: *mut *mut c_char,
     error_message: *mut *mut c_char,
 ) -> CoreError {
-    let Some(_) = (unsafe { core.as_ref() }) else {
-        return CoreError::BadArg;
-    };
+    // `core` intentionally unused: preview is pure parsing with no config.
+    let _ = core;
     let Some(text) = cstr(text) else {
         return CoreError::BadArg;
     };
@@ -869,7 +911,7 @@ mod tests {
 
         let mut enabled = true;
         assert_eq!(
-            unsafe { core_phone_key_enabled(core, &mut enabled) },
+            unsafe { core_phone_key_enabled(core, std::ptr::addr_of_mut!(enabled)) },
             CoreError::Ok
         );
         assert!(!enabled, "an unpaired key must not hold the CPU lease");
@@ -878,7 +920,7 @@ mod tests {
             CoreError::BadArg
         );
         assert_eq!(
-            unsafe { core_phone_key_enabled(ptr::null_mut(), &mut enabled) },
+            unsafe { core_phone_key_enabled(ptr::null_mut(), std::ptr::addr_of_mut!(enabled)) },
             CoreError::BadArg
         );
 

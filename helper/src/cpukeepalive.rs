@@ -7,7 +7,7 @@ use crate::core::Core;
 
 const ID: &str = "harbour-electric-eel-phone-key";
 const RETRY: Duration = Duration::from_secs(1);
-const CHECK_MODE: Duration = Duration::from_millis(100);
+const MAX_BACKOFF: Duration = Duration::from_secs(30);
 
 pub(crate) struct CpuKeepAlive {
     quit: Arc<(Mutex<bool>, Condvar)>,
@@ -80,12 +80,14 @@ fn failure(method: &str, error: &str) {
     crate::keylog::log("keepalive", &format!("{method} failed: {error}"));
 }
 
+#[allow(clippy::too_many_lines)]
 fn renew(core: &Core, quit: &(Mutex<bool>, Condvar), address: Option<&str>) {
     let mut connection = None;
     let mut requested = false;
     let mut first_hold = true;
     let mut period_known = false;
     let mut delay = RETRY;
+    let mut backoff = RETRY;
     let mut next = Instant::now();
     loop {
         let guard = quit
@@ -96,6 +98,10 @@ fn renew(core: &Core, quit: &(Mutex<bool>, Condvar), address: Option<&str>) {
             break;
         }
         drop(guard);
+        // Sleep target: when disabled and idle, wait on the condvar with a
+        // long deadline instead of waking 10x/sec; renewals use half the
+        // granted period. Assigned fresh in every branch below.
+        let mut sleep_for: Duration;
         if core.phone_key_enabled() {
             if Instant::now() >= next {
                 if connection.is_none() {
@@ -104,8 +110,17 @@ fn renew(core: &Core, quit: &(Mutex<bool>, Condvar), address: Option<&str>) {
                         zbus::blocking::connection::Builder::address,
                     );
                     match builder.and_then(|b| b.method_timeout(RETRY).build()) {
-                        Ok(bus) => connection = Some(bus),
-                        Err(e) => failure("system bus connect", &e.to_string()),
+                        Ok(bus) => {
+                            connection = Some(bus);
+                            backoff = RETRY;
+                        }
+                        Err(e) => {
+                            failure("system bus connect", &e.to_string());
+                            // Exponential backoff with cap instead of a 1s
+                            // hammer when bluetoothd/MCE is down.
+                            next = Instant::now() + backoff;
+                            backoff = (backoff * 2).min(MAX_BACKOFF);
+                        }
                     }
                 }
                 if let Some(bus) = &connection {
@@ -122,6 +137,7 @@ fn renew(core: &Core, quit: &(Mutex<bool>, Condvar), address: Option<&str>) {
                             Ok((period, granted_delay)) => {
                                 delay = granted_delay;
                                 period_known = true;
+                                backoff = RETRY;
                                 crate::keylog::log(
                                     "keepalive",
                                     &format!(
@@ -130,29 +146,43 @@ fn renew(core: &Core, quit: &(Mutex<bool>, Condvar), address: Option<&str>) {
                                     ),
                                 );
                             }
-                            Err(e) => failure("req_cpu_keepalive_period", &e),
+                            Err(e) => {
+                                failure("req_cpu_keepalive_period", &e);
+                                next = Instant::now() + backoff;
+                                backoff = (backoff * 2).min(MAX_BACKOFF);
+                            }
                         }
                     }
-                    match hold(bus, "req_cpu_keepalive_start") {
-                        Ok(()) => {
-                            if first_hold {
-                                crate::keylog::log("keepalive", "first successful CPU hold");
-                                first_hold = false;
+                    if period_known || delay != RETRY {
+                        match hold(bus, "req_cpu_keepalive_start") {
+                            Ok(()) => {
+                                if first_hold {
+                                    crate::keylog::log("keepalive", "first successful CPU hold");
+                                    first_hold = false;
+                                }
+                                backoff = RETRY;
+                                next = Instant::now() + delay;
                             }
-                            next = Instant::now() + delay;
-                        }
-                        Err(e) => {
-                            failure("req_cpu_keepalive_start", &e);
-                            // Reconnect after a lost bus; MCE drops leases when
-                            // the sender disconnects. Re-query after reconnect.
-                            connection = None;
-                            period_known = false;
-                            next = Instant::now() + RETRY;
+                            Err(e) => {
+                                failure("req_cpu_keepalive_start", &e);
+                                // Reconnect after a lost bus; MCE drops leases when
+                                // the sender disconnects. Re-query after reconnect.
+                                connection = None;
+                                period_known = false;
+                                next = Instant::now() + backoff;
+                                backoff = (backoff * 2).min(MAX_BACKOFF);
+                            }
                         }
                     }
                 } else {
-                    next = Instant::now() + RETRY;
+                    next = Instant::now() + backoff;
+                    backoff = (backoff * 2).min(MAX_BACKOFF);
                 }
+            }
+            // Sleep until the next renewal deadline (or quit).
+            sleep_for = next.saturating_duration_since(Instant::now());
+            if sleep_for.is_zero() {
+                sleep_for = RETRY;
             }
         } else if requested {
             if let Some(bus) = &connection {
@@ -166,7 +196,14 @@ fn renew(core: &Core, quit: &(Mutex<bool>, Condvar), address: Option<&str>) {
             period_known = false;
             first_hold = true;
             delay = RETRY;
+            backoff = RETRY;
             next = Instant::now();
+            // Re-check promptly: mode may flip back to enabled at any time
+            // (the test toggles stop/start within seconds).
+            sleep_for = RETRY;
+        } else {
+            // Disabled and idle: park on the condvar instead of waking 10x/s.
+            sleep_for = Duration::from_secs(30);
         }
         let guard = quit
             .0
@@ -175,7 +212,7 @@ fn renew(core: &Core, quit: &(Mutex<bool>, Condvar), address: Option<&str>) {
         if *guard {
             break;
         }
-        let _ = quit.1.wait_timeout(guard, CHECK_MODE);
+        let _ = quit.1.wait_timeout(guard, sleep_for);
     }
     if requested {
         if let Some(bus) = &connection {
@@ -260,9 +297,11 @@ mod tests {
             .unwrap();
 
         let dir = tempfile::tempdir().unwrap();
-        let mut cfg = crate::config::Config::default();
-        cfg.vin = "5YJ3E1EA0PF000000".into();
-        cfg.vin_state = crate::config::VinState::Paired;
+        let cfg = crate::config::Config {
+            vin: "5YJ3E1EA0PF000000".into(),
+            vin_state: crate::config::VinState::Paired,
+            ..crate::config::Config::default()
+        };
         cfg.save(&dir.path().join("config.json")).unwrap();
         std::fs::write(dir.path().join("private_key.pem"), "private").unwrap();
         let state = dir.path().to_string_lossy().into_owned();

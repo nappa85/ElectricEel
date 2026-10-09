@@ -67,11 +67,12 @@ func (s *session) dispatchNavigate(req request) response {
 	}
 
 	// A general-purpose session (all domains, infotainment included):
-	// "" is not a commandsWithoutSession command, so ensureConnectedLocked
-	// performs the full StartSession handshake like any ordinary command.
+	// "navigate" is not in the commands table, so sessionDomains returns
+	// nil (all domains) and ensureConnectedLocked performs the full
+	// StartSession handshake like any ordinary command.
 	connectCtx, cancel := context.WithTimeout(context.Background(), s.connectTimeout)
 	s.mu.Lock()
-	connectErr := s.ensureConnectedLocked(connectCtx, "", s.presenceBeaconTargetLocked())
+	connectErr := s.ensureConnectedLocked(connectCtx, "navigate", s.presenceBeaconTargetLocked())
 	s.mu.Unlock()
 	cancel()
 	if connectErr != nil {

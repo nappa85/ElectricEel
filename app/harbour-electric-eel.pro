@@ -33,7 +33,7 @@ DISTFILES += \
     qml/pages/*.qml \
     qml/js/*.js \
     translations/harbour-electric-eel.ts \
-    translations/harbour-electric-eel_it.ts \
+    translations/harbour-electric-eel_*.ts \
     img/model3.png \
     img/models.png \
     img/modelx.png \

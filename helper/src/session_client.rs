@@ -204,7 +204,10 @@ fn spawn_reader(
     alive: Arc<AtomicBool>,
     cancelled: Arc<AtomicBool>,
 ) -> (mpsc::Receiver<String>, thread::JoinHandle<()>) {
-    let (tx, rx) = mpsc::channel();
+    // Bounded to 1: exactly one response is consumed per run(). An unbounded
+    // channel would let a buggy child flooding responses grow memory without
+    // bound. A full channel is a protocol violation: kill the child.
+    let (tx, rx) = mpsc::sync_channel(1);
     let thread = thread::spawn(move || {
         let mut reader = reader;
         let mut line = String::new();
@@ -216,7 +219,7 @@ fn spawn_reader(
                     let raw = line.trim_end().to_string();
                     match serde_json::from_str::<Frame>(&raw) {
                         Ok(Frame::Response(_)) => {
-                            if tx.send(raw).is_err() {
+                            if tx.try_send(raw).is_err() {
                                 break;
                             }
                         }
@@ -284,6 +287,10 @@ pub struct SessionClient {
     state_dir: PathBuf,
     child: Mutex<Option<ChildHandle>>,
     next_id: AtomicU64,
+    /// Separate nonce for socket paths: request IDs and socket suffixes must
+    /// not share a counter (a failed spawn without run would otherwise reuse
+    /// a request id as a path suffix, confusing diagnostics).
+    sock_nonce: AtomicU64,
     events: Arc<Mutex<VecDeque<SessionEvent>>>,
     presence_active: AtomicBool,
     /// Bound on socket accept + hello handshake.
@@ -302,6 +309,7 @@ impl SessionClient {
             state_dir,
             child: Mutex::new(None),
             next_id: AtomicU64::new(1),
+            sock_nonce: AtomicU64::new(1),
             events: Arc::new(Mutex::new(VecDeque::new())),
             presence_active: AtomicBool::new(false),
             handshake_timeout: Duration::from_secs(5),
@@ -357,7 +365,7 @@ impl SessionClient {
         self.state_dir.join(format!(
             "tesla-session-{}-{}.sock",
             std::process::id(),
-            self.next_id.load(Ordering::Relaxed)
+            self.sock_nonce.fetch_add(1, Ordering::Relaxed)
         ))
     }
 
@@ -369,7 +377,22 @@ impl SessionClient {
         // unlink). The name is unique per spawn, so a leftover can only be
         // ours.
         let _ = std::fs::remove_file(&sock_path);
+        // Restrict the state dir so only our UID can reach the socket during
+        // the bind→accept→unlink window (a same-UID process could otherwise
+        // dial in and spoof hello/responses).
+        let _ = std::fs::create_dir_all(&self.state_dir);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ =
+                std::fs::set_permissions(&self.state_dir, std::fs::Permissions::from_mode(0o700));
+        }
         let listener = UnixListener::bind(&sock_path).map_err(SessionError::Spawn)?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = std::fs::set_permissions(&sock_path, std::fs::Permissions::from_mode(0o600));
+        }
         Ok((listener, sock_path))
     }
 
@@ -576,6 +599,10 @@ impl SessionClient {
         .expect("Request only contains strings; cannot fail to encode");
         line.push('\n');
 
+        // Bound the write: a wedged child with a full socket buffer must not
+        // block run() (and its child-mutex guard) forever. Only the read
+        // half had a timeout before.
+        let _ = handle.stream.set_write_timeout(Some(timeout));
         if handle.stream.write_all(line.as_bytes()).is_err() {
             let handle = guard.take().unwrap();
             Self::kill(handle);
@@ -602,7 +629,14 @@ impl SessionClient {
                 };
                 let resp = match frame {
                     Frame::Event(_) | Frame::Heartbeat { .. } | Frame::Hello { .. } => {
-                        unreachable!("reader diverts non-response frames")
+                        // Reader diverts non-response frames; reaching here
+                        // means a reader regression. No unreachable!(): this
+                        // is reachable from C across FFI where a panic is UB.
+                        // Treat as a fatal protocol violation like IdMismatch.
+                        let handle = guard.take().unwrap();
+                        Self::kill(handle);
+                        self.transport_failed();
+                        return Err(SessionError::IdMismatch);
                     }
                     Frame::Response(resp) => resp,
                 };
@@ -623,11 +657,21 @@ impl SessionClient {
                     exit_code: resp.exit_code,
                 })
             }
-            Err(RecvTimeoutError::Timeout | RecvTimeoutError::Disconnected) => {
+            Err(RecvTimeoutError::Timeout) => {
                 let handle = guard.take().unwrap();
                 Self::kill(handle);
                 self.transport_failed();
                 Err(SessionError::Timeout)
+            }
+            Err(RecvTimeoutError::Disconnected) => {
+                // Reader died (EOF, malformed frame, wedged child): the
+                // transport is broken, not slow. Report BrokenPipe so the UI
+                // can distinguish "car slow" (Timeout, retry) from "session
+                // dead" (reconnect).
+                let handle = guard.take().unwrap();
+                Self::kill(handle);
+                self.transport_failed();
+                Err(SessionError::BrokenPipe)
             }
         }
     }
@@ -907,9 +951,12 @@ pub(crate) mod tests {
         client.child.lock().unwrap().replace(handle);
         let start = std::time::Instant::now();
         // Command deadline is 30s; the watchdog must fail this in ~200ms.
+        // A silent child (no frames at all) kills the reader, so the run
+        // observes a dead transport (BrokenPipe), not a slow one (Timeout):
+        // both prove the frame watchdog fired instead of the 30s deadline.
         match client.run("lock", &[], "VIN", "/key", 5, 5, Duration::from_secs(30)) {
-            Err(SessionError::Timeout) => {}
-            other => panic!("expected Timeout, got {other:?}"),
+            Err(SessionError::BrokenPipe | SessionError::Timeout) => {}
+            other => panic!("expected watchdog BrokenPipe/Timeout, got {other:?}"),
         }
         assert!(
             start.elapsed() < Duration::from_secs(5),

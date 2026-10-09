@@ -15,12 +15,10 @@ historically (see `git log` for history).
 - Android sharesheets cannot list the app (Jolla hardcodes that bridge
   for its own apps). From Android apps: copy, then paste into the
   Navigation page.
-- Command replies are matched by command-name `requestId`; two pages
-  issuing the same command while both are on the stack both display the
-  reply. Harmless (same real result), imprecise.
 - `CommandCatalog.js` argument definitions are shared mutable
-  singletons; the dialog overwrites `__value` on open, which is safe
-  only because every field type re-syncs on load.
+  singletons; the dialog overwrites `__value` on open. Cloned defs always
+  drop the previous `__value` before applying state defaults, so stale
+  values cannot survive across dialogs.
 - `CommandCatalog.js` argument bounds and enum values are best-effort
   from public docs; `tesla-control` itself is the final authority and
   rejects anything it dislikes.

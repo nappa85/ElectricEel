@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 )
 
 type outputContextKey struct{}
@@ -19,7 +18,10 @@ func commandOutput(ctx context.Context) commandWriters {
 	if writers, ok := ctx.Value(outputContextKey{}).(commandWriters); ok {
 		return writers
 	}
-	return commandWriters{stdout: os.Stdout, stderr: os.Stderr}
+	// No per-command writers (background diagnostics, tests): discard so
+	// logs stay clean. stdout is the parent protocol's log stream, never a
+	// command-output channel.
+	return commandWriters{stdout: io.Discard, stderr: io.Discard}
 }
 
 func writeErr(ctx context.Context, format string, args ...interface{}) {

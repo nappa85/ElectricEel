@@ -305,15 +305,19 @@ func logDeviceState(bus dbusBus, devPath dbus.ObjectPath, phase string) {
 }
 
 // discoverGATT finds the Tesla service and its TX/RX characteristics under
-// the device. Service and characteristic UUIDs are matched by value alone;
-// the Tesla UUIDs are unique enough that scoping to the service subtree is
-// unnecessary (and keeps the walk simple).
+// the device. Paths are scoped to the device subtree: with two nearby
+// Teslas, matching UUIDs by value alone could mix tx from car A with rx
+// from car B.
 func discoverGATT(ctx context.Context, bus dbusBus, devPath dbus.ObjectPath) (svcPath, txPath, rxPath dbus.ObjectPath, err error) {
 	objects, err := managedObjects(ctx, bus)
 	if err != nil {
 		return "", "", "", err
 	}
+	prefix := string(devPath) + "/"
 	for path, ifaces := range objects {
+		if !strings.HasPrefix(string(path), prefix) {
+			continue
+		}
 		if svc, ok := ifaces[gattSvcIface]; ok && isUUID(svc["UUID"], vehicleServiceUUID) {
 			svcPath = path
 			continue

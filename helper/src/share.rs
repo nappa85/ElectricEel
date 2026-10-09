@@ -70,7 +70,7 @@ pub(crate) fn parse_shared_text(input: &str) -> Result<Destination, ShareParseEr
     // "Name\n\nhttps://...") beats everything else: coordinates hidden in
     // it are exact, and a bare address line next to it is redundant.
     if let Some(url) = first_url_token(trimmed) {
-        if let Some(dest) = parse_map_url(&url) {
+        if let Some(dest) = parse_map_url(&url)? {
             return Ok(dest);
         }
         // Opaque URL (e.g. share.here.com): the car gets the URL itself.
@@ -163,9 +163,16 @@ fn parse_geo_uri(rest: &str) -> Result<Option<Destination>, ShareParseError> {
 ///   because `map=17` is not bare-numeric);
 /// - free text is NEVER float-scanned (house numbers would hijack it).
 ///
-/// Never errors — an unparseable URL is still shareable text.
-fn parse_map_url(url: &str) -> Option<Destination> {
-    let parsed = Url::parse(url).ok()?;
+/// Never errors on opaque URLs — an unparseable URL is still shareable text
+/// (returned as `None` here; the caller sends the URL itself). Coordinate-
+/// looking values that are out of range DO error (`OutOfRange`), matching
+/// the bare-pair contract: a `daddr=999,999` must fail fast like bare
+/// "999,999", never become `Address("999,999")` for the geocoder.
+fn parse_map_url(url: &str) -> Result<Option<Destination>, ShareParseError> {
+    let parsed = Url::parse(url).ok();
+    let Some(parsed) = parsed else {
+        return Ok(None);
+    };
     let params: Vec<_> = parsed
         .query_pairs()
         .chain(form_urlencoded::parse(
@@ -178,23 +185,36 @@ fn parse_map_url(url: &str) -> Option<Destination> {
             .find(|(k, _)| k.eq_ignore_ascii_case(key))
             .map(|(_, v)| v.as_ref())
     };
+    // Coordinate-looking but out-of-range values error instead of becoming
+    // addresses, mirroring the bare-pair `looks_like_latlon_pair` check.
+    let check_range = |value: &str| -> Result<(), ShareParseError> {
+        if parse_latlon_pair(value).is_none() && looks_like_latlon_pair(value) {
+            return Err(ShareParseError::OutOfRange);
+        }
+        Ok(())
+    };
 
     // A destination may be coordinates OR text; neither may be overridden by
     // an origin or viewport just because those happen to be numeric.
     for key in ["pll", "destination", "daddr"] {
         if let Some(value) = param(key).filter(|v| !v.trim().is_empty()) {
-            return Some(destination_value(value));
+            check_range(value)?;
+            return Ok(Some(destination_value(value)));
         }
     }
     // Search coordinates take precedence over the map center. Text searches
     // remain a fallback when a URL includes an exact place coordinate.
     for key in ["q", "query"] {
-        if let Some((lat, lon)) = param(key).and_then(parse_latlon_pair) {
-            return Some(Destination::LatLon { lat, lon });
+        if let Some(value) = param(key).filter(|v| !v.trim().is_empty()) {
+            if parse_latlon_pair(value).is_some() {
+                let (lat, lon) = parse_latlon_pair(value).unwrap_or((0.0, 0.0));
+                return Ok(Some(Destination::LatLon { lat, lon }));
+            }
+            check_range(value)?;
         }
     }
     if let Some((lat, lon)) = google_3d4d_coords(parsed.path()) {
-        return Some(Destination::LatLon { lat, lon });
+        return Ok(Some(Destination::LatLon { lat, lon }));
     }
     // lat + lon split across two params.
     let lat_val = ["lat", "latitude", "mlat"]
@@ -208,21 +228,27 @@ fn parse_map_url(url: &str) -> Option<Destination> {
     if let (Some(lat_s), Some(lon_s)) = (lat_val, lon_val) {
         if let (Ok(lat), Ok(lon)) = (lat_s.parse::<f64>(), lon_s.parse::<f64>()) {
             if valid_latlon(lat, lon) {
-                return Some(Destination::LatLon { lat, lon });
+                return Ok(Some(Destination::LatLon { lat, lon }));
+            }
+            if lat.is_finite() && lon.is_finite() {
+                return Err(ShareParseError::OutOfRange);
             }
         }
     }
     for key in ["ll", "cp"] {
-        if let Some((lat, lon)) = param(key).and_then(parse_latlon_pair) {
-            return Some(Destination::LatLon { lat, lon });
+        if let Some(value) = param(key).filter(|v| !v.trim().is_empty()) {
+            if let Some((lat, lon)) = parse_latlon_pair(value) {
+                return Ok(Some(Destination::LatLon { lat, lon }));
+            }
+            check_range(value)?;
         }
     }
     // Path patterns, most specific first.
     if let Some((lat, lon)) = url_path_at_coords(parsed.path()) {
-        return Some(Destination::LatLon { lat, lon });
+        return Ok(Some(Destination::LatLon { lat, lon }));
     }
     if let Some((lat, lon)) = slash_run_coords(url) {
-        return Some(Destination::LatLon { lat, lon });
+        return Ok(Some(Destination::LatLon { lat, lon }));
     }
     // A named text param (address or opaque link target) becomes the
     // address; otherwise the caller sends the whole URL.
@@ -230,11 +256,11 @@ fn parse_map_url(url: &str) -> Option<Destination> {
         if let Some(val) = param(key) {
             let text = val.trim().to_string();
             if !text.is_empty() {
-                return Some(Destination::Address(text));
+                return Ok(Some(Destination::Address(text)));
             }
         }
     }
-    None
+    Ok(None)
 }
 
 fn destination_value(value: &str) -> Destination {
@@ -718,5 +744,27 @@ mod tests {
             parse_shared_text("(48.8584, 200)"),
             Err(ShareParseError::OutOfRange)
         );
+    }
+
+    #[test]
+    fn review_url_embedded_out_of_range_is_not_silent_address() {
+        // Bare "999,999" is Err(OutOfRange) (see test_contract_vectors), but
+        // a URL-embedded destination goes through destination_value(), which
+        // maps ANY parse failure — including out-of-range — to
+        // Address(value). "daddr=999,999" therefore becomes Ok(Address("999,999"))
+        // and would be sent to the car geocoder as an address instead of
+        // failing fast like the identical bare pair.
+        for url in [
+            "https://maps.google.com/?daddr=999,999",
+            "https://www.google.com/maps/dir/?api=1&destination=999,999",
+            "https://intel.ingress.com/?pll=999,999&z=19",
+        ] {
+            let got = parse_shared_text(url);
+            assert_ne!(
+                got,
+                Ok(addr("999,999")),
+                "URL-embedded out-of-range coords must not become a bare address: {url:?} got {got:?}"
+            );
+        }
     }
 }

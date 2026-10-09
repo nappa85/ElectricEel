@@ -1,7 +1,7 @@
 # Translations
 
 `qsTr()` in QML/JS sources, `app/translations/*.ts` sources, compiled
-`*.qm` shipped in the RPM and loaded per locale at startup (`main.cpp`: full locale first, e.g.
+`*.qm` shipped in the RPM and loaded per locale at startup (`app/src/harbour-electric-eel.cpp`: full locale first, e.g.
 `harbour-electric-eel_it_IT`, then bare language,
 `harbour-electric-eel_it`; untranslated locales fall back to English).
 

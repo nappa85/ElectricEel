@@ -85,7 +85,7 @@ Page {
     function execute(commandDef, argValues) {
         page.requestSeq++
         page.pendingCmd = commandDef.id + "#" + page.requestSeq + "@" + Date.now()
-        page.pendingLabel = commandDef.id
+        page.pendingLabel = commandDef.label
         page.lastResult = ""
         teslaClient.runCommand(page.pendingCmd, commandDef.id, argValues || [])
     }
@@ -114,12 +114,15 @@ Page {
                 var c = {}
                 for (var k in a)
                     c[k] = a[k]
+                // Always drop the previous dialog's value: correctness must
+                // not depend on ArgumentDialog.onLoaded re-syncing every
+                // field type.
+                delete c.__value
                 var cur = page.vehicleStatus[c.stateDefault]
                 if (c.stateDefault && cur !== undefined && cur !== null
                         && (c.min === undefined || cur >= c.min)
                         && (c.max === undefined || cur <= c.max)) {
                     c.def = cur
-                    delete c.__value
                 }
                 return c
             })

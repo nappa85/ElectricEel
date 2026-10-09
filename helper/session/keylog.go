@@ -33,7 +33,7 @@ func initKeyLog(dir string) {
 	keyLogMu.Lock()
 	defer keyLogMu.Unlock()
 	keyLogDir = dir
-	_ = os.MkdirAll(dir, 0755)
+	_ = os.MkdirAll(dir, 0700)
 	pruneKeyLogsLocked(dir, keyLogKeepDays, time.Now())
 }
 
@@ -61,8 +61,16 @@ func keylog(tag, format string, args ...interface{}) {
 	msg := fmt.Sprintf(format, args...)
 	line := fmt.Sprintf("%s  %-10s  %s\n", now.Format("15:04:05.000"), tag, msg)
 
+	// Prune on day rollover so a long-lived process cannot grow the disk
+	// without bound (initKeyLog only prunes once at startup). The lock is
+	// held across the write to keep concurrent log lines from interleaving;
+	// open/prune only do filesystem work on day change, steady-state is a
+	// single append.
 	keyLogMu.Lock()
 	defer keyLogMu.Unlock()
+	if day := now.Format("2006-01-02"); keyLogFile != nil && keyLogDay != day {
+		pruneKeyLogsLocked(keyLogDir, keyLogKeepDays, now)
+	}
 	if f := openKeyLogLocked(now); f != nil {
 		_, _ = f.WriteString(line)
 	}
@@ -86,7 +94,7 @@ func openKeyLogLocked(now time.Time) *os.File {
 	if _, err := os.Stat(path); err != nil {
 		created = true
 	}
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
 	if err != nil {
 		return nil
 	}
@@ -96,6 +104,16 @@ func openKeyLogLocked(now time.Time) *os.File {
 	keyLogFile = f
 	keyLogDay = day
 	return f
+}
+
+// closeKeyLog releases the current log file (shutdown path).
+func closeKeyLog() {
+	keyLogMu.Lock()
+	defer keyLogMu.Unlock()
+	if keyLogFile != nil {
+		_ = keyLogFile.Close()
+		keyLogFile = nil
+	}
 }
 
 func pruneKeyLogsLocked(dir string, keepDays int, now time.Time) {

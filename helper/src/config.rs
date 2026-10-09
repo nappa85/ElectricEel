@@ -369,24 +369,90 @@ pub(crate) fn write_atomic(path: &Path, data: &[u8]) -> io::Result<()> {
 /// never turn a recoverable corrupt config into a hard startup failure.
 fn backup_corrupt_config(path: &Path, data: &[u8]) {
     use std::time::{SystemTime, UNIX_EPOCH};
-    let stamp = SystemTime::now()
+    // Nanosecond stamp + pid: two failures within the same second (or two
+    // processes) must not overwrite each other's evidence.
+    let (secs, nanos) = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map_or(0, |d| d.as_secs());
-    let backup = path.with_extension(format!("corrupt-{stamp}.json"));
-    if let Err(e) = fs::write(&backup, data) {
-        eprintln!(
-            "electric-eel: could not back up corrupt config {}: {}",
-            backup.display(),
-            e
-        );
-        return;
+        .map_or((0, 0), |d| (d.as_secs(), d.subsec_nanos()));
+    let backup = path.with_extension(format!(
+        "corrupt-{secs}-{nanos}-{}.json",
+        std::process::id()
+    ));
+    // Create with 0600 atomically (no world-readable window) and fail if the
+    // name exists instead of overwriting.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+        match std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .open(&backup)
+        {
+            Ok(mut f) => {
+                if let Err(e) = f.write_all(data) {
+                    eprintln!(
+                        "electric-eel: could not back up corrupt config {}: {}",
+                        backup.display(),
+                        e
+                    );
+                    return;
+                }
+            }
+            Err(e) => {
+                eprintln!(
+                    "electric-eel: could not back up corrupt config {}: {}",
+                    backup.display(),
+                    e
+                );
+                return;
+            }
+        }
+        // Defense in depth: ensure mode even if the platform ignored it.
+        let _ = std::fs::set_permissions(&backup, std::fs::Permissions::from_mode(0o600));
     }
-    // Keep the evidence readable only by the owner, like config.json itself.
-    let _ = fs::set_permissions(&backup, fs::Permissions::from_mode(0o600));
+    #[cfg(not(unix))]
+    {
+        if let Err(e) = fs::write(&backup, data) {
+            eprintln!(
+                "electric-eel: could not back up corrupt config {}: {}",
+                backup.display(),
+                e
+            );
+            return;
+        }
+    }
     eprintln!(
         "electric-eel: backed up unparseable config to {}",
         backup.display()
     );
+    prune_corrupt_backups(path);
+}
+
+/// Keep only the 5 most recent corrupt backups: `load()` leaves the corrupt
+/// file in place (so a newer-schema file is never destroyed), which means
+/// every boot would otherwise add another `config.corrupt-*.json`.
+fn prune_corrupt_backups(path: &Path) {
+    let Some(parent) = path.parent() else { return };
+    let Ok(entries) = std::fs::read_dir(parent) else {
+        return;
+    };
+    let mut backups: Vec<_> = entries
+        .filter_map(|e| e.ok().map(|e| e.path()))
+        .filter(|p| {
+            let name = p.file_name().and_then(|n| n.to_str()).unwrap_or("");
+            name.starts_with("config.corrupt-")
+                && p.extension()
+                    .is_some_and(|e| e.eq_ignore_ascii_case("json"))
+        })
+        .collect();
+    backups.sort();
+    while backups.len() > 5 {
+        if let Some(oldest) = backups.first() {
+            let _ = std::fs::remove_file(oldest);
+        }
+        backups.remove(0);
+    }
 }
 
 /// Returns `Ok(())` if the inputs are acceptable, else a human-readable error.

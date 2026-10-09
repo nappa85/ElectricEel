@@ -48,14 +48,26 @@ Page {
     }
 
     function refreshStatus() {
-        if (!teslaClient.helperAvailable || !page.hasKey || page.vin.length === 0 || page.statusStage.length > 0)
+        if (page.statusStage.length > 0)
             return
+        if (!teslaClient.helperAvailable) {
+            page.statusError = qsTr("Control helper unavailable")
+            return
+        }
+        if (!page.hasKey) {
+            page.statusError = qsTr("No key: generate and pair a key first")
+            return
+        }
+        if (page.vin.length === 0) {
+            page.statusError = qsTr("No VIN configured")
+            return
+        }
         page.statusError = ""
         page.statusStage = "body"
         teslaClient.runCommand("status:body", "body-controller-state", [])
     }
 
-    // Flips field to !field's current value on a clone of vehicleStatus and
+    // Sets field to an explicit value on a clone of vehicleStatus and
     // assigns it (a plain in-place mutation wouldn't trigger the QML
     // property's change notification), so the icon reflects the command
     // we're about to send immediately rather than waiting on refreshStatus's
@@ -67,10 +79,18 @@ Page {
     // up, which is what "closures"/"climate" reads afterward. Confirmed live:
     // without this, each button press displayed the *previous* press's
     // now-settled result, one step behind.
-    function optimistic(field) {
+    //
+    // Takes the intended value explicitly: flipping `!current` inverts
+    // unknown null into a confident true (`!null === true`), so the first
+    // lock tap (unknown -> sends unlock) painted the closed padlock.
+    function setOptimistic(field, value) {
         var next = VState.clone(page.vehicleStatus)
-        next[field] = !page.vehicleStatus[field]
+        next[field] = value
         page.vehicleStatus = next
+    }
+
+    function optimistic(field) {
+        setOptimistic(field, !page.vehicleStatus[field])
     }
 
     function toggleLock() {
@@ -81,7 +101,7 @@ Page {
         // sent lock, so the first tap did nothing until Refresh Status filled
         // in `locked`. Unlock unless we know the doors are already open.
         var sendLock = page.vehicleStatus.locked === false
-        optimistic("locked")
+        setOptimistic("locked", sendLock)
         page.statusStage = "toggle"
         teslaClient.runCommand("status:toggle", sendLock ? "lock" : "unlock", [], true)
     }
@@ -90,7 +110,7 @@ Page {
         if (page.statusStage.length > 0)
             return
         var wasOn = page.vehicleStatus.isClimateOn
-        optimistic("isClimateOn")
+        setOptimistic("isClimateOn", !wasOn)
         page.statusStage = "toggle"
         teslaClient.runCommand("status:toggle", wasOn ? "climate-off" : "climate-on", [], true)
     }
@@ -99,7 +119,7 @@ Page {
         if (page.statusStage.length > 0)
             return
         var wereOpen = page.vehicleStatus.windowsOpen
-        optimistic("windowsOpen")
+        setOptimistic("windowsOpen", !wereOpen)
         page.statusStage = "toggle"
         teslaClient.runCommand("status:toggle", wereOpen ? "windows-close" : "windows-vent", [], true)
     }
@@ -121,10 +141,10 @@ Page {
     function batteryIconSource() {
         var level = page.vehicleStatus.batteryLevel
         if (level === null) return "../../img/icons/battery5.svg"
-        if (level > 90) return "../../img/icons/battery100.svg"
-        if (level > 60) return "../../img/icons/battery75.svg"
-        if (level > 40) return "../../img/icons/battery50.svg"
-        if (level > 9) return "../../img/icons/battery10.svg"
+        if (level >= 90) return "../../img/icons/battery100.svg"
+        if (level >= 60) return "../../img/icons/battery75.svg"
+        if (level >= 40) return "../../img/icons/battery50.svg"
+        if (level >= 10) return "../../img/icons/battery10.svg"
         return "../../img/icons/battery5.svg"
     }
 
@@ -136,10 +156,6 @@ Page {
             page.hasKey = hasKey
             page.refreshStatus()
         }
-    }
-
-    Connections {
-        target: teslaClient
         onStatusRefreshRequested: page.refreshStatus()
         onCommandFinished: {
             if (requestId === "status:body") {

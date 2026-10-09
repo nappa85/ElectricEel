@@ -216,10 +216,10 @@ enum CoreError core_run(struct Core *core,
  * Preview a navigation share without sending: parses `text` and reports
  * (kind, value1, value2) = ("gps", lat, lon) or ("address", text, "").
  * A parse failure is `ok=false` + `error_message`, same soft shape as
- * `core_generate_key`.
+ * `core_generate_key`. Pure computation: `core` may be NULL.
  *
  * # Safety
- * `core` must be valid; strings NUL-terminated UTF-8; outputs writable/NULL.
+ * Strings NUL-terminated UTF-8; outputs writable/NULL.
  */
 enum CoreError core_preview_destination(struct Core *core,
                                         const char *text,

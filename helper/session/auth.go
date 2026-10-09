@@ -224,6 +224,10 @@ func sendAuthenticationResponse(ctx context.Context, car *vehicle.Vehicle, level
 
 // sessionDroppedError reports whether err indicates the live BLE/session
 // should be torn down so presence mode can reconnect on the next near tick.
+// context.Canceled is deliberately NOT a drop: it means our own presence-stop
+// cancelled an in-flight RPC, not that the link died. Tearing down (and
+// emitting presence_disconnected) on cancel would spuriously flap presence
+// on every intentional stop.
 func sessionDroppedError(err error) bool {
 	if err == nil {
 		return false
@@ -241,6 +245,5 @@ func sessionDroppedError(err error) bool {
 		}
 	}
 	return errors.Is(err, protocol.ErrNotConnected) ||
-		errors.Is(err, protocol.ErrNoSession) ||
-		errors.Is(err, context.Canceled)
+		errors.Is(err, protocol.ErrNoSession)
 }

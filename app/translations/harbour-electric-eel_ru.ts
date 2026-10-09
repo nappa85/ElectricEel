@@ -3,18 +3,18 @@
   <context>
     <name>ArgumentDialog</name>
     <message>
-      <location filename="../qml/pages/ArgumentDialog.qml" line="41" />
+      <location filename="../qml/pages/ArgumentDialog.qml" line="67" />
       <source>Run</source>
       <translation>Выполнить</translation>
     </message>
     <message>
-      <location filename="../qml/pages/ArgumentDialog.qml" line="109" />
-      <location filename="../qml/pages/ArgumentDialog.qml" line="188" />
+      <location filename="../qml/pages/ArgumentDialog.qml" line="135" />
+      <location filename="../qml/pages/ArgumentDialog.qml" line="216" />
       <source> (optional)</source>
       <translation> (необязательно)</translation>
     </message>
     <message>
-      <location filename="../qml/pages/ArgumentDialog.qml" line="113" />
+      <location filename="../qml/pages/ArgumentDialog.qml" line="139" />
       <source>(not set)</source>
       <translation>(не задано)</translation>
     </message>
@@ -67,7 +67,7 @@
       <translation>код выхода %1</translation>
     </message>
     <message>
-      <location filename="../qml/pages/CategoryPage.qml" line="174" />
+      <location filename="../qml/pages/CategoryPage.qml" line="177" />
       <source>Running %1...</source>
       <translation>Выполнение %1...</translation>
     </message>
@@ -418,97 +418,108 @@
   <context>
     <name>FirstPage</name>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="268" />
+      <location filename="../qml/pages/FirstPage.qml" line="269" />
       <source>The control core failed to start. Reinstall the app, then pull down to refresh.</source>
       <translation>Управляющее ядро не запустилось. Переустановите приложение и потяните вниз для обновления.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="270" />
+      <location filename="../qml/pages/FirstPage.qml" line="271" />
       <source>The control core is too old to report its version. Reinstall the app (%1), then pull down to refresh.</source>
       <translation>Управляющее ядро слишком старое и не сообщает версию. Переустановите приложение (%1) и потяните вниз для обновления.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="271" />
+      <location filename="../qml/pages/FirstPage.qml" line="272" />
       <source>Version mismatch: app %1, core %2. Reinstall the app, then pull down to refresh.</source>
       <translation>Несовпадение версий: приложение %1, ядро %2. Переустановите приложение и потяните вниз для обновления.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="289" />
+      <location filename="../qml/pages/FirstPage.qml" line="62" />
+      <location filename="../qml/pages/FirstPage.qml" line="290" />
       <source>No VIN configured</source>
       <translation>VIN не настроен</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="293" />
+      <location filename="../qml/pages/FirstPage.qml" line="54" />
+      <source>Control helper unavailable</source>
+      <translation type="unfinished" />
+    </message>
+    <message>
+      <location filename="../qml/pages/FirstPage.qml" line="58" />
+      <source>No key: generate and pair a key first</source>
+      <translation type="unfinished" />
+    </message>
+    <message>
+      <location filename="../qml/pages/FirstPage.qml" line="294" />
       <source>Key ready</source>
       <translation>Ключ готов</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="293" />
+      <location filename="../qml/pages/FirstPage.qml" line="294" />
       <source>No key - tap for Settings / Pairing</source>
       <translation>Нет ключа — нажмите для Настройки / Сопряжение</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="347" />
+      <location filename="../qml/pages/FirstPage.qml" line="348" />
       <source> • charging</source>
       <translation> • заряжается</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="356" />
+      <location filename="../qml/pages/FirstPage.qml" line="357" />
       <source>• %1°C</source>
       <translation>• %1 °C</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="381" />
+      <location filename="../qml/pages/FirstPage.qml" line="382" />
       <source>Updating...</source>
       <translation>Обновление...</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="383" />
+      <location filename="../qml/pages/FirstPage.qml" line="384" />
       <source>Status unavailable (%1). Vehicle may be asleep - try Wake Vehicle (Attention), then Refresh Status.</source>
       <translation>Состояние недоступно (%1). Автомобиль, возможно, спит — попробуйте Разбудить автомобиль (Внимание), затем Обновить состояние.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="385" />
+      <location filename="../qml/pages/FirstPage.qml" line="386" />
       <source>Pull down to refresh status</source>
       <translation>Потяните вниз, чтобы обновить состояние</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="387" />
+      <location filename="../qml/pages/FirstPage.qml" line="388" />
       <source>Updated just now</source>
       <translation>Обновлено только что</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="388" />
+      <location filename="../qml/pages/FirstPage.qml" line="389" />
       <source>Updated %1m ago</source>
       <translation>Обновлено %1 мин назад</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="481" />
+      <location filename="../qml/pages/FirstPage.qml" line="482" />
       <source>Categories</source>
       <translation>Категории</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="530" />
+      <location filename="../qml/pages/FirstPage.qml" line="531" />
       <source>Send Destination</source>
       <translation>Отправить пункт назначения</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="534" />
+      <location filename="../qml/pages/FirstPage.qml" line="535" />
       <source>Pair Vehicle</source>
       <translation>Сопрячь автомобиль</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="538" />
+      <location filename="../qml/pages/FirstPage.qml" line="539" />
       <source>Settings</source>
       <translation>Настройки</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="542" />
+      <location filename="../qml/pages/FirstPage.qml" line="543" />
       <source>Refresh</source>
       <translation>Обновить</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="546" />
+      <location filename="../qml/pages/FirstPage.qml" line="547" />
       <source>Refresh Status</source>
       <translation>Обновить состояние</translation>
     </message>
@@ -516,72 +527,72 @@
   <context>
     <name>NavigationPage</name>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="35" />
+      <location filename="../qml/pages/NavigationPage.qml" line="46" />
       <source>Paste or type a destination first.</source>
       <translation>Сначала вставьте или введите пункт назначения.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="38" />
+      <location filename="../qml/pages/NavigationPage.qml" line="50" />
       <source>Checking...</source>
       <translation>Проверка...</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="47" />
+      <location filename="../qml/pages/NavigationPage.qml" line="59" />
       <source>Nothing to send.</source>
       <translation>Нечего отправлять.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="63" />
+      <location filename="../qml/pages/NavigationPage.qml" line="76" />
       <source>Cannot use this: %1</source>
       <translation>Нельзя использовать: %1</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="67" />
+      <location filename="../qml/pages/NavigationPage.qml" line="80" />
       <source>Coordinates %1, %2 — navigation will start there.</source>
       <translation>Координаты %1, %2 — навигация начнётся там.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="70" />
+      <location filename="../qml/pages/NavigationPage.qml" line="83" />
       <source>Address "%1" — the car will look it up.</source>
       <translation>Адрес «%1» — автомобиль найдёт его сам.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="76" />
+      <location filename="../qml/pages/NavigationPage.qml" line="89" />
       <source>Send failed: %1</source>
       <translation>Отправка не удалась: %1</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="96" />
+      <location filename="../qml/pages/NavigationPage.qml" line="109" />
       <source>Car Navigation</source>
       <translation>Навигация автомобиля</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="101" />
+      <location filename="../qml/pages/NavigationPage.qml" line="114" />
       <source>Destination</source>
       <translation>Пункт назначения</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="102" />
+      <location filename="../qml/pages/NavigationPage.qml" line="115" />
       <source>Paste address, coordinates, or map link</source>
       <translation>Вставьте адрес, координаты или ссылку на карту</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="110" />
+      <location filename="../qml/pages/NavigationPage.qml" line="123" />
       <source>Preview</source>
       <translation>Предпросмотр</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="128" />
+      <location filename="../qml/pages/NavigationPage.qml" line="141" />
       <source>Send to Car</source>
       <translation>Отправить в автомобиль</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="150" />
+      <location filename="../qml/pages/NavigationPage.qml" line="163" />
       <source>Notes</source>
       <translation>Примечания</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="159" />
+      <location filename="../qml/pages/NavigationPage.qml" line="172" />
       <source>This uses Bluetooth, like lock/unlock — the car must be in range, no internet needed on either side. Coordinates are sent exactly; addresses and links are looked up by the car itself, so unusual spellings may resolve differently than on your phone. From Android apps: copy the address or link, then paste it above.</source>
       <translation>Используется Bluetooth, как блокировка/разблокировка — автомобиль должен быть в радиусе действия, интернет не нужен. Координаты отправляются точно; адреса и ссылки автомобиль ищет сам, поэтому необычное написание может распознаться иначе, чем в телефоне. Из Android-приложений: скопируйте адрес или ссылку и вставьте выше.</translation>
     </message>
@@ -589,72 +600,77 @@
   <context>
     <name>PairingPage</name>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="27" />
+      <location filename="../qml/pages/PairingPage.qml" line="29" />
       <source>Key generated. Tap "Pair with Vehicle", then tap your NFC card on the center console when prompted on the car's screen.</source>
       <translation>Ключ создан. Нажмите «Сопрячь автомобиль» и приложите NFC-карту к центральной консоли, когда попросит экран автомобиля.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="29" />
+      <location filename="../qml/pages/PairingPage.qml" line="31" />
       <source>Key generation failed: %1</source>
       <translation>Не удалось создать ключ: %1</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="34" />
+      <location filename="../qml/pages/PairingPage.qml" line="36" />
       <source>Paired.</source>
       <translation>Сопряжено.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="34" />
+      <location filename="../qml/pages/PairingPage.qml" line="36" />
       <source>Pairing failed: %1</source>
       <translation>Сопряжение не удалось: %1</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="64" />
+      <location filename="../qml/pages/PairingPage.qml" line="42" />
+      <source>No keys listed</source>
+      <translation type="unfinished" />
+    </message>
+    <message>
+      <location filename="../qml/pages/PairingPage.qml" line="70" />
       <source>Pairing &amp; Keys</source>
       <translation>Сопряжение и ключи</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="71" />
+      <location filename="../qml/pages/PairingPage.qml" line="77" />
       <source>Set the VIN in Settings first. Then generate a key, then pair it with the car over BLE - you'll need to be next to the vehicle and tap the NFC card on the center console to approve.</source>
       <translation>Сначала задайте VIN в Настройках. Затем создайте ключ и сопрягите его с автомобилем по BLE — стойте рядом с автомобилем и приложите NFC-карту к центральной консоли для подтверждения.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="83" />
+      <location filename="../qml/pages/PairingPage.qml" line="89" />
       <source>Phone key starting...</source>
       <translation>Ключ телефона запускается...</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="111" />
+      <location filename="../qml/pages/PairingPage.qml" line="117" />
       <source>Generating...</source>
       <translation>Создание...</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="111" />
+      <location filename="../qml/pages/PairingPage.qml" line="117" />
       <source>Generate Key</source>
       <translation>Создать ключ</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="137" />
+      <location filename="../qml/pages/PairingPage.qml" line="143" />
       <source>Waiting for NFC tap...</source>
       <translation>Ожидание касания NFC...</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="137" />
+      <location filename="../qml/pages/PairingPage.qml" line="143" />
       <source>Pair with Vehicle</source>
       <translation>Сопрячь автомобиль</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="141" />
+      <location filename="../qml/pages/PairingPage.qml" line="149" />
       <source>Requesting pairing over BLE - approve on the car's touchscreen / NFC card now.</source>
       <translation>Запрошено сопряжение BLE — подтвердите на сенсорном экране / NFC-карте.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="161" />
+      <location filename="../qml/pages/PairingPage.qml" line="169" />
       <source>Enrolled Keys</source>
       <translation>Зарегистрированные ключи</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="165" />
+      <location filename="../qml/pages/PairingPage.qml" line="173" />
       <source>List Enrolled Keys</source>
       <translation>Список зарегистрированных ключей</translation>
     </message>
@@ -729,8 +745,8 @@
     <message>
       <location filename="../qml/pages/SettingsPage.qml" line="132" />
       <location filename="../qml/pages/SettingsPage.qml" line="142" />
-      <source> s</source>
-      <translation> с</translation>
+      <source>%1 s</source>
+      <translation type="unfinished" />
     </message>
     <message>
       <location filename="../qml/pages/SettingsPage.qml" line="138" />
@@ -782,7 +798,7 @@
     </message>
     <message>
       <location filename="../qml/js/VehicleState.js" line="47" />
-      <location filename="../qml/js/VehicleState.js" line="69" />
+      <location filename="../qml/js/VehicleState.js" line="75" />
       <source>Model 3</source>
       <translation>Model 3</translation>
     </message>

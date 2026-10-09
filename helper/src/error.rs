@@ -74,6 +74,12 @@ pub enum HelperError {
     ZBus(zbus::Error),
 }
 
+// std::error::Error so callers get source() chains and `?` ergonomics.
+// The dbus-feature build already gets an Error impl from the
+// zbus::DBusError derive; this covers the app staticlib build.
+#[cfg(not(feature = "dbus"))]
+impl std::error::Error for HelperError {}
+
 #[cfg(not(feature = "dbus"))]
 impl std::fmt::Display for HelperError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

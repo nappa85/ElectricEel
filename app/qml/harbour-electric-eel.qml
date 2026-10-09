@@ -26,14 +26,33 @@ ApplicationWindow
 
     PhoneKeyEvents { client: teslaClientInstance }
 
-    // Text received via Sailfish Share while the app wasn't showing the
-    // Navigation page. Opened on arrival (activate() brings the window
-    // forward — share doesn't do that by itself).
-    property string pendingSharedText: ""
+    // Single helper for both share entry points (ShareProvider and the
+    // Browser-quirk DBusAdaptor): same resource priority (data, then
+    // status), same empty-text behavior (open with "" so the page shows its
+    // hint instead of silently dropping).
+    function extractSharedText(resources) {
+        var text = ""
+        for (var i = 0; i < resources.length; i++) {
+            var r = resources[i]
+            // StringData shape: {name, data}; join multi-shares
+            // line-wise, the parser prefers an embedded map URL.
+            if (r.data)
+                text += (text.length > 0 ? "\n" : "") + r.data
+            else if (r.status)
+                text += (text.length > 0 ? "\n" : "") + r.status
+        }
+        return text
+    }
 
     function openNavigation(text) {
-        appWindow.pendingSharedText = ""
         appWindow.activate()
+        // Dedup: updating the top NavigationPage beats stacking a new one
+        // per share (5 shares = 5 pages otherwise).
+        var top = pageStack.currentPage
+        if (top && top.objectName === "navigationPage") {
+            top.setSharedText(text)
+            return
+        }
         pageStack.push(Qt.resolvedUrl("pages/NavigationPage.qml"), {
             teslaClient: teslaClientInstance,
             initialText: text
@@ -45,22 +64,7 @@ ApplicationWindow
         method: "destination"
         capabilities: ["text/plain", "text/x-url"]
         registerName: true
-        onTriggered: {
-            var text = ""
-            for (var i = 0; i < resources.length; i++) {
-                var r = resources[i]
-                // StringData shape: {name, data}; join multi-shares
-                // line-wise, the parser prefers an embedded map URL.
-                if (r.data)
-                    text += (text.length > 0 ? "\n" : "") + r.data
-                else if (r.status)
-                    text += (text.length > 0 ? "\n" : "") + r.status
-            }
-            if (text.length > 0)
-                appWindow.openNavigation(text)
-            else
-                appWindow.openNavigation("")
-        }
+        onTriggered: appWindow.openNavigation(appWindow.extractSharedText(resources))
     }
 
     // Used by the Browser-quirk adaptor below to read the raw share
@@ -80,17 +84,7 @@ ApplicationWindow
 
         function share(shareConfiguration) {
             shareAction.loadConfiguration(shareConfiguration)
-            var resources = shareAction.resources
-            var text = ""
-            for (var i = 0; i < resources.length; i++) {
-                var r = resources[i]
-                if (r.status)
-                    text += (text.length > 0 ? "\n" : "") + r.status
-                else if (r.data)
-                    text += (text.length > 0 ? "\n" : "") + r.data
-            }
-            if (text.length > 0)
-                appWindow.openNavigation(text)
+            appWindow.openNavigation(appWindow.extractSharedText(shareAction.resources))
         }
     }
 

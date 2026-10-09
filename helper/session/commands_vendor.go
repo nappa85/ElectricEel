@@ -11,7 +11,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -85,6 +87,7 @@ func categoryNames() []string {
 	for name := range categoriesByName {
 		names = append(names, name)
 	}
+	sort.Strings(names)
 	return names
 }
 
@@ -96,12 +99,36 @@ func GetCategory(nameStr string) (vehicle.StateCategory, error) {
 }
 
 func GetDegree(degStr string) (float32, error) {
-	deg, err := strconv.ParseFloat(degStr, 32)
+	return GetLongitude(degStr)
+}
+
+// GetLatitude validates a latitude in [-90, 90]. GetDegree is kept for
+// backward compatibility but cannot validate both axes with one range;
+// new code must use GetLatitude for LATITUDE and GetLongitude for LONGITUDE.
+func GetLatitude(latStr string) (float32, error) {
+	deg, err := strconv.ParseFloat(strings.TrimSpace(latStr), 32)
 	if err != nil {
 		return 0.0, err
 	}
+	if math.IsNaN(deg) || math.IsInf(deg, 0) {
+		return 0.0, errors.New("latitude must be a finite number in the range [-90, 90]")
+	}
+	if deg < -90 || deg > 90 {
+		return 0.0, errors.New("latitude must be in the range [-90, 90]")
+	}
+	return float32(deg), nil
+}
+
+func GetLongitude(lonStr string) (float32, error) {
+	deg, err := strconv.ParseFloat(strings.TrimSpace(lonStr), 32)
+	if err != nil {
+		return 0.0, err
+	}
+	if math.IsNaN(deg) || math.IsInf(deg, 0) {
+		return 0.0, errors.New("longitude must be a finite number in the range [-180, 180]")
+	}
 	if deg < -180 || deg > 180 {
-		return 0.0, errors.New("latitude and longitude must both be in the range [-180, 180]")
+		return 0.0, errors.New("longitude must be in the range [-180, 180]")
 	}
 	return float32(deg), nil
 }
@@ -511,21 +538,24 @@ var commands = map[string]*Command{
 				return err
 			}
 			slot := uint32(0)
-			var details *vcsec.WhitelistEntryInfo
+			var failed []uint32
 			for mask := summary.GetSlotMask(); mask > 0; mask >>= 1 {
 				if mask&1 == 1 {
-					details, err = car.KeyInfoBySlot(ctx, slot)
+					details, err := car.KeyInfoBySlot(ctx, slot)
 					if err != nil {
 						writeErr(ctx, "Error fetching slot %d: %s", slot, err)
 						if errors.Is(err, context.DeadlineExceeded) {
 							return err
 						}
-					}
-					if details != nil {
+						failed = append(failed, slot)
+					} else if details != nil {
 						fmt.Fprintf(commandOutput(ctx).stdout, "%02x\t%s\t%s\n", details.GetPublicKey().GetPublicKeyRaw(), details.GetKeyRole(), details.GetMetadataForKey().GetKeyFormFactor())
 					}
 				}
 				slot++
+			}
+			if len(failed) > 0 {
+				return fmt.Errorf("failed to fetch %d key slot(s)", len(failed))
 			}
 			return nil
 		},
@@ -563,7 +593,7 @@ var commands = map[string]*Command{
 		},
 		handler: func(ctx context.Context, _ *account.Account, car *vehicle.Vehicle, args map[string]string) error {
 			var state bool
-			switch args["STATE"] {
+			switch strings.ToLower(strings.TrimSpace(args["STATE"])) {
 			case "on":
 				state = true
 			case "off":
@@ -583,7 +613,7 @@ var commands = map[string]*Command{
 		},
 		handler: func(ctx context.Context, _ *account.Account, car *vehicle.Vehicle, args map[string]string) error {
 			var state bool
-			switch args["STATE"] {
+			switch strings.ToLower(strings.TrimSpace(args["STATE"])) {
 			case "on":
 				state = true
 			case "off":
@@ -774,7 +804,7 @@ var commands = map[string]*Command{
 		},
 		handler: func(ctx context.Context, _ *account.Account, car *vehicle.Vehicle, args map[string]string) error {
 			var state bool
-			switch args["STATE"] {
+			switch strings.ToLower(strings.TrimSpace(args["STATE"])) {
 			case "on":
 				state = true
 			case "off":
@@ -951,7 +981,7 @@ var commands = map[string]*Command{
 		},
 		handler: func(ctx context.Context, _ *account.Account, car *vehicle.Vehicle, args map[string]string) error {
 			var state bool
-			switch args["STATE"] {
+			switch strings.ToLower(strings.TrimSpace(args["STATE"])) {
 			case "on":
 				state = true
 			case "off":
@@ -986,19 +1016,22 @@ var commands = map[string]*Command{
 			{name: "STATE", help: "'on' (default) or 'off'"},
 		},
 		handler: func(ctx context.Context, _ *account.Account, car *vehicle.Vehicle, args map[string]string) error {
+			positionsArg := strings.ToUpper(strings.TrimSpace(args["POSITIONS"]))
 			var positions []vehicle.SeatPosition
-			if strings.Contains(args["POSITIONS"], "L") {
+			if strings.Contains(positionsArg, "L") {
 				positions = append(positions, vehicle.SeatFrontLeft)
 			}
-			if strings.Contains(args["POSITIONS"], "R") {
+			if strings.Contains(positionsArg, "R") {
 				positions = append(positions, vehicle.SeatFrontRight)
 			}
-			if len(positions) != len(args["POSITIONS"]) {
+			if len(positions) != len(positionsArg) {
 				return fmt.Errorf("invalid seat position")
 			}
 			enabled := true
-			if state, ok := args["STATE"]; ok && strings.ToUpper(state) == "OFF" {
+			if state, ok := args["STATE"]; ok && strings.EqualFold(strings.TrimSpace(state), "OFF") {
 				enabled = false
+			} else if state, ok := args["STATE"]; ok && !strings.EqualFold(strings.TrimSpace(state), "ON") {
+				return fmt.Errorf("auto seat state must be 'on' or 'off'")
 			}
 			return car.AutoSeatAndClimate(ctx, positions, enabled)
 		},
@@ -1081,12 +1114,12 @@ var commands = map[string]*Command{
 		handler: func(ctx context.Context, _ *account.Account, car *vehicle.Vehicle, args map[string]string) error {
 			var err error
 			schedule := vehicle.ChargeSchedule{
-				Id:      uint64(time.Now().Unix()),
+				Id:      uint64(time.Now().UnixNano()),
 				Enabled: true,
 			}
 
 			if enabledStr, ok := args["ENABLED"]; ok {
-				schedule.Enabled = enabledStr == "true"
+				schedule.Enabled = strings.EqualFold(strings.TrimSpace(enabledStr), "true")
 			}
 
 			schedule.DaysOfWeek, err = GetDays(args["DAYS"])
@@ -1115,17 +1148,17 @@ var commands = map[string]*Command{
 				}
 			}
 
-			schedule.Latitude, err = GetDegree(args["LATITUDE"])
+			schedule.Latitude, err = GetLatitude(args["LATITUDE"])
 			if err != nil {
 				return err
 			}
 
-			schedule.Longitude, err = GetDegree(args["LONGITUDE"])
+			schedule.Longitude, err = GetLongitude(args["LONGITUDE"])
 			if err != nil {
 				return err
 			}
 
-			if repeatPolicy, ok := args["REPEAT"]; ok && repeatPolicy == "once" {
+			if repeatPolicy, ok := args["REPEAT"]; ok && strings.EqualFold(strings.TrimSpace(repeatPolicy), "once") {
 				schedule.OneTime = true
 			}
 
@@ -1189,12 +1222,12 @@ var commands = map[string]*Command{
 		handler: func(ctx context.Context, _ *account.Account, car *vehicle.Vehicle, args map[string]string) error {
 			var err error
 			schedule := vehicle.PreconditionSchedule{
-				Id:      uint64(time.Now().Unix()),
+				Id:      uint64(time.Now().UnixNano()),
 				Enabled: true,
 			}
 
 			if enabledStr, ok := args["ENABLED"]; ok {
-				schedule.Enabled = enabledStr == "true"
+				schedule.Enabled = strings.EqualFold(strings.TrimSpace(enabledStr), "true")
 			}
 
 			if idStr, ok := args["ID"]; ok {
@@ -1219,17 +1252,17 @@ var commands = map[string]*Command{
 				return errors.New("expected TIME")
 			}
 
-			schedule.Latitude, err = GetDegree(args["LATITUDE"])
+			schedule.Latitude, err = GetLatitude(args["LATITUDE"])
 			if err != nil {
 				return err
 			}
 
-			schedule.Longitude, err = GetDegree(args["LONGITUDE"])
+			schedule.Longitude, err = GetLongitude(args["LONGITUDE"])
 			if err != nil {
 				return err
 			}
 
-			if repeatPolicy, ok := args["REPEAT"]; ok && repeatPolicy == "once" {
+			if repeatPolicy, ok := args["REPEAT"]; ok && strings.EqualFold(strings.TrimSpace(repeatPolicy), "once") {
 				schedule.OneTime = true
 			}
 

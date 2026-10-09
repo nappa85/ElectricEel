@@ -49,8 +49,14 @@ extern "C" const char *electric_eel_ui_prepare(int argc, char *argv[])
     const QString state = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
     const QString documents = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
     const QString logs = documents.isEmpty() ? state + "/logs" : documents + "/ElectricEel";
-    if (!QDir().mkpath(state) || !QDir().mkpath(logs))
+    if (!QDir().mkpath(state)) {
+        qCritical() << "electric-eel: cannot create state dir" << state;
         return nullptr;
+    }
+    if (!QDir().mkpath(logs)) {
+        qCritical() << "electric-eel: cannot create log dir" << logs;
+        return nullptr;
+    }
     qputenv("ELECTRIC_EEL_LOG_DIR", logs.toUtf8());
     stateDirectory = state.toUtf8();
     return stateDirectory.constData();
@@ -63,6 +69,10 @@ extern "C" int electric_eel_ui_run(Runtime *runtime)
     view->rootContext()->setContextProperty(QStringLiteral("electricEelClient"), &client);
 
     view->setSource(SailfishApp::pathTo(QStringLiteral("qml/harbour-electric-eel.qml")));
+    if (view->status() == QQuickView::Error) {
+        qWarning() << view->errors();
+        return 1;
+    }
     view->show();
 
     return application->exec();

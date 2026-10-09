@@ -186,12 +186,19 @@ impl Core {
             .ble_sem
             .try_lock()
             .map_err(|_| HelperError::Busy("another BLE command is in progress".to_string()))?;
-        let _gate = self
-            .phone_key_gate
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
 
+        // Snapshot config under the gate, then release the gate before BLE
+        // I/O: holding phone_key_gate across a minute-long command would
+        // block set_config/generate_key/invalidate (and get_config readers)
+        // for the whole round-trip. The snapshot (VIN, key path, timeouts,
+        // argv prefix) is immutable for this command; a concurrent config
+        // change applies to the next command (snapshot isolation). Only
+        // ble_sem is held across I/O (one BLE command at a time).
         let (common, timeout, vin, connect_timeout_sec, command_timeout_sec) = {
+            let _gate = self
+                .phone_key_gate
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             let cfg = self
                 .cfg
                 .lock()
@@ -219,7 +226,12 @@ impl Core {
         command_argv.push(cmd.to_string());
         command_argv.extend(args.iter().cloned());
 
-        if is_pin_command(cmd) {
+        // PINs are always redacted; schedule coordinates are location data
+        // and get the same treatment (arg count only, never values).
+        if is_pin_command(cmd)
+            || cmd == "charging-schedule-add"
+            || cmd == "precondition-schedule-add"
+        {
             eprintln!("Core: run({cmd}, [{} redacted args])", args.len());
         } else {
             eprintln!("Core: run({cmd}, {args:?})");
@@ -388,9 +400,7 @@ impl Core {
     #[allow(clippy::too_many_lines)]
     pub(crate) fn pair(&self) -> Result<(bool, String, String), HelperError> {
         let Ok(_permit) = self.ble_sem.try_lock() else {
-            return Ok((
-                false,
-                String::new(),
+            return Err(HelperError::Busy(
                 "another BLE command is in progress".to_string(),
             ));
         };
@@ -573,12 +583,18 @@ impl Core {
             "core",
             &format!("phone-key start vin={vin} connect={connect_timeout_sec}s"),
         );
+        // Same envelope as run(): presence must also survive a slow adapter
+        // (BLE connect + command + margin). A flat 10s guaranteed spurious
+        // PresenceFailed on slow hardware and a 5s retry storm.
+        let presence_secs = (i64::from(connect_timeout_sec) + i64::from(command_timeout_sec) + 10)
+            .max(0)
+            .cast_unsigned();
         match session.start_presence(
             &vin,
             &key_path,
             connect_timeout_sec,
             command_timeout_sec,
-            Duration::from_secs(10),
+            Duration::from_secs(presence_secs),
         ) {
             Ok(outcome) if outcome.ok => {
                 self.phone_key_started.store(true, Ordering::SeqCst);
@@ -858,20 +874,19 @@ impl Core {
             .ble_sem
             .try_lock()
             .map_err(|_| HelperError::Busy("another BLE command is in progress".to_string()))?;
-        let _gate = self
-            .phone_key_gate
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        // Snapshot isolation like run(): release the gate before BLE I/O.
         let (vin, key_path, connect_timeout_sec, command_timeout_sec, timeout) = {
+            let _gate = self
+                .phone_key_gate
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             let cfg = self
                 .cfg
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner);
-            if cfg.vin.is_empty() {
-                return Err(HelperError::NotConfigured(
-                    "VIN is not set; call SetConfig first".to_string(),
-                ));
-            }
+            // Same NoKey gate as run(): a missing private key must fail here
+            // with a clear error, not as an obscure Go child failure.
+            self.common_args_locked(&cfg)?;
             // Same envelope as run(): connect + command + 10s, clamped at zero.
             let secs =
                 (i64::from(cfg.connect_timeout_sec) + i64::from(cfg.command_timeout_sec) + 10)
@@ -916,10 +931,23 @@ impl Core {
     }
 
     pub(crate) fn get_config(&self) -> GetConfigReply {
-        let cfg = self
-            .cfg
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        // Snapshot config under the lock, then do filesystem I/O with no
+        // lock held: get_config is called twice per presence poll, and
+        // blocking writers behind two reads + two stats per second is a
+        // needless stall.
+        let (vin, model, key_name, connect_timeout_sec, command_timeout_sec) = {
+            let cfg = self
+                .cfg
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            (
+                cfg.vin.clone(),
+                cfg.model.clone(),
+                cfg.key_name.clone(),
+                cfg.connect_timeout_sec,
+                cfg.command_timeout_sec,
+            )
+        };
         // A usable key needs both halves present and non-empty: public alone
         // (or an empty file left by a crashed keygen) must not report "Key
         // ready" and then fail every run() with NoKey.
@@ -928,11 +956,11 @@ impl Core {
             && self.private_key_path().is_file()
             && std::fs::metadata(self.private_key_path()).is_ok_and(|m| m.len() > 0);
         (
-            cfg.vin.clone(),
-            cfg.model.clone(),
-            cfg.key_name.clone(),
-            cfg.connect_timeout_sec,
-            cfg.command_timeout_sec,
+            vin,
+            model,
+            key_name,
+            connect_timeout_sec,
+            command_timeout_sec,
             has_key,
             pub_key,
         )
@@ -941,7 +969,16 @@ impl Core {
 
 impl Drop for Core {
     fn drop(&mut self) {
-        self.stop_phone_key();
+        // Never block in Drop: stop_phone_key() performs a bounded BLE RPC
+        // that can stall for seconds and lock cfg/gate (deadlock if dropped
+        // while the same thread holds them). Best-effort non-blocking
+        // teardown only; the runtime already stops presence explicitly.
+        self.phone_key_enabled.store(false, Ordering::SeqCst);
+        *self
+            .phone_key_retry_at
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
+        self.phone_key_started.store(false, Ordering::SeqCst);
         if let Some(session) = &self.session {
             session.invalidate();
         }
@@ -1011,8 +1048,15 @@ fn validate_arg_ranges(cmd: &str, args: &[String]) -> Result<(), HelperError> {
             _ => (t, None),
         }
     }
+    fn check_arity(cmd: &str, args: &[String], expected: usize) -> Result<(), HelperError> {
+        if args.len() != expected {
+            return Err(invalid(cmd, &args.join(" ")));
+        }
+        Ok(())
+    }
     match cmd {
         "charging-set-limit" => {
+            check_arity(cmd, args, 1)?;
             let arg = args.first().ok_or_else(|| {
                 HelperError::InvalidArgument(format!("{cmd} requires a numeric argument"))
             })?;
@@ -1027,6 +1071,7 @@ fn validate_arg_ranges(cmd: &str, args: &[String]) -> Result<(), HelperError> {
             Ok(())
         }
         "charging-set-amps" => {
+            check_arity(cmd, args, 1)?;
             let arg = args.first().ok_or_else(|| {
                 HelperError::InvalidArgument(format!("{cmd} requires a numeric argument"))
             })?;
@@ -1041,6 +1086,7 @@ fn validate_arg_ranges(cmd: &str, args: &[String]) -> Result<(), HelperError> {
             Ok(())
         }
         "charging-schedule" => {
+            check_arity(cmd, args, 1)?;
             let arg = args.first().ok_or_else(|| {
                 HelperError::InvalidArgument(format!("{cmd} requires a numeric argument"))
             })?;
@@ -1051,6 +1097,7 @@ fn validate_arg_ranges(cmd: &str, args: &[String]) -> Result<(), HelperError> {
             Ok(())
         }
         "media-set-volume" => {
+            check_arity(cmd, args, 1)?;
             let arg = args.first().ok_or_else(|| {
                 HelperError::InvalidArgument(format!("{cmd} requires a numeric argument"))
             })?;
@@ -1061,10 +1108,19 @@ fn validate_arg_ranges(cmd: &str, args: &[String]) -> Result<(), HelperError> {
             Ok(())
         }
         "climate-set-temp" => {
+            check_arity(cmd, args, 1)?;
             let arg = args.first().ok_or_else(|| {
                 HelperError::InvalidArgument(format!("{cmd} requires a numeric argument"))
             })?;
             let (num, unit) = strip_unit(arg);
+            // Only C/F (or bare) suffixes are valid; anything else (e.g. "21x")
+            // is garbage, not a temperature.
+            if let Some(u) = unit {
+                let up = u.to_ascii_uppercase();
+                if up != 'C' && up != 'F' {
+                    return Err(invalid(cmd, arg));
+                }
+            }
             let value = parse_float_arg(num).ok_or_else(|| invalid(cmd, arg))?;
             // QML only sends Celsius, but upstream also accepts Fahrenheit.
             let (lo, hi) = match unit.map(|c| c.to_ascii_uppercase()) {
@@ -1077,6 +1133,7 @@ fn validate_arg_ranges(cmd: &str, args: &[String]) -> Result<(), HelperError> {
             Ok(())
         }
         "software-update-start" => {
+            check_arity(cmd, args, 1)?;
             let arg = args.first().ok_or_else(|| {
                 HelperError::InvalidArgument(format!("{cmd} requires a numeric argument"))
             })?;
@@ -1086,21 +1143,34 @@ fn validate_arg_ranges(cmd: &str, args: &[String]) -> Result<(), HelperError> {
                 return Err(invalid(cmd, arg));
             }
             let (num, unit) = strip_unit(arg);
-            match unit.map(|c| c.to_ascii_lowercase()) {
-                // Seconds form QML sends ("600s").
+            // Only bare seconds and s/m/h suffixes are valid. Unknown
+            // suffixes ("10x", "abc") are rejected here instead of being
+            // passed to upstream Go duration parsing.
+            let total_secs: f64 = match unit.map(|c| c.to_ascii_lowercase()) {
+                // Seconds form QML sends ("600s") or bare seconds ("600").
                 Some('s') | None => {
-                    let value = parse_int_arg(if unit.is_some() { num } else { arg })
-                        .ok_or_else(|| invalid(cmd, arg))?;
-                    if !(0..=3600).contains(&value) {
-                        return Err(invalid(cmd, arg));
-                    }
-                    Ok(())
+                    let digits = if unit.is_some() { num } else { arg };
+                    // Seconds are integers <= 3600: exactly representable in
+                    // f64, so the int-to-float cast is lossless here.
+                    #[allow(clippy::cast_precision_loss)]
+                    let secs = parse_int_arg(digits).ok_or_else(|| invalid(cmd, arg))? as f64;
+                    secs
                 }
-                // Go durations ("10m", "2h"): let upstream parse them.
-                _ => Ok(()),
+                Some('m') => parse_float_arg(num).ok_or_else(|| invalid(cmd, arg))? * 60.0,
+                Some('h') => parse_float_arg(num).ok_or_else(|| invalid(cmd, arg))? * 3600.0,
+                _ => return Err(invalid(cmd, arg)),
+            };
+            if !(0.0..=3600.0).contains(&total_secs) {
+                return Err(invalid(cmd, arg));
             }
+            Ok(())
         }
         "charging-schedule-add" | "precondition-schedule-add" => {
+            // [DAYS, TIME, LATITUDE, LONGITUDE, REPEAT?, ID?, ENABLED?]:
+            // 4 required, up to 3 trailing optionals.
+            if args.len() < 4 || args.len() > 7 {
+                return Err(invalid(cmd, &args.join(" ")));
+            }
             // [DAYS, TIME, LATITUDE, LONGITUDE, ...]: only the coordinates
             // have machine-checkable ranges here.
             for (idx, (lo, hi)) in [(2usize, (-90.0, 90.0)), (3usize, (-180.0, 180.0))] {
@@ -1149,21 +1219,29 @@ pub(crate) fn run_binary(
     // that fills the OS pipe buffer can't deadlock us against wait_timeout.
     // Bounded at 1 MiB per stream: vehicle state is kilobytes, and an
     // unbounded read_to_string would let a buggy child OOM the core.
-    let mut stdout_pipe = child.stdout.take().expect("piped stdout");
-    let mut stderr_pipe = child.stderr.take().expect("piped stderr");
+    // No expect(): this is reachable from C across FFI, where a panic is
+    // undefined behavior. A missing pipe (cannot happen after piped() above,
+    // but checked anyway) fails gracefully.
+    let (Some(mut stdout_pipe), Some(mut stderr_pipe)) = (child.stdout.take(), child.stderr.take())
+    else {
+        let _ = child.kill();
+        let _ = child.wait();
+        return RunOutcome {
+            ok: false,
+            stdout: String::new(),
+            stderr: "Core: failed to capture child output".to_string(),
+            exit_code: -1,
+        };
+    };
     let stdout_thread = thread::spawn(move || {
-        let mut buf = String::new();
-        let _ = (&mut stdout_pipe)
-            .take(1024 * 1024)
-            .read_to_string(&mut buf);
-        buf
+        let mut raw = Vec::new();
+        let _ = (&mut stdout_pipe).take(1024 * 1024).read_to_end(&mut raw);
+        String::from_utf8_lossy(&raw).into_owned()
     });
     let stderr_thread = thread::spawn(move || {
-        let mut buf = String::new();
-        let _ = (&mut stderr_pipe)
-            .take(1024 * 1024)
-            .read_to_string(&mut buf);
-        buf
+        let mut raw = Vec::new();
+        let _ = (&mut stderr_pipe).take(1024 * 1024).read_to_end(&mut raw);
+        String::from_utf8_lossy(&raw).into_owned()
     });
 
     let wait_result = child.wait_timeout(timeout);
@@ -1321,7 +1399,12 @@ mod tests {
         assert!(core.start_phone_key().is_err());
         let mut enabled = false;
         assert_eq!(
-            unsafe { crate::ffi::core_phone_key_enabled(&mut core, &mut enabled) },
+            unsafe {
+                crate::ffi::core_phone_key_enabled(
+                    std::ptr::addr_of_mut!(core),
+                    std::ptr::addr_of_mut!(enabled),
+                )
+            },
             crate::ffi::CoreError::Ok
         );
         assert!(
@@ -1330,7 +1413,12 @@ mod tests {
         );
         core.stop_phone_key();
         assert_eq!(
-            unsafe { crate::ffi::core_phone_key_enabled(&mut core, &mut enabled) },
+            unsafe {
+                crate::ffi::core_phone_key_enabled(
+                    std::ptr::addr_of_mut!(core),
+                    std::ptr::addr_of_mut!(enabled),
+                )
+            },
             crate::ffi::CoreError::Ok
         );
         assert!(!enabled, "an explicit stop must release the lease intent");
@@ -1726,6 +1814,38 @@ mod tests {
         assert!(
             super::validate_arg_ranges("software-update-start", &["99999s".into()]).is_err(),
             "software-update-start 99999s must be rejected server-side"
+        );
+    }
+
+    #[test]
+    fn review_software_update_rejects_garbage_units_and_extra_args() {
+        // validate_arg_ranges("software-update-start") only validates the
+        // seconds form ("600s" / bare int) and lets every other single-letter
+        // suffix through with `_ => Ok(())` for upstream to parse. That hole
+        // accepts "10x", "abc" and unbounded "999999h", and every bounded
+        // command ignores trailing extra args entirely (only args.first() /
+        // args.get(2,3) are inspected).
+        for bad in ["10x", "abc", "10z", "999999h", "999999m"] {
+            assert!(
+                super::validate_arg_ranges("software-update-start", &[bad.to_string()]).is_err(),
+                "software-update-start {bad:?} must be rejected server-side, not passed to upstream"
+            );
+        }
+        assert!(
+            super::validate_arg_ranges(
+                "software-update-start",
+                &["0".to_string(), "extra".to_string()]
+            )
+            .is_err(),
+            "trailing extra args must be rejected, not silently ignored"
+        );
+        assert!(
+            super::validate_arg_ranges(
+                "charging-set-limit",
+                &["80".to_string(), "extra".to_string()]
+            )
+            .is_err(),
+            "charging-set-limit with an extra arg must be rejected, not silently ignored"
         );
     }
 }

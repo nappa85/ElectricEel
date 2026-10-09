@@ -3,18 +3,18 @@
   <context>
     <name>ArgumentDialog</name>
     <message>
-      <location filename="../qml/pages/ArgumentDialog.qml" line="41" />
+      <location filename="../qml/pages/ArgumentDialog.qml" line="67" />
       <source>Run</source>
       <translation>Kjør</translation>
     </message>
     <message>
-      <location filename="../qml/pages/ArgumentDialog.qml" line="109" />
-      <location filename="../qml/pages/ArgumentDialog.qml" line="188" />
+      <location filename="../qml/pages/ArgumentDialog.qml" line="135" />
+      <location filename="../qml/pages/ArgumentDialog.qml" line="216" />
       <source> (optional)</source>
       <translation> (valgfritt)</translation>
     </message>
     <message>
-      <location filename="../qml/pages/ArgumentDialog.qml" line="113" />
+      <location filename="../qml/pages/ArgumentDialog.qml" line="139" />
       <source>(not set)</source>
       <translation>(ikke angitt)</translation>
     </message>
@@ -67,7 +67,7 @@
       <translation>exitkode %1</translation>
     </message>
     <message>
-      <location filename="../qml/pages/CategoryPage.qml" line="174" />
+      <location filename="../qml/pages/CategoryPage.qml" line="177" />
       <source>Running %1...</source>
       <translation>Kjører %1...</translation>
     </message>
@@ -418,97 +418,108 @@
   <context>
     <name>FirstPage</name>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="268" />
+      <location filename="../qml/pages/FirstPage.qml" line="269" />
       <source>The control core failed to start. Reinstall the app, then pull down to refresh.</source>
       <translation>Styringskjernen kunne ikke starte. Installer appen på nytt og dra ned for å oppdatere.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="270" />
+      <location filename="../qml/pages/FirstPage.qml" line="271" />
       <source>The control core is too old to report its version. Reinstall the app (%1), then pull down to refresh.</source>
       <translation>Styringskjernen er for gammel til å rapportere versjonen. Installer appen (%1) på nytt og dra ned for å oppdatere.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="271" />
+      <location filename="../qml/pages/FirstPage.qml" line="272" />
       <source>Version mismatch: app %1, core %2. Reinstall the app, then pull down to refresh.</source>
       <translation>Versjonskonflikt: app %1, kjerne %2. Installer appen på nytt og dra ned for å oppdatere.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="289" />
+      <location filename="../qml/pages/FirstPage.qml" line="62" />
+      <location filename="../qml/pages/FirstPage.qml" line="290" />
       <source>No VIN configured</source>
       <translation>Ingen VIN konfigurert</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="293" />
+      <location filename="../qml/pages/FirstPage.qml" line="54" />
+      <source>Control helper unavailable</source>
+      <translation type="unfinished" />
+    </message>
+    <message>
+      <location filename="../qml/pages/FirstPage.qml" line="58" />
+      <source>No key: generate and pair a key first</source>
+      <translation type="unfinished" />
+    </message>
+    <message>
+      <location filename="../qml/pages/FirstPage.qml" line="294" />
       <source>Key ready</source>
       <translation>Nøkkel klar</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="293" />
+      <location filename="../qml/pages/FirstPage.qml" line="294" />
       <source>No key - tap for Settings / Pairing</source>
       <translation>Ingen nøkkel - trykk for Innstillinger / Paring</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="347" />
+      <location filename="../qml/pages/FirstPage.qml" line="348" />
       <source> • charging</source>
       <translation> • lader</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="356" />
+      <location filename="../qml/pages/FirstPage.qml" line="357" />
       <source>• %1°C</source>
       <translation>• %1 °C</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="381" />
+      <location filename="../qml/pages/FirstPage.qml" line="382" />
       <source>Updating...</source>
       <translation>Oppdaterer...</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="383" />
+      <location filename="../qml/pages/FirstPage.qml" line="384" />
       <source>Status unavailable (%1). Vehicle may be asleep - try Wake Vehicle (Attention), then Refresh Status.</source>
       <translation>Status utilgjengelig (%1). Kjøretøyet sover kanskje - prøv Vekk kjøretøyet (Oppmerksomhet) og deretter Oppdater status.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="385" />
+      <location filename="../qml/pages/FirstPage.qml" line="386" />
       <source>Pull down to refresh status</source>
       <translation>Dra ned for å oppdatere status</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="387" />
+      <location filename="../qml/pages/FirstPage.qml" line="388" />
       <source>Updated just now</source>
       <translation>Oppdatert akkurat nå</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="388" />
+      <location filename="../qml/pages/FirstPage.qml" line="389" />
       <source>Updated %1m ago</source>
       <translation>Oppdatert for %1 min siden</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="481" />
+      <location filename="../qml/pages/FirstPage.qml" line="482" />
       <source>Categories</source>
       <translation>Kategorier</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="530" />
+      <location filename="../qml/pages/FirstPage.qml" line="531" />
       <source>Send Destination</source>
       <translation>Send destinasjon</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="534" />
+      <location filename="../qml/pages/FirstPage.qml" line="535" />
       <source>Pair Vehicle</source>
       <translation>Par kjøretøy</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="538" />
+      <location filename="../qml/pages/FirstPage.qml" line="539" />
       <source>Settings</source>
       <translation>Innstillinger</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="542" />
+      <location filename="../qml/pages/FirstPage.qml" line="543" />
       <source>Refresh</source>
       <translation>Oppdater</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="546" />
+      <location filename="../qml/pages/FirstPage.qml" line="547" />
       <source>Refresh Status</source>
       <translation>Oppdater status</translation>
     </message>
@@ -516,72 +527,72 @@
   <context>
     <name>NavigationPage</name>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="35" />
+      <location filename="../qml/pages/NavigationPage.qml" line="46" />
       <source>Paste or type a destination first.</source>
       <translation>Lim inn eller skriv først en destinasjon.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="38" />
+      <location filename="../qml/pages/NavigationPage.qml" line="50" />
       <source>Checking...</source>
       <translation>Kontrollerer...</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="47" />
+      <location filename="../qml/pages/NavigationPage.qml" line="59" />
       <source>Nothing to send.</source>
       <translation>Ingenting å sende.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="63" />
+      <location filename="../qml/pages/NavigationPage.qml" line="76" />
       <source>Cannot use this: %1</source>
       <translation>Kan ikke brukes: %1</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="67" />
+      <location filename="../qml/pages/NavigationPage.qml" line="80" />
       <source>Coordinates %1, %2 — navigation will start there.</source>
       <translation>Koordinater %1, %2 — navigeringen starter der.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="70" />
+      <location filename="../qml/pages/NavigationPage.qml" line="83" />
       <source>Address "%1" — the car will look it up.</source>
       <translation>Adresse ”%1” — bilen slår den opp.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="76" />
+      <location filename="../qml/pages/NavigationPage.qml" line="89" />
       <source>Send failed: %1</source>
       <translation>Sending feilet: %1</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="96" />
+      <location filename="../qml/pages/NavigationPage.qml" line="109" />
       <source>Car Navigation</source>
       <translation>Bilnavigasjon</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="101" />
+      <location filename="../qml/pages/NavigationPage.qml" line="114" />
       <source>Destination</source>
       <translation>Destinasjon</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="102" />
+      <location filename="../qml/pages/NavigationPage.qml" line="115" />
       <source>Paste address, coordinates, or map link</source>
       <translation>Lim inn adresse, koordinater eller kartlenke</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="110" />
+      <location filename="../qml/pages/NavigationPage.qml" line="123" />
       <source>Preview</source>
       <translation>Forhåndsvisning</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="128" />
+      <location filename="../qml/pages/NavigationPage.qml" line="141" />
       <source>Send to Car</source>
       <translation>Send til bilen</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="150" />
+      <location filename="../qml/pages/NavigationPage.qml" line="163" />
       <source>Notes</source>
       <translation>Merknader</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="159" />
+      <location filename="../qml/pages/NavigationPage.qml" line="172" />
       <source>This uses Bluetooth, like lock/unlock — the car must be in range, no internet needed on either side. Coordinates are sent exactly; addresses and links are looked up by the car itself, so unusual spellings may resolve differently than on your phone. From Android apps: copy the address or link, then paste it above.</source>
       <translation>Bruker Bluetooth, som lås/lås opp — bilen må være innen rekkevidde, intet internett trengs. Koordinater sendes nøyaktig; adresser og lenker slår bilen selv opp, så uvanlige stavemåter kan tolkes annerledes enn på telefonen. Fra Android-apper: kopier adressen eller lenken og lim inn ovenfor.</translation>
     </message>
@@ -589,72 +600,77 @@
   <context>
     <name>PairingPage</name>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="27" />
+      <location filename="../qml/pages/PairingPage.qml" line="29" />
       <source>Key generated. Tap "Pair with Vehicle", then tap your NFC card on the center console when prompted on the car's screen.</source>
       <translation>Nøkkel opprettet. Trykk på ”Par kjøretøy” og hold NFC-kortet mot midtkonsollen når bilskjermen ber om det.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="29" />
+      <location filename="../qml/pages/PairingPage.qml" line="31" />
       <source>Key generation failed: %1</source>
       <translation>Oppretting av nøkkel feilet: %1</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="34" />
+      <location filename="../qml/pages/PairingPage.qml" line="36" />
       <source>Paired.</source>
       <translation>Parret.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="34" />
+      <location filename="../qml/pages/PairingPage.qml" line="36" />
       <source>Pairing failed: %1</source>
       <translation>Paring feilet: %1</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="64" />
+      <location filename="../qml/pages/PairingPage.qml" line="42" />
+      <source>No keys listed</source>
+      <translation type="unfinished" />
+    </message>
+    <message>
+      <location filename="../qml/pages/PairingPage.qml" line="70" />
       <source>Pairing &amp; Keys</source>
       <translation>Paring &amp; nøkler</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="71" />
+      <location filename="../qml/pages/PairingPage.qml" line="77" />
       <source>Set the VIN in Settings first. Then generate a key, then pair it with the car over BLE - you'll need to be next to the vehicle and tap the NFC card on the center console to approve.</source>
       <translation>Sett først VIN i Innstillinger. Opprett deretter en nøkkel og par den med bilen via BLE - stå ved kjøretøyet og hold NFC-kortet mot midtkonsollen for å godkjenne.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="83" />
+      <location filename="../qml/pages/PairingPage.qml" line="89" />
       <source>Phone key starting...</source>
       <translation>Telefonnøkkel starter...</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="111" />
+      <location filename="../qml/pages/PairingPage.qml" line="117" />
       <source>Generating...</source>
       <translation>Genererer...</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="111" />
+      <location filename="../qml/pages/PairingPage.qml" line="117" />
       <source>Generate Key</source>
       <translation>Generer nøkkel</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="137" />
+      <location filename="../qml/pages/PairingPage.qml" line="143" />
       <source>Waiting for NFC tap...</source>
       <translation>Venter på NFC-trykk...</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="137" />
+      <location filename="../qml/pages/PairingPage.qml" line="143" />
       <source>Pair with Vehicle</source>
       <translation>Par kjøretøy</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="141" />
+      <location filename="../qml/pages/PairingPage.qml" line="149" />
       <source>Requesting pairing over BLE - approve on the car's touchscreen / NFC card now.</source>
       <translation>BLE-paring forespurt - godkjenn på berøringsskjermen / NFC-kortet nå.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="161" />
+      <location filename="../qml/pages/PairingPage.qml" line="169" />
       <source>Enrolled Keys</source>
       <translation>Registrerte nøkler</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="165" />
+      <location filename="../qml/pages/PairingPage.qml" line="173" />
       <source>List Enrolled Keys</source>
       <translation>Vis registrerte nøkler</translation>
     </message>
@@ -729,8 +745,8 @@
     <message>
       <location filename="../qml/pages/SettingsPage.qml" line="132" />
       <location filename="../qml/pages/SettingsPage.qml" line="142" />
-      <source> s</source>
-      <translation> s</translation>
+      <source>%1 s</source>
+      <translation type="unfinished" />
     </message>
     <message>
       <location filename="../qml/pages/SettingsPage.qml" line="138" />
@@ -782,7 +798,7 @@
     </message>
     <message>
       <location filename="../qml/js/VehicleState.js" line="47" />
-      <location filename="../qml/js/VehicleState.js" line="69" />
+      <location filename="../qml/js/VehicleState.js" line="75" />
       <source>Model 3</source>
       <translation>Model 3</translation>
     </message>

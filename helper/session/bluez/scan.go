@@ -79,9 +79,12 @@ func scan(ctx context.Context, bus dbusBus, adapterID, vin string) (*ScanResult,
 			diagnostic("scan ended error after=%s polls=%d: %v", time.Since(started).Round(time.Millisecond), polls, err)
 			return nil, err
 		}
-		if result != nil {
+		if result != nil && result.HasRSSI {
 			diagnostic("scan found beacon after=%s polls=%d rssiPresent=%v rssi=%d", time.Since(started).Round(time.Millisecond), polls, result.HasRSSI, result.RSSI)
 			return result, nil
+		}
+		if result != nil {
+			diagnostic("scan ignoring stale cached device without fresh RSSI after=%s polls=%d", time.Since(started).Round(time.Millisecond), polls)
 		}
 		select {
 		case <-ctx.Done():

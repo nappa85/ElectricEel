@@ -1,7 +1,8 @@
 # Architecture
 
 Single Harbour RPM (`harbour-electric-eel`). No system service, no
-capabilities, no `devel-su` install. Sailjail permissions: `Bluetooth`.
+capabilities, no `devel-su` install. Sailjail permissions: `Bluetooth;Documents`
+(`Documents` covers the `Documents/ElectricEel` phone-key logs).
 
 ## Components
 

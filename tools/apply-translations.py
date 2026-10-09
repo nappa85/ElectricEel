@@ -18,7 +18,12 @@ TPL = os.path.join(REPO, "app", "translations", "harbour-electric-eel.ts")
 
 
 def messages(path):
-    """(context, source) -> (translation_text or None)."""
+    """(context, source) -> (translation_text or None).
+
+    Keyed by (context, source): identical source texts in different Qt
+    contexts (e.g. "Climate" as a category title vs a status label) may
+    need different translations.
+    """
     out = {}
     for ctx in ET.parse(path).getroot().iter("context"):
         name = ctx.findtext("name") or ""
@@ -31,7 +36,7 @@ def messages(path):
             if tr is not None and tr.get("type") == "unfinished":
                 text = None
             if text:
-                out.setdefault(src, text)
+                out.setdefault((name, src), text)
     return out
 
 
@@ -72,8 +77,8 @@ def main():
                     m.append(copy.deepcopy(loc))
                 ET.SubElement(m, "source").text = src
                 tr = ET.SubElement(m, "translation")
-                if src in old:
-                    tr.text = old[src]
+                if (ctx_name, src) in old:
+                    tr.text = old[(ctx_name, src)]
                     counts["kept"] += 1
                 else:
                     tr.set("type", "unfinished")

@@ -3,18 +3,18 @@
   <context>
     <name>ArgumentDialog</name>
     <message>
-      <location filename="../qml/pages/ArgumentDialog.qml" line="41" />
+      <location filename="../qml/pages/ArgumentDialog.qml" line="67" />
       <source>Run</source>
       <translation>പ്രവർത്തിപ്പിക്കുക</translation>
     </message>
     <message>
-      <location filename="../qml/pages/ArgumentDialog.qml" line="109" />
-      <location filename="../qml/pages/ArgumentDialog.qml" line="188" />
+      <location filename="../qml/pages/ArgumentDialog.qml" line="135" />
+      <location filename="../qml/pages/ArgumentDialog.qml" line="216" />
       <source> (optional)</source>
       <translation> (ഐച്ഛികം)</translation>
     </message>
     <message>
-      <location filename="../qml/pages/ArgumentDialog.qml" line="113" />
+      <location filename="../qml/pages/ArgumentDialog.qml" line="139" />
       <source>(not set)</source>
       <translation>(സജ്ജമാക്കിയിട്ടില്ല)</translation>
     </message>
@@ -67,7 +67,7 @@
       <translation>എക്സിറ്റ് കോഡ് %1</translation>
     </message>
     <message>
-      <location filename="../qml/pages/CategoryPage.qml" line="174" />
+      <location filename="../qml/pages/CategoryPage.qml" line="177" />
       <source>Running %1...</source>
       <translation>%1 പ്രവർത്തിക്കുന്നു...</translation>
     </message>
@@ -418,97 +418,108 @@
   <context>
     <name>FirstPage</name>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="268" />
+      <location filename="../qml/pages/FirstPage.qml" line="269" />
       <source>The control core failed to start. Reinstall the app, then pull down to refresh.</source>
       <translation>കൺട്രോൾ കോർ ആരംഭിച്ചില്ല. ആപ്പ് വീണ്ടും ഇൻസ്റ്റാൾ ചെയ്ത് റിഫ്രഷിനായി താഴേക്ക് വലിക്കുക.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="270" />
+      <location filename="../qml/pages/FirstPage.qml" line="271" />
       <source>The control core is too old to report its version. Reinstall the app (%1), then pull down to refresh.</source>
       <translation>കൺട്രോൾ കോർ പതിപ്പ് അറിയിക്കാൻ വളരെ പഴയതാണ്. ആപ്പ് (%1) വീണ്ടും ഇൻസ്റ്റാൾ ചെയ്ത് റിഫ്രഷിനായി താഴേക്ക് വലിക്കുക.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="271" />
+      <location filename="../qml/pages/FirstPage.qml" line="272" />
       <source>Version mismatch: app %1, core %2. Reinstall the app, then pull down to refresh.</source>
       <translation>പതിപ്പ് പൊരുത്തക്കേട്: ആപ്പ് %1, കോർ %2. ആപ്പ് വീണ്ടും ഇൻസ്റ്റാൾ ചെയ്ത് റിഫ്രഷിനായി താഴേക്ക് വലിക്കുക.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="289" />
+      <location filename="../qml/pages/FirstPage.qml" line="62" />
+      <location filename="../qml/pages/FirstPage.qml" line="290" />
       <source>No VIN configured</source>
       <translation>VIN ക്രമീകരിച്ചിട്ടില്ല</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="293" />
+      <location filename="../qml/pages/FirstPage.qml" line="54" />
+      <source>Control helper unavailable</source>
+      <translation type="unfinished" />
+    </message>
+    <message>
+      <location filename="../qml/pages/FirstPage.qml" line="58" />
+      <source>No key: generate and pair a key first</source>
+      <translation type="unfinished" />
+    </message>
+    <message>
+      <location filename="../qml/pages/FirstPage.qml" line="294" />
       <source>Key ready</source>
       <translation>കീ തയ്യാർ</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="293" />
+      <location filename="../qml/pages/FirstPage.qml" line="294" />
       <source>No key - tap for Settings / Pairing</source>
       <translation>കീ ഇല്ല - ക്രമീകരണം / ജോടിയാക്കലിനായി തട്ടുക</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="347" />
+      <location filename="../qml/pages/FirstPage.qml" line="348" />
       <source> • charging</source>
       <translation> • ചാർജ് ചെയ്യുന്നു</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="356" />
+      <location filename="../qml/pages/FirstPage.qml" line="357" />
       <source>• %1°C</source>
       <translation>• %1 °C</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="381" />
+      <location filename="../qml/pages/FirstPage.qml" line="382" />
       <source>Updating...</source>
       <translation>പുതുക്കുന്നു...</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="383" />
+      <location filename="../qml/pages/FirstPage.qml" line="384" />
       <source>Status unavailable (%1). Vehicle may be asleep - try Wake Vehicle (Attention), then Refresh Status.</source>
       <translation>നില ലഭ്യമല്ല (%1). വാഹനം ഉറങ്ങുന്നുണ്ടാകാം - വാഹനം ഉണർത്തുക (ശ്രദ്ധ) പരീക്ഷിച്ച് നില പുതുക്കുക.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="385" />
+      <location filename="../qml/pages/FirstPage.qml" line="386" />
       <source>Pull down to refresh status</source>
       <translation>നില പുതുക്കാൻ താഴേക്ക് വലിക്കുക</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="387" />
+      <location filename="../qml/pages/FirstPage.qml" line="388" />
       <source>Updated just now</source>
       <translation>ഇപ്പോൾ പുതുക്കി</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="388" />
+      <location filename="../qml/pages/FirstPage.qml" line="389" />
       <source>Updated %1m ago</source>
       <translation>%1 മിനിറ്റ് മുൻപ് പുതുക്കി</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="481" />
+      <location filename="../qml/pages/FirstPage.qml" line="482" />
       <source>Categories</source>
       <translation>വിഭാഗങ്ങൾ</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="530" />
+      <location filename="../qml/pages/FirstPage.qml" line="531" />
       <source>Send Destination</source>
       <translation>ലക്ഷ്യസ്ഥാനം അയയ്ക്കുക</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="534" />
+      <location filename="../qml/pages/FirstPage.qml" line="535" />
       <source>Pair Vehicle</source>
       <translation>വാഹനം ജോടിയാക്കുക</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="538" />
+      <location filename="../qml/pages/FirstPage.qml" line="539" />
       <source>Settings</source>
       <translation>ക്രമീകരണം</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="542" />
+      <location filename="../qml/pages/FirstPage.qml" line="543" />
       <source>Refresh</source>
       <translation>പുതുക്കുക</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="546" />
+      <location filename="../qml/pages/FirstPage.qml" line="547" />
       <source>Refresh Status</source>
       <translation>നില പുതുക്കുക</translation>
     </message>
@@ -516,72 +527,72 @@
   <context>
     <name>NavigationPage</name>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="35" />
+      <location filename="../qml/pages/NavigationPage.qml" line="46" />
       <source>Paste or type a destination first.</source>
       <translation>ആദ്യം ലക്ഷ്യസ്ഥാനം ഒട്ടിക്കുകയോ എഴുതുകയോ ചെയ്യുക.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="38" />
+      <location filename="../qml/pages/NavigationPage.qml" line="50" />
       <source>Checking...</source>
       <translation>പരിശോധിക്കുന്നു...</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="47" />
+      <location filename="../qml/pages/NavigationPage.qml" line="59" />
       <source>Nothing to send.</source>
       <translation>അയയ്ക്കാൻ ഒന്നുമില്ല.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="63" />
+      <location filename="../qml/pages/NavigationPage.qml" line="76" />
       <source>Cannot use this: %1</source>
       <translation>ഇത് ഉപയോഗിക്കാനാവില്ല: %1</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="67" />
+      <location filename="../qml/pages/NavigationPage.qml" line="80" />
       <source>Coordinates %1, %2 — navigation will start there.</source>
       <translation>നിർദ്ദേശാങ്കങ്ങൾ %1, %2 — നാവിഗേഷൻ അവിടെ തുടങ്ങും.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="70" />
+      <location filename="../qml/pages/NavigationPage.qml" line="83" />
       <source>Address "%1" — the car will look it up.</source>
       <translation>വിലാസം “%1” — കാർ തനിയെ തിരയും.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="76" />
+      <location filename="../qml/pages/NavigationPage.qml" line="89" />
       <source>Send failed: %1</source>
       <translation>അയയ്ക്കൽ പരാജയപ്പെട്ടു: %1</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="96" />
+      <location filename="../qml/pages/NavigationPage.qml" line="109" />
       <source>Car Navigation</source>
       <translation>കാർ നാവിഗേഷൻ</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="101" />
+      <location filename="../qml/pages/NavigationPage.qml" line="114" />
       <source>Destination</source>
       <translation>ലക്ഷ്യസ്ഥാനം</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="102" />
+      <location filename="../qml/pages/NavigationPage.qml" line="115" />
       <source>Paste address, coordinates, or map link</source>
       <translation>വിലാസം, നിർദ്ദേശാങ്കങ്ങൾ അല്ലെങ്കിൽ മാപ്പ് ലിങ്ക് ഒട്ടിക്കുക</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="110" />
+      <location filename="../qml/pages/NavigationPage.qml" line="123" />
       <source>Preview</source>
       <translation>പ്രിവ്യൂ</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="128" />
+      <location filename="../qml/pages/NavigationPage.qml" line="141" />
       <source>Send to Car</source>
       <translation>കാറിലേക്ക് അയയ്ക്കുക</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="150" />
+      <location filename="../qml/pages/NavigationPage.qml" line="163" />
       <source>Notes</source>
       <translation>കുറിപ്പുകൾ</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="159" />
+      <location filename="../qml/pages/NavigationPage.qml" line="172" />
       <source>This uses Bluetooth, like lock/unlock — the car must be in range, no internet needed on either side. Coordinates are sent exactly; addresses and links are looked up by the car itself, so unusual spellings may resolve differently than on your phone. From Android apps: copy the address or link, then paste it above.</source>
       <translation>ലോക്ക്/അൺലോക്ക് പോലെ Bluetooth ഉപയോഗിക്കുന്നു — കാർ പരിധിക്കുള്ളിൽ വേണം, ഇന്റർനെറ്റ് ആവശ്യമില്ല. നിർദ്ദേശാങ്കങ്ങൾ കൃത്യമായി അയയ്ക്കുന്നു; വിലാസങ്ങളും ലിങ്കുകളും കാർ തനിയെ തேடുന്നു, അതിനാൽ അസാധാരണ എഴുത്ത് ഫോണിലേതിൽ നിന്ന് വ്യത്യസ്തമായി തിരിച്ചറിയാം. Android ആപ്പുകളിൽ നിന്ന്: വിലാസമോ ലിങ്കോ പകർത്തി മുകളിൽ ഒട്ടിക്കുക.</translation>
     </message>
@@ -589,72 +600,77 @@
   <context>
     <name>PairingPage</name>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="27" />
+      <location filename="../qml/pages/PairingPage.qml" line="29" />
       <source>Key generated. Tap "Pair with Vehicle", then tap your NFC card on the center console when prompted on the car's screen.</source>
       <translation>കീ ഉണ്ടാക്കി. “വാഹനം ജോടിയാക്കുക” തട്ടി, കാർ സ്ക്രീൻ ആവശ്യപ്പെടുമ്പോൾ NFC കാർഡ് സെന്റർ കൺസോളിൽ തട്ടുക.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="29" />
+      <location filename="../qml/pages/PairingPage.qml" line="31" />
       <source>Key generation failed: %1</source>
       <translation>കീ ഉണ്ടാക്കൽ പരാജയപ്പെട്ടു: %1</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="34" />
+      <location filename="../qml/pages/PairingPage.qml" line="36" />
       <source>Paired.</source>
       <translation>ജോടിയാക്കി.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="34" />
+      <location filename="../qml/pages/PairingPage.qml" line="36" />
       <source>Pairing failed: %1</source>
       <translation>ജോടിയാക്കൽ പരാജയപ്പെട്ടു: %1</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="64" />
+      <location filename="../qml/pages/PairingPage.qml" line="42" />
+      <source>No keys listed</source>
+      <translation type="unfinished" />
+    </message>
+    <message>
+      <location filename="../qml/pages/PairingPage.qml" line="70" />
       <source>Pairing &amp; Keys</source>
       <translation>ജോടിയാക്കൽ &amp; കീകൾ</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="71" />
+      <location filename="../qml/pages/PairingPage.qml" line="77" />
       <source>Set the VIN in Settings first. Then generate a key, then pair it with the car over BLE - you'll need to be next to the vehicle and tap the NFC card on the center console to approve.</source>
       <translation>ആദ്യം ക്രമീകരണത്തിൽ VIN നൽകുക. പിന്നീട് കീ ഉണ്ടാക്കി BLE വഴി കാറുമായി ജോടിയാക്കുക – വാഹനത്തിനരികിൽ നിന്ന് അംഗീകാരത്തിനായി NFC കാർഡ് സെന്റർ കൺസോളിൽ തട്ടുക.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="83" />
+      <location filename="../qml/pages/PairingPage.qml" line="89" />
       <source>Phone key starting...</source>
       <translation>ഫോൺ കീ തുടങ്ങുന്നു...</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="111" />
+      <location filename="../qml/pages/PairingPage.qml" line="117" />
       <source>Generating...</source>
       <translation>ഉണ്ടാക്കുന്നു...</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="111" />
+      <location filename="../qml/pages/PairingPage.qml" line="117" />
       <source>Generate Key</source>
       <translation>കീ ഉണ്ടാക്കുക</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="137" />
+      <location filename="../qml/pages/PairingPage.qml" line="143" />
       <source>Waiting for NFC tap...</source>
       <translation>NFC തട്ടലിനായി കാത്തിരിക്കുന്നു...</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="137" />
+      <location filename="../qml/pages/PairingPage.qml" line="143" />
       <source>Pair with Vehicle</source>
       <translation>വാഹനം ജോടിയാക്കുക</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="141" />
+      <location filename="../qml/pages/PairingPage.qml" line="149" />
       <source>Requesting pairing over BLE - approve on the car's touchscreen / NFC card now.</source>
       <translation>BLE ജോടിയാക്കൽ അഭ്യർത്ഥിച്ചു – ടച്ച്സ്ക്രീനിൽ / NFC കാർഡിൽ ഇപ്പോൾ അംഗീകരിക്കുക.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="161" />
+      <location filename="../qml/pages/PairingPage.qml" line="169" />
       <source>Enrolled Keys</source>
       <translation>രജിസ്റ്റർ ചെയ്ത കീകൾ</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="165" />
+      <location filename="../qml/pages/PairingPage.qml" line="173" />
       <source>List Enrolled Keys</source>
       <translation>രജിസ്റ്റർ ചെയ്ത കീകൾ പട്ടികപ്പെടുത്തുക</translation>
     </message>
@@ -729,8 +745,8 @@
     <message>
       <location filename="../qml/pages/SettingsPage.qml" line="132" />
       <location filename="../qml/pages/SettingsPage.qml" line="142" />
-      <source> s</source>
-      <translation> സെ</translation>
+      <source>%1 s</source>
+      <translation type="unfinished" />
     </message>
     <message>
       <location filename="../qml/pages/SettingsPage.qml" line="138" />
@@ -782,7 +798,7 @@
     </message>
     <message>
       <location filename="../qml/js/VehicleState.js" line="47" />
-      <location filename="../qml/js/VehicleState.js" line="69" />
+      <location filename="../qml/js/VehicleState.js" line="75" />
       <source>Model 3</source>
       <translation>Model 3</translation>
     </message>

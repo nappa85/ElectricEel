@@ -24,6 +24,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"os/signal"
 	"sync"
@@ -141,6 +142,11 @@ type session struct {
 	// goroutines, and json.Encoder is not safe for concurrent use.
 	writeMu sync.Mutex
 	enc     *json.Encoder
+	// parentConn is the Unix-socket connection to the Rust parent. Kept so
+	// every frame encode can set a write deadline; without one a parent
+	// that stops reading without closing wedges responses, events and
+	// heartbeats forever while the heartbeat ticker keeps proving "alive".
+	parentConn net.Conn
 }
 
 // teardownLocked closes the live BLE session, if any, so the vehicle (and
@@ -404,11 +410,20 @@ func (s *session) resetIdleTimerLocked() {
 		return
 	}
 	if s.idleTimer != nil {
+		// Stop reports whether the timer was stopped before firing. If it
+		// already fired (or is firing on another goroutine blocked on mu),
+		// its callback will still run — teardownLocked is idempotent, so a
+		// redundant teardown is harmless, but the generation guard below
+		// keeps a stale callback from tearing down a *fresh* session.
 		s.idleTimer.Stop()
 	}
+	generation := s.presenceGeneration
 	s.idleTimer = time.AfterFunc(s.idleTimeout, func() {
 		s.mu.Lock()
 		defer s.mu.Unlock()
+		if generation != s.presenceGeneration {
+			return
+		}
 		keylog("session", "idle timeout - tearing down BLE session")
 		s.teardownLocked()
 	})
@@ -427,12 +442,14 @@ func (s *session) presenceBeaconTargetLocked() *bluez.ScanResult {
 // presenceTargetReadyLocked only permits a competing manual command to
 // connect when the watcher has recently seen a strong beacon. A Device1
 // object (even one with RSSI) can remain cached after the car disappears.
+// Identity is by D-Bus path, not pointer: copies with the same Path are the
+// same device.
 func (s *session) presenceTargetReadyLocked(target *bluez.ScanResult, now time.Time) bool {
 	cfg := s.presenceCfg
 	if cfg.scanInterval <= 0 {
 		cfg = defaultPresenceConfig()
 	}
-	return target != nil && target == s.lastBeacon &&
+	return target != nil && s.lastBeacon != nil && target.Path == s.lastBeacon.Path &&
 		presenceLiveNear(target.HasRSSI, target.RSSI, cfg.nearRSSI) &&
 		!s.lastBeaconAt.IsZero() && now.Sub(s.lastBeaconAt) <= 2*cfg.scanInterval
 }
@@ -740,7 +757,9 @@ func (s *session) emitEvent(kind string, err error) {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 	if s.enc != nil {
-		_ = s.enc.Encode(taggedEvent{Type: "event", event: e})
+		if encErr := s.encodeWithDeadline(taggedEvent{Type: "event", event: e}); encErr != nil {
+			keylog("session", "event write failed (%s): %v", kind, encErr)
+		}
 	}
 }
 
@@ -756,13 +775,16 @@ func (s *session) emitPresenceDisconnectedLocked(err error) {
 // writeResponse serializes resp to the parent socket, synchronized with
 // emitEvent so the goroutines writing to the single JSON-lines connection
 // (the request loop, the presence loop, the heartbeat loop) never
-// interleave partial writes.
+// interleave partial writes. Write failures are logged (parent gone)
+// instead of being silently swallowed.
 func (s *session) writeResponse(resp response) {
 	resp.Type = "response"
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 	if s.enc != nil {
-		_ = s.enc.Encode(resp)
+		if err := s.encodeWithDeadline(resp); err != nil {
+			keylog("session", "response write failed (id=%s): %v", resp.ID, err)
+		}
 	}
 }
 
@@ -1008,7 +1030,9 @@ func (s *session) runPresenceWatcher(ctx context.Context, cfg presenceConfig, wa
 
 	restartWatcher := func() bool {
 		keylog("presence", "restarting watcher after peek errors")
-		watcher.Stop(context.Background())
+		restartStopCtx, restartStopCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		watcher.Stop(restartStopCtx)
+		restartStopCancel()
 		watchCtx, watchCancel := context.WithTimeout(ctx, s.connectTimeout)
 		s.mu.Lock()
 		newWatcher, err := s.bluez.Watch(watchCtx, s.adapterID, s.vin)
@@ -1324,6 +1348,13 @@ func (s *session) dispatch(req request) response {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	// Fail fast on unknown / FleetAPI-only commands before touching the
+	// radio: checkReadiness rejects them without a 20s BLE connect held
+	// under s.mu.
+	if _, err := checkReadiness(req.Cmd, true, false, true); err != nil {
+		return response{ID: req.ID, OK: false, Stderr: err.Error() + "\n", ExitCode: 1}
+	}
+
 	connectTarget := s.presenceBeaconTargetLocked()
 	connectCtx, cancel := context.WithTimeout(context.Background(), s.connectTimeout)
 	connectErr := s.ensureConnectedLocked(connectCtx, req.Cmd, connectTarget)
@@ -1343,9 +1374,13 @@ func (s *session) dispatch(req request) response {
 
 	if commandsWithoutSession[req.Cmd] {
 		if execErr == nil {
-			enrollmentCtx, enrollmentCancel := context.WithTimeout(context.Background(), addKeyRequestGracePeriod)
-			execErr = s.confirmEnrollment(enrollmentCtx, req.Args[0])
-			enrollmentCancel()
+			if len(req.Args) == 0 {
+				execErr = fmt.Errorf("missing key argument for enrollment check")
+			} else {
+				enrollmentCtx, enrollmentCancel := context.WithTimeout(context.Background(), addKeyRequestGracePeriod)
+				execErr = s.confirmEnrollment(enrollmentCtx, req.Args[0])
+				enrollmentCancel()
+			}
 		}
 		// This connection never called StartSession (see
 		// commandsWithoutSession) - it must not survive to be reused by a
@@ -1428,11 +1463,24 @@ func main() {
 	go func() {
 		<-sigCh
 		keylog("session", "signal - shutting down")
-		s.mu.Lock()
-		s.stopPresenceLocked()
-		s.teardownLocked()
-		s.closeBluezLocked()
-		s.mu.Unlock()
+		// Never block the signal handler on s.mu: dispatch may hold it
+		// across a 90s enrollment check. Try briefly, then exit anyway —
+		// the OS reaps the child and the car times out the BLE link.
+		// serveConn's defer (conn.Close) still runs on exit paths.
+		done := make(chan struct{})
+		go func() {
+			s.mu.Lock()
+			s.stopPresenceLocked()
+			s.teardownLocked()
+			s.closeBluezLocked()
+			s.mu.Unlock()
+			close(done)
+		}()
+		select {
+		case <-done:
+		case <-time.After(2 * time.Second):
+			keylog("session", "signal teardown timed out - exiting anyway")
+		}
 		os.Exit(0)
 	}()
 

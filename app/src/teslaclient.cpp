@@ -4,6 +4,7 @@
 #include <QGuiApplication>
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QLocale>
 
 extern "C" {
 #include "electriceelcore.h"
@@ -83,6 +84,10 @@ void TeslaClient::deliverNotification(const QByteArray &json)
         emit shareFinished(id, ok, event.value("output").toString(), error);
     } else if (type == "status_refresh_requested") {
         emit statusRefreshRequested();
+    } else if (!type.isEmpty()) {
+        qWarning() << "TeslaClient: unknown notification type" << type;
+    } else {
+        qWarning() << "TeslaClient: notification without type" << json;
     }
 }
 
@@ -100,6 +105,11 @@ void TeslaClient::submit(const QJsonObject &request)
     else if (op == "preview_destination") emit destinationPreviewed(id, false, QString(), QString(), QString(), error);
     else if (op == "share_destination") emit shareFinished(id, false, QString(), error);
     else if (op == "run") emit commandError(id, error);
+    // get_config has no error signal: emit an empty config so QML leaves its
+    // busy state (empty VIN = "not configured", retry via pull-down Refresh)
+    // instead of spinning forever on a full queue.
+    else if (op == "get_config") { qWarning() << error << op; emit configLoaded(QString(), QString(), QString(), 0, 0, false, QString()); }
+    else if (op == "log_ui" || op == "application_state") { qWarning() << error << op; }
     else qWarning() << error << op;
 }
 
@@ -112,7 +122,19 @@ void TeslaClient::runCommand(const QString &requestId, const QString &cmd, const
                              bool refreshStatus)
 {
     QJsonArray values;
-    for (const QVariant &arg : args) values.append(arg.toString());
+    // Numbers must serialize with a C locale: QVariant::toString() follows
+    // the system locale (e.g. "48,8584" in Italian), which Go's ParseFloat
+    // rejects. Dialog values are already strings; this only guards direct
+    // numeric passes.
+    const QLocale cLocale = QLocale::c();
+    for (const QVariant &arg : args) {
+        if (arg.type() == QVariant::Double || arg.type() == QVariant::LongLong
+            || arg.type() == QVariant::Int || arg.type() == QVariant::UInt
+            || arg.type() == QVariant::ULongLong)
+            values.append(cLocale.toString(arg.toDouble(), 'g', 17));
+        else
+            values.append(arg.toString());
+    }
     submit({{"op", "run"}, {"request_id", requestId}, {"cmd", cmd}, {"args", values},
             {"refresh_status", refreshStatus}});
 }

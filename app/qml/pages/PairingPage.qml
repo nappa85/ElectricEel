@@ -10,6 +10,8 @@ Page {
     property bool pairing: false
     property string pairStatus: ""
     property string keysListOutput: ""
+    property string vin: ""
+    property bool hasVin: false
     // False until the first GetConfig reply lands (onConfigLoaded below).
     // Gates the Generate Key button: clicking it before the load finished
     // would run with no knowledge of an already-enrolled key.
@@ -36,7 +38,9 @@ Page {
         onCommandFinished: {
             if (requestId !== page.pendingListKeysId)
                 return
-            page.keysListOutput = ok ? stdOut : stdErr
+            page.keysListOutput = ok
+                ? (stdOut.length > 0 ? stdOut : qsTr("No keys listed"))
+                : stdErr
         }
         onCommandError: {
             if (requestId !== page.pendingListKeysId)
@@ -45,6 +49,8 @@ Page {
         }
         onConfigLoaded: {
             page.configReady = true
+            page.vin = vin
+            page.hasVin = vin.length > 0
             if (hasKey)
                 page.publicKeyPem = publicKeyPem
         }
@@ -135,7 +141,9 @@ Page {
             Button {
                 anchors.horizontalCenter: parent.horizontalCenter
                 text: page.pairing ? qsTr("Waiting for NFC tap...") : qsTr("Pair with Vehicle")
-                enabled: !page.pairing && page.publicKeyPem.length > 0
+                // VIN gate: pairing without a VIN can never succeed (the
+                // session needs it for the BLE handshake).
+                enabled: !page.pairing && page.publicKeyPem.length > 0 && page.hasVin
                 onClicked: {
                     page.pairing = true
                     page.pairStatus = qsTr("Requesting pairing over BLE - approve on the car's touchscreen / NFC card now.")
@@ -164,7 +172,7 @@ Page {
                 anchors.horizontalCenter: parent.horizontalCenter
                 text: qsTr("List Enrolled Keys")
                 onClicked: {
-                    page.pendingListKeysId = "list-keys#" + Date.now() + "@" + Math.random()
+                    page.pendingListKeysId = "list-keys#" + Date.now() + "-" + Math.floor(Math.random() * 1000000)
                     teslaClient.runCommand(page.pendingListKeysId, "list-keys", [])
                 }
             }

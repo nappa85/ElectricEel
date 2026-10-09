@@ -29,7 +29,33 @@ Dialog {
                 return
             }
         }
+        // Cross-field rule: schedule-remove TYPE=id requires a numeric ID.
+        // ID is optional in the catalog (omitted for home/work/other), so
+        // the loop above passes TYPE=id with ID=""; the backend would then
+        // reject ["id"] with "missing schedule ID" after a BLE round-trip.
+        for (var j = 0; j < commandDef.args.length; j++) {
+            if (commandDef.args[j].name === "TYPE"
+                    && commandDef.args[j].__value === "id") {
+                for (var k = 0; k < commandDef.args.length; k++) {
+                    if (commandDef.args[k].name === "ID"
+                            && (!commandDef.args[k].__value
+                                || commandDef.args[k].__value.length === 0)) {
+                        formValid = false
+                        return
+                    }
+                }
+            }
+        }
         formValid = true
+    }
+
+    // Decimals for a slider step so the label round-trips the sent value:
+    // step 0.5 -> 1 decimal, step 1e-6 -> 6 decimals. The old
+    // `step < 1 ? 1 : 0` showed 48.9 for a 48.8584 send.
+    function sliderDecimals(step) {
+        if (!step)
+            return 0
+        return Math.max(0, Math.ceil(-Math.log(step) / Math.LN10))
     }
 
     canAccept: dialog.formValid
@@ -164,7 +190,9 @@ Dialog {
                 maximumValue: argSpec ? argSpec.max : 100
                 stepSize: argSpec && argSpec.step ? argSpec.step : 1
                 value: argSpec && argSpec.def !== undefined ? argSpec.def : minimumValue
-                valueText: value.toFixed(argSpec && argSpec.step && argSpec.step < 1 ? 1 : 0)
+                // Decimals derive from the step so the label round-trips the
+                // sent value (see sliderDecimals above).
+                valueText: value.toFixed(dialog.sliderDecimals(argSpec ? argSpec.step : 0))
                 // sendSuffix is for values tesla-control wants glued directly to
                 // the number with no space (e.g. "21C", "600s") - distinct from
                 // `unit`, which is display-only text shown in the label (e.g.

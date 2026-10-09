@@ -24,15 +24,25 @@ struct Notifications(Mutex<Option<Observer>>);
 
 impl Notifications {
     fn send(&self, value: &Value) {
-        let guard = self
+        // Clone the observer under the lock, then invoke the callback with
+        // no lock held: the callback must never re-enter us (detach during
+        // delivery would deadlock on the same mutex).
+        let observer = self
             .0
             .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        if let Some(observer) = &*guard {
-            let data = CString::new(value.to_string()).expect("JSON escapes NULs");
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .as_ref()
+            .map(|o| (o.callback, o.context));
+        if let Some((callback, context)) = observer {
+            let Ok(data) = CString::new(value.to_string()) else {
+                return;
+            };
             // SAFETY: observer registration requires a live context until
-            // detachment returns. The mutex makes detachment a callback barrier.
-            unsafe { (observer.callback)(observer.context as *mut c_void, data.as_ptr()) };
+            // detachment returns. Detachment clears the slot; a detached
+            // context cannot be delivered after this clone only if detach
+            // happens-before, otherwise the UI guarantees liveness until
+            // detachment returns (see observe docs).
+            unsafe { callback(context as *mut c_void, data.as_ptr()) };
         }
     }
 }
@@ -122,7 +132,15 @@ impl Runtime {
                 context: context as usize,
             });
         if callback.is_some() {
-            let _ = self.requests.try_send(Request::Snapshot);
+            // Snapshot must never be silently dropped: without "initialized"
+            // the UI spinners never stop. try_send first (never block the UI
+            // thread on a full BLE queue); on Full, deliver "initialized"
+            // directly — the worker publishes phone_key_state on its next
+            // one-second poll.
+            if self.requests.try_send(Request::Snapshot).is_err() {
+                self.notifications
+                    .send(&json!({"type":"initialized", "ok":true}));
+            }
         }
     }
 }
@@ -406,9 +424,11 @@ mod tests {
     #[test]
     fn failed_start_is_retried_without_a_ui_poll() {
         let dir = tempfile::tempdir().unwrap();
-        let mut cfg = crate::config::Config::default();
-        cfg.vin = "5YJ3E1EA0PF000000".into();
-        cfg.vin_state = crate::config::VinState::Paired;
+        let cfg = crate::config::Config {
+            vin: "5YJ3E1EA0PF000000".into(),
+            vin_state: crate::config::VinState::Paired,
+            ..crate::config::Config::default()
+        };
         cfg.save(&dir.path().join("config.json")).unwrap();
         std::fs::write(dir.path().join("private_key.pem"), "private").unwrap();
         let state = dir.path().to_string_lossy().into_owned();

@@ -3,18 +3,18 @@
   <context>
     <name>ArgumentDialog</name>
     <message>
-      <location filename="../qml/pages/ArgumentDialog.qml" line="41" />
+      <location filename="../qml/pages/ArgumentDialog.qml" line="67" />
       <source>Run</source>
       <translation>Εκτέλεση</translation>
     </message>
     <message>
-      <location filename="../qml/pages/ArgumentDialog.qml" line="109" />
-      <location filename="../qml/pages/ArgumentDialog.qml" line="188" />
+      <location filename="../qml/pages/ArgumentDialog.qml" line="135" />
+      <location filename="../qml/pages/ArgumentDialog.qml" line="216" />
       <source> (optional)</source>
       <translation> (προαιρετικό)</translation>
     </message>
     <message>
-      <location filename="../qml/pages/ArgumentDialog.qml" line="113" />
+      <location filename="../qml/pages/ArgumentDialog.qml" line="139" />
       <source>(not set)</source>
       <translation>(δεν έχει οριστεί)</translation>
     </message>
@@ -67,7 +67,7 @@
       <translation>κωδικός εξόδου %1</translation>
     </message>
     <message>
-      <location filename="../qml/pages/CategoryPage.qml" line="174" />
+      <location filename="../qml/pages/CategoryPage.qml" line="177" />
       <source>Running %1...</source>
       <translation>Εκτέλεση %1...</translation>
     </message>
@@ -418,97 +418,108 @@
   <context>
     <name>FirstPage</name>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="268" />
+      <location filename="../qml/pages/FirstPage.qml" line="269" />
       <source>The control core failed to start. Reinstall the app, then pull down to refresh.</source>
       <translation>Ο πυρήνας ελέγχου απέτυχε να ξεκινήσει. Επανεγκαταστήστε την εφαρμογή και σύρετε προς τα κάτω για ανανέωση.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="270" />
+      <location filename="../qml/pages/FirstPage.qml" line="271" />
       <source>The control core is too old to report its version. Reinstall the app (%1), then pull down to refresh.</source>
       <translation>Ο πυρήνας ελέγχου είναι πολύ παλιός για να αναφέρει έκδοση. Επανεγκαταστήστε την εφαρμογή (%1) και σύρετε προς τα κάτω για ανανέωση.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="271" />
+      <location filename="../qml/pages/FirstPage.qml" line="272" />
       <source>Version mismatch: app %1, core %2. Reinstall the app, then pull down to refresh.</source>
       <translation>Ασυμφωνία εκδόσεων: εφαρμογή %1, πυρήνας %2. Επανεγκαταστήστε την εφαρμογή και σύρετε προς τα κάτω για ανανέωση.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="289" />
+      <location filename="../qml/pages/FirstPage.qml" line="62" />
+      <location filename="../qml/pages/FirstPage.qml" line="290" />
       <source>No VIN configured</source>
       <translation>Δεν έχει οριστεί VIN</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="293" />
+      <location filename="../qml/pages/FirstPage.qml" line="54" />
+      <source>Control helper unavailable</source>
+      <translation type="unfinished" />
+    </message>
+    <message>
+      <location filename="../qml/pages/FirstPage.qml" line="58" />
+      <source>No key: generate and pair a key first</source>
+      <translation type="unfinished" />
+    </message>
+    <message>
+      <location filename="../qml/pages/FirstPage.qml" line="294" />
       <source>Key ready</source>
       <translation>Το κλειδί είναι έτοιμο</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="293" />
+      <location filename="../qml/pages/FirstPage.qml" line="294" />
       <source>No key - tap for Settings / Pairing</source>
       <translation>Χωρίς κλειδί - πατήστε για Ρυθμίσεις / Σύζευξη</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="347" />
+      <location filename="../qml/pages/FirstPage.qml" line="348" />
       <source> • charging</source>
       <translation> • φορτίζει</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="356" />
+      <location filename="../qml/pages/FirstPage.qml" line="357" />
       <source>• %1°C</source>
       <translation>• %1 °C</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="381" />
+      <location filename="../qml/pages/FirstPage.qml" line="382" />
       <source>Updating...</source>
       <translation>Ενημέρωση...</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="383" />
+      <location filename="../qml/pages/FirstPage.qml" line="384" />
       <source>Status unavailable (%1). Vehicle may be asleep - try Wake Vehicle (Attention), then Refresh Status.</source>
       <translation>Η κατάσταση δεν είναι διαθέσιμη (%1). Το όχημα ίσως κοιμάται - δοκιμάστε Αφύπνιση οχήματος (Προσοχή) και μετά Ανανέωση κατάστασης.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="385" />
+      <location filename="../qml/pages/FirstPage.qml" line="386" />
       <source>Pull down to refresh status</source>
       <translation>Σύρετε προς τα κάτω για ανανέωση κατάστασης</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="387" />
+      <location filename="../qml/pages/FirstPage.qml" line="388" />
       <source>Updated just now</source>
       <translation>Ενημερώθηκε μόλις</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="388" />
+      <location filename="../qml/pages/FirstPage.qml" line="389" />
       <source>Updated %1m ago</source>
       <translation>Ενημερώθηκε πριν %1 λεπ.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="481" />
+      <location filename="../qml/pages/FirstPage.qml" line="482" />
       <source>Categories</source>
       <translation>Κατηγορίες</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="530" />
+      <location filename="../qml/pages/FirstPage.qml" line="531" />
       <source>Send Destination</source>
       <translation>Αποστολή προορισμού</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="534" />
+      <location filename="../qml/pages/FirstPage.qml" line="535" />
       <source>Pair Vehicle</source>
       <translation>Σύζευξη οχήματος</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="538" />
+      <location filename="../qml/pages/FirstPage.qml" line="539" />
       <source>Settings</source>
       <translation>Ρυθμίσεις</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="542" />
+      <location filename="../qml/pages/FirstPage.qml" line="543" />
       <source>Refresh</source>
       <translation>Ανανέωση</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="546" />
+      <location filename="../qml/pages/FirstPage.qml" line="547" />
       <source>Refresh Status</source>
       <translation>Ανανέωση κατάστασης</translation>
     </message>
@@ -516,72 +527,72 @@
   <context>
     <name>NavigationPage</name>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="35" />
+      <location filename="../qml/pages/NavigationPage.qml" line="46" />
       <source>Paste or type a destination first.</source>
       <translation>Επικολλήστε ή πληκτρολογήστε πρώτα έναν προορισμό.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="38" />
+      <location filename="../qml/pages/NavigationPage.qml" line="50" />
       <source>Checking...</source>
       <translation>Έλεγχος...</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="47" />
+      <location filename="../qml/pages/NavigationPage.qml" line="59" />
       <source>Nothing to send.</source>
       <translation>Τίποτα για αποστολή.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="63" />
+      <location filename="../qml/pages/NavigationPage.qml" line="76" />
       <source>Cannot use this: %1</source>
       <translation>Δεν μπορεί να χρησιμοποιηθεί: %1</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="67" />
+      <location filename="../qml/pages/NavigationPage.qml" line="80" />
       <source>Coordinates %1, %2 — navigation will start there.</source>
       <translation>Συντεταγμένες %1, %2 — η πλοήγηση θα ξεκινήσει εκεί.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="70" />
+      <location filename="../qml/pages/NavigationPage.qml" line="83" />
       <source>Address "%1" — the car will look it up.</source>
       <translation>Διεύθυνση «%1» — θα αναζητηθεί από το αυτοκίνητο.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="76" />
+      <location filename="../qml/pages/NavigationPage.qml" line="89" />
       <source>Send failed: %1</source>
       <translation>Η αποστολή απέτυχε: %1</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="96" />
+      <location filename="../qml/pages/NavigationPage.qml" line="109" />
       <source>Car Navigation</source>
       <translation>Πλοήγηση αυτοκινήτου</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="101" />
+      <location filename="../qml/pages/NavigationPage.qml" line="114" />
       <source>Destination</source>
       <translation>Προορισμός</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="102" />
+      <location filename="../qml/pages/NavigationPage.qml" line="115" />
       <source>Paste address, coordinates, or map link</source>
       <translation>Επικολλήστε διεύθυνση, συντεταγμένες ή σύνδεσμο χάρτη</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="110" />
+      <location filename="../qml/pages/NavigationPage.qml" line="123" />
       <source>Preview</source>
       <translation>Προεπισκόπηση</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="128" />
+      <location filename="../qml/pages/NavigationPage.qml" line="141" />
       <source>Send to Car</source>
       <translation>Αποστολή στο αυτοκίνητο</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="150" />
+      <location filename="../qml/pages/NavigationPage.qml" line="163" />
       <source>Notes</source>
       <translation>Σημειώσεις</translation>
     </message>
     <message>
-      <location filename="../qml/pages/NavigationPage.qml" line="159" />
+      <location filename="../qml/pages/NavigationPage.qml" line="172" />
       <source>This uses Bluetooth, like lock/unlock — the car must be in range, no internet needed on either side. Coordinates are sent exactly; addresses and links are looked up by the car itself, so unusual spellings may resolve differently than on your phone. From Android apps: copy the address or link, then paste it above.</source>
       <translation>Χρησιμοποιεί Bluetooth, όπως το κλείδωμα/ξεκλείδωμα — το αυτοκίνητο πρέπει να είναι εντός εμβέλειας, δεν χρειάζεται internet. Οι συντεταγμένες στέλνονται ακριβώς· διευθύνσεις και σύνδεσμοι αναζητούνται από το ίδιο το αυτοκίνητο, οπότε ασυνήθιστη ορθογραφία μπορεί να επιλυθεί διαφορετικά από ό,τι στο τηλέφωνο. Από εφαρμογές Android: αντιγράψτε τη διεύθυνση ή τον σύνδεσμο και επικολλήστε παραπάνω.</translation>
     </message>
@@ -589,72 +600,77 @@
   <context>
     <name>PairingPage</name>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="27" />
+      <location filename="../qml/pages/PairingPage.qml" line="29" />
       <source>Key generated. Tap "Pair with Vehicle", then tap your NFC card on the center console when prompted on the car's screen.</source>
       <translation>Το κλειδί δημιουργήθηκε. Πατήστε «Σύζευξη οχήματος» και ακουμπήστε την κάρτα NFC στην κεντρική κονσόλα όταν το ζητήσει η οθόνη του αυτοκινήτου.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="29" />
+      <location filename="../qml/pages/PairingPage.qml" line="31" />
       <source>Key generation failed: %1</source>
       <translation>Η δημιουργία κλειδιού απέτυχε: %1</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="34" />
+      <location filename="../qml/pages/PairingPage.qml" line="36" />
       <source>Paired.</source>
       <translation>Συζεύχθηκε.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="34" />
+      <location filename="../qml/pages/PairingPage.qml" line="36" />
       <source>Pairing failed: %1</source>
       <translation>Η σύζευξη απέτυχε: %1</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="64" />
+      <location filename="../qml/pages/PairingPage.qml" line="42" />
+      <source>No keys listed</source>
+      <translation type="unfinished" />
+    </message>
+    <message>
+      <location filename="../qml/pages/PairingPage.qml" line="70" />
       <source>Pairing &amp; Keys</source>
       <translation>Σύζευξη &amp; κλειδιά</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="71" />
+      <location filename="../qml/pages/PairingPage.qml" line="77" />
       <source>Set the VIN in Settings first. Then generate a key, then pair it with the car over BLE - you'll need to be next to the vehicle and tap the NFC card on the center console to approve.</source>
       <translation>Ορίστε πρώτα το VIN στις Ρυθμίσεις. Στη συνέχεια δημιουργήστε ένα κλειδί και συζεύξτε το με το αυτοκίνητο μέσω BLE - σταθείτε δίπλα στο όχημα και ακουμπήστε την κάρτα NFC στην κεντρική κονσόλα για έγκριση.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="83" />
+      <location filename="../qml/pages/PairingPage.qml" line="89" />
       <source>Phone key starting...</source>
       <translation>Το κλειδί τηλεφώνου εκκινεί...</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="111" />
+      <location filename="../qml/pages/PairingPage.qml" line="117" />
       <source>Generating...</source>
       <translation>Δημιουργία...</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="111" />
+      <location filename="../qml/pages/PairingPage.qml" line="117" />
       <source>Generate Key</source>
       <translation>Δημιουργία κλειδιού</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="137" />
+      <location filename="../qml/pages/PairingPage.qml" line="143" />
       <source>Waiting for NFC tap...</source>
       <translation>Αναμονή αφής NFC...</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="137" />
+      <location filename="../qml/pages/PairingPage.qml" line="143" />
       <source>Pair with Vehicle</source>
       <translation>Σύζευξη οχήματος</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="141" />
+      <location filename="../qml/pages/PairingPage.qml" line="149" />
       <source>Requesting pairing over BLE - approve on the car's touchscreen / NFC card now.</source>
       <translation>Ζητήθηκε σύζευξη BLE - εγκρίνετε στην οθόνη αφής / κάρτα NFC τώρα.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="161" />
+      <location filename="../qml/pages/PairingPage.qml" line="169" />
       <source>Enrolled Keys</source>
       <translation>Καταχωρημένα κλειδιά</translation>
     </message>
     <message>
-      <location filename="../qml/pages/PairingPage.qml" line="165" />
+      <location filename="../qml/pages/PairingPage.qml" line="173" />
       <source>List Enrolled Keys</source>
       <translation>Λίστα καταχωρημένων κλειδιών</translation>
     </message>
@@ -729,8 +745,8 @@
     <message>
       <location filename="../qml/pages/SettingsPage.qml" line="132" />
       <location filename="../qml/pages/SettingsPage.qml" line="142" />
-      <source> s</source>
-      <translation> δ</translation>
+      <source>%1 s</source>
+      <translation type="unfinished" />
     </message>
     <message>
       <location filename="../qml/pages/SettingsPage.qml" line="138" />
@@ -782,7 +798,7 @@
     </message>
     <message>
       <location filename="../qml/js/VehicleState.js" line="47" />
-      <location filename="../qml/js/VehicleState.js" line="69" />
+      <location filename="../qml/js/VehicleState.js" line="75" />
       <source>Model 3</source>
       <translation>Model 3</translation>
     </message>

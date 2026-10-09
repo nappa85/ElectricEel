@@ -132,8 +132,8 @@ CoverBackground {
 
         Item {
             width: parent.width
-            height: parent.height - statusSlot.height - actionRow.height
-                    - parent.spacing * (actionRow.visible ? 2 : 1)
+            height: Math.max(0, parent.height - statusSlot.height - actionRow.height
+                    - parent.spacing * (actionRow.visible ? 2 : 1))
 
             Image {
                 id: carImage

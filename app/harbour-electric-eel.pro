@@ -8,7 +8,7 @@ CONFIG += c++11
 # this (and helper/Cargo.toml) from the same git tag, so a matched pair
 # reports equal versions. Keep in sync with helper/Cargo.toml when bumping
 # outside a release.
-VERSION = 0.3.5
+VERSION = 0.3.6
 DEFINES += APP_VERSION=\\\"$$VERSION\\\"
 
 # In-process Rust control core (docs/architecture.md phase 4): the cbindgen

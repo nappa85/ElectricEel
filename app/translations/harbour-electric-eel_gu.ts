@@ -430,12 +430,12 @@
   <context>
     <name>CoverActions</name>
     <message>
-      <location filename="../qml/js/CoverActions.js" line="6" />
+      <location filename="../qml/js/CoverActions.js" line="7" />
       <source>Open rear trunk</source>
       <translation>પાછળની ડિકી ખોલો</translation>
     </message>
     <message>
-      <location filename="../qml/js/CoverActions.js" line="7" />
+      <location filename="../qml/js/CoverActions.js" line="6" />
       <source>Open front trunk</source>
       <translation>આગળની ડિકી ખોલો</translation>
     </message>
@@ -463,89 +463,89 @@
   <context>
     <name>FirstPage</name>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="59" />
-      <location filename="../qml/pages/FirstPage.qml" line="250" />
+      <location filename="../qml/pages/FirstPage.qml" line="60" />
+      <location filename="../qml/pages/FirstPage.qml" line="277" />
       <source>No VIN configured</source>
       <translation>VIN ગોઠવેલ નથી</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="55" />
+      <location filename="../qml/pages/FirstPage.qml" line="56" />
       <source>No key: generate and pair a key first</source>
       <translation>કોઈ કી નથી: પહેલાં કી બનાવો અને પેર કરો</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="254" />
+      <location filename="../qml/pages/FirstPage.qml" line="281" />
       <source>Key ready</source>
       <translation>ચાવી તૈયાર</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="254" />
+      <location filename="../qml/pages/FirstPage.qml" line="281" />
       <source>No key - tap for Settings / Pairing</source>
       <translation>ચાવી નથી - સેટિંગ્સ / જોડાણ માટે ટેપ કરો</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="308" />
+      <location filename="../qml/pages/FirstPage.qml" line="335" />
       <source> • charging</source>
       <translation> • ચાર્જ થઈ રહ્યું</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="317" />
+      <location filename="../qml/pages/FirstPage.qml" line="344" />
       <source>• %1°C</source>
       <translation>• %1 °C</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="342" />
+      <location filename="../qml/pages/FirstPage.qml" line="369" />
       <source>Updating...</source>
       <translation>અપડેટ થઈ રહ્યું...</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="344" />
+      <location filename="../qml/pages/FirstPage.qml" line="371" />
       <source>Status unavailable (%1). Vehicle may be asleep - try Wake Vehicle (Attention), then Refresh Status.</source>
       <translation>સ્થિતિ ઉપલબ્ધ નથી (%1). વાહન સૂતું હશે - વાહન જગાડો (ધ્યાન) અજમાવો, પછી સ્થિતિ રિફ્રેશ કરો.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="346" />
+      <location filename="../qml/pages/FirstPage.qml" line="373" />
       <source>Pull down to refresh status</source>
       <translation>સ્થિતિ રિફ્રેશ કરવા નીચે ખેંચો</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="348" />
+      <location filename="../qml/pages/FirstPage.qml" line="375" />
       <source>Updated just now</source>
       <translation>હમણાં અપડેટ થયું</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="349" />
+      <location filename="../qml/pages/FirstPage.qml" line="376" />
       <source>Updated %1m ago</source>
       <translation>%1 મિ પહેલા અપડેટ થયું</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="403" />
+      <location filename="../qml/pages/FirstPage.qml" line="430" />
       <source>Categories</source>
       <translation>શ્રેણીઓ</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="452" />
+      <location filename="../qml/pages/FirstPage.qml" line="479" />
       <source>Send Destination</source>
       <translation>ગંતવ્ય મોકલો</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="456" />
+      <location filename="../qml/pages/FirstPage.qml" line="483" />
       <source>Pair Vehicle</source>
       <translation>વાહન જોડો</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="460" />
+      <location filename="../qml/pages/FirstPage.qml" line="487" />
       <source>Settings</source>
       <translation>સેટિંગ્સ</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="464" />
-      <location filename="../qml/pages/SettingsPage.qml" line="204" />
+      <location filename="../qml/pages/FirstPage.qml" line="491" />
+      <location filename="../qml/pages/SettingsPage.qml" line="271" />
       <source>Refresh</source>
       <translation>રિફ્રેશ</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="468" />
+      <location filename="../qml/pages/FirstPage.qml" line="495" />
       <source>Refresh Status</source>
       <translation>સ્થિતિ રિફ્રેશ કરો</translation>
     </message>
@@ -724,150 +724,273 @@
   <context>
     <name>SettingsPage</name>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="10" />
+      <location filename="../qml/pages/SettingsPage.qml" line="11" />
       <source>Loading current configuration...</source>
       <translation>ગોઠવણી લોડ થઈ રહી...</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="56" />
+      <location filename="../qml/pages/SettingsPage.qml" line="99" />
       <source>Key on file</source>
       <translation>ચાવી છે</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="56" />
+      <location filename="../qml/pages/SettingsPage.qml" line="99" />
       <source>No key yet - use Pair Vehicle from the main menu</source>
       <translation>હજુ ચાવી નથી – મુખ્ય મેનૂમાંથી વાહન જોડો વાપરો</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="64" />
+      <location filename="../qml/pages/SettingsPage.qml" line="107" />
       <source>Saved</source>
       <translation>સેવ થયું</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="64" />
+      <location filename="../qml/pages/SettingsPage.qml" line="107" />
       <source>Save failed: %1</source>
       <translation>સેવ નિષ્ફળ: %1</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="81" />
+      <location filename="../qml/pages/SettingsPage.qml" line="133" />
+      <source>Done</source>
+      <translation>પૂર્ણ</translation>
+    </message>
+    <message>
+      <location filename="../qml/pages/SettingsPage.qml" line="143" />
       <source>Exported to %1. In Automagic, use States → Import to select this folder, then Reload Daemon.</source>
       <translation>%1 પર નિકાસ કર્યું. Automagic માં આ ફોલ્ડર પસંદ કરવા States → Import વાપરો, પછી Reload Daemon પસંદ કરો.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="82" />
+      <location filename="../qml/pages/SettingsPage.qml" line="144" />
       <source>Automagic export failed: %1</source>
       <translation>Automagic નિકાસ નિષ્ફળ: %1</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="97" />
+      <location filename="../qml/pages/SettingsPage.qml" line="164" />
       <source>Settings</source>
       <translation>સેટિંગ્સ</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="121" />
+      <location filename="../qml/pages/SettingsPage.qml" line="188" />
       <source>Vehicle VIN</source>
       <translation>વાહન VIN</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="126" />
+      <location filename="../qml/pages/SettingsPage.qml" line="193" />
       <source>17-character VIN</source>
       <translation>17-અક્ષર VIN</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="146" />
+      <location filename="../qml/pages/SettingsPage.qml" line="213" />
       <source>Front-page car model</source>
       <translation>પહેલા પેજ પર કાર મોડલ</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="147" />
+      <location filename="../qml/pages/SettingsPage.qml" line="214" />
       <source>Auto selects the model from the VIN</source>
       <translation>VIN પરથી મોડલ ઓટો પસંદ કરે</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="163" />
+      <location filename="../qml/pages/SettingsPage.qml" line="230" />
       <source>Key name</source>
       <translation>ચાવીનું નામ</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="164" />
+      <location filename="../qml/pages/SettingsPage.qml" line="231" />
       <source>harbour-electric-eel</source>
       <translation>harbour-electric-eel</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="174" />
+      <location filename="../qml/pages/SettingsPage.qml" line="241" />
       <source>Connect timeout</source>
       <translation>કનેક્ટ સમયમર્યાદા</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="181" />
-      <location filename="../qml/pages/SettingsPage.qml" line="195" />
+      <location filename="../qml/pages/SettingsPage.qml" line="248" />
+      <location filename="../qml/pages/SettingsPage.qml" line="262" />
       <source>%1 s</source>
       <translation>%1 સેકન્ડ</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="191" />
+      <location filename="../qml/pages/SettingsPage.qml" line="258" />
       <source>Command timeout</source>
       <translation>આદેશ સમયમર્યાદા</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="212" />
+      <location filename="../qml/pages/SettingsPage.qml" line="279" />
       <source>Cover actions</source>
       <translation>કવર ક્રિયાઓ</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="217" />
+      <location filename="../qml/pages/SettingsPage.qml" line="284" />
       <source>Left action</source>
       <translation>ડાબી ક્રિયા</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="235" />
+      <location filename="../qml/pages/SettingsPage.qml" line="302" />
       <source>Right action</source>
       <translation>જમણી ક્રિયા</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="250" />
+      <location filename="../qml/pages/SettingsPage.qml" line="317" />
+      <source>Car name</source>
+      <translation>ગાડીનું નામ</translation>
+    </message>
+    <message>
+      <location filename="../qml/pages/SettingsPage.qml" line="322" />
+      <source>Name shown in the car</source>
+      <translation>ગાડીમાં દેખાતું નામ</translation>
+    </message>
+    <message>
+      <location filename="../qml/pages/SettingsPage.qml" line="323" />
+      <source>Not read from the car yet</source>
+      <translation>હજુ ગાડીમાંથી વાંચ્યું નથી</translation>
+    </message>
+    <message>
+      <location filename="../qml/pages/SettingsPage.qml" line="335" />
+      <source>Read from car</source>
+      <translation>ગાડીમાંથી વાંચો</translation>
+    </message>
+    <message>
+      <location filename="../qml/pages/SettingsPage.qml" line="339" />
+      <source>Reading name...</source>
+      <translation>નામ વાંચી રહ્યા છીએ...</translation>
+    </message>
+    <message>
+      <location filename="../qml/pages/SettingsPage.qml" line="343" />
+      <source>Rename car</source>
+      <translation>ગાડીનું નામ બદલો</translation>
+    </message>
+    <message>
+      <location filename="../qml/pages/SettingsPage.qml" line="351" />
+      <source>Renaming car...</source>
+      <translation>ગાડીનું નામ બદલી રહ્યા છીએ...</translation>
+    </message>
+    <message>
+      <location filename="../qml/pages/SettingsPage.qml" line="364" />
+      <source>Read over Bluetooth while the car is awake. Renaming changes the name in the car and the Tesla app.</source>
+      <translation>ગાડી જાગૃત હોય ત્યારે Bluetooth દ્વારા વાંચવામાં આવે છે. નામ બદલવાથી ગાડીમાં અને Tesla ઍપમાં નામ બદલાય છે.</translation>
+    </message>
+    <message>
+      <location filename="../qml/pages/SettingsPage.qml" line="367" />
+      <source>Status notification</source>
+      <translation>સ્થિતિ સૂચના</translation>
+    </message>
+    <message>
+      <location filename="../qml/pages/SettingsPage.qml" line="371" />
+      <source>Show status notification</source>
+      <translation>સ્થિતિ સૂચના બતાવો</translation>
+    </message>
+    <message>
+      <location filename="../qml/pages/SettingsPage.qml" line="372" />
+      <source>A silent notification in the Events view with the connection, battery and charging state, plus quick actions. Available while ElectricEel is running.</source>
+      <translation>ઇવેન્ટ્સ વ્યૂમાં કનેક્શન, બેટરી અને ચાર્જિંગની સ્થિતિ સાથેની શાંત સૂચના, સાથે ઝડપી ક્રિયાઓ. ElectricEel ચાલુ હોય ત્યારે ઉપલબ્ધ.</translation>
+    </message>
+    <message>
+      <location filename="../qml/pages/SettingsPage.qml" line="382" />
+      <source>Quick action %1</source>
+      <translation>ઝડપી ક્રિયા %1</translation>
+    </message>
+    <message>
+      <location filename="../qml/pages/SettingsPage.qml" line="387" />
+      <source>None</source>
+      <translation>કોઈ નહીં</translation>
+    </message>
+    <message>
+      <location filename="../qml/pages/SettingsPage.qml" line="396" />
       <source>Automagic</source>
       <translation>Automagic</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="259" />
+      <location filename="../qml/pages/SettingsPage.qml" line="405" />
       <source>Export hotspot flows to Documents, then import them in Automagic. Automagic turns the hotspot on for presence_inside and off for presence_away_confirmed. ElectricEel emits the latter 3 minutes after presence_far unless presence_inside arrives first; repeated presence_far events do not restart the timer. ElectricEel must stay running.</source>
       <translation>હોટસ્પોટ ફ્લોને દસ્તાવેજોમાં નિકાસ કરો, પછી તેમને Automagic માં આયાત કરો. Automagic, presence_inside પર હોટસ્પોટ ચાલુ કરે છે અને presence_away_confirmed પર બંધ કરે છે. presence_inside પહેલાં ન આવે તો ElectricEel, presence_far ના 3 મિનિટ પછી બીજી ઘટના મોકલે છે; વારંવાર આવતી presence_far ઘટનાઓ ટાઇમર ફરી શરૂ કરતી નથી. ElectricEel ચાલુ રહેવું જોઈએ.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="264" />
+      <location filename="../qml/pages/SettingsPage.qml" line="410" />
       <source>Export Automagic flows</source>
       <translation>Automagic ફ્લો નિકાસ કરો</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="267" />
+      <location filename="../qml/pages/SettingsPage.qml" line="413" />
       <source>Exporting Automagic flows...</source>
       <translation>Automagic ફ્લો નિકાસ થઈ રહ્યા છે...</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="279" />
+      <location filename="../qml/pages/SettingsPage.qml" line="425" />
       <source>If you used Add Automagic flows in an earlier version, disable its old hotspot flows before importing this preset. Automagic lets you resolve matching IDs during import. Extra triggers are included for your own flows, such as launching an app.</source>
       <translation>જો તમે અગાઉના સંસ્કરણમાં Automagic ફ્લો ઉમેરો વાપર્યું હોય, તો આ પ્રીસેટ આયાત કરતાં પહેલાં તેના જૂના હોટસ્પોટ ફ્લો અક્ષમ કરો. Automagic આયાત દરમિયાન સમાન ID ના વિરોધાભાસ ઉકેલવા દે છે. તમારા પોતાના ફ્લો માટે વધારાના ટ્રિગર પણ સામેલ છે, જેમ કે ઍપ શરૂ કરવી.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="284" />
+      <location filename="../qml/pages/SettingsPage.qml" line="430" />
       <source>Save</source>
       <translation>સેવ કરો</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="298" />
+      <location filename="../qml/pages/SettingsPage.qml" line="444" />
       <source>Pairing &amp; Keys</source>
       <translation>જોડાણ અને ચાવીઓ</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="302" />
+      <location filename="../qml/pages/SettingsPage.qml" line="448" />
       <source>About</source>
       <translation>વિશે</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="311" />
+      <location filename="../qml/pages/SettingsPage.qml" line="457" />
       <source>App: ElectricEel %1   |   core: %2</source>
       <translation>એપ: ElectricEel %1   |   કોર: %2</translation>
+    </message>
+  </context>
+  <context>
+    <name>StatusNotification</name>
+    <message>
+      <location filename="../qml/StatusNotification.qml" line="46" />
+      <source>Connected</source>
+      <translation>કનેક્ટેડ</translation>
+    </message>
+    <message>
+      <location filename="../qml/StatusNotification.qml" line="47" />
+      <source>Not connected</source>
+      <translation>કનેક્ટેડ નથી</translation>
+    </message>
+    <message>
+      <location filename="../qml/StatusNotification.qml" line="48" />
+      <source>Bluetooth off</source>
+      <translation>Bluetooth બંધ</translation>
+    </message>
+    <message>
+      <location filename="../qml/StatusNotification.qml" line="49" />
+      <source>Not paired</source>
+      <translation>જોડાયેલ નથી</translation>
+    </message>
+    <message>
+      <location filename="../qml/StatusNotification.qml" line="50" />
+      <source>Charging</source>
+      <translation>ચાર્જિંગ</translation>
+    </message>
+    <message>
+      <location filename="../qml/StatusNotification.qml" line="51" />
+      <source>Locked</source>
+      <translation>લોક કરેલું</translation>
+    </message>
+    <message>
+      <location filename="../qml/StatusNotification.qml" line="52" />
+      <source>Unlocked</source>
+      <translation>અનલોક કરેલું</translation>
+    </message>
+    <message>
+      <location filename="../qml/StatusNotification.qml" line="79" />
+      <source>Open ElectricEel</source>
+      <translation>ElectricEel ખોલો</translation>
+    </message>
+    <message>
+      <location filename="../qml/StatusNotification.qml" line="107" />
+      <source>%1…</source>
+      <translation>%1…</translation>
+    </message>
+    <message>
+      <location filename="../qml/StatusNotification.qml" line="153" />
+      <source>%1 done</source>
+      <translation>%1 પૂર્ણ</translation>
     </message>
   </context>
   <context>

@@ -430,12 +430,12 @@
   <context>
     <name>CoverActions</name>
     <message>
-      <location filename="../qml/js/CoverActions.js" line="6" />
+      <location filename="../qml/js/CoverActions.js" line="7" />
       <source>Open rear trunk</source>
       <translation>Ouvrir le coffre arrière</translation>
     </message>
     <message>
-      <location filename="../qml/js/CoverActions.js" line="7" />
+      <location filename="../qml/js/CoverActions.js" line="6" />
       <source>Open front trunk</source>
       <translation>Ouvrir le coffre avant</translation>
     </message>
@@ -463,89 +463,89 @@
   <context>
     <name>FirstPage</name>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="59" />
-      <location filename="../qml/pages/FirstPage.qml" line="250" />
+      <location filename="../qml/pages/FirstPage.qml" line="60" />
+      <location filename="../qml/pages/FirstPage.qml" line="277" />
       <source>No VIN configured</source>
       <translation>Aucun VIN configuré</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="55" />
+      <location filename="../qml/pages/FirstPage.qml" line="56" />
       <source>No key: generate and pair a key first</source>
       <translation>Aucune clé : générez et associez d'abord une clé</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="254" />
+      <location filename="../qml/pages/FirstPage.qml" line="281" />
       <source>Key ready</source>
       <translation>Clé prête</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="254" />
+      <location filename="../qml/pages/FirstPage.qml" line="281" />
       <source>No key - tap for Settings / Pairing</source>
       <translation>Pas de clé - touchez pour Paramètres / Jumelage</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="308" />
+      <location filename="../qml/pages/FirstPage.qml" line="335" />
       <source> • charging</source>
       <translation> • en charge</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="317" />
+      <location filename="../qml/pages/FirstPage.qml" line="344" />
       <source>• %1°C</source>
       <translation>• %1 °C</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="342" />
+      <location filename="../qml/pages/FirstPage.qml" line="369" />
       <source>Updating...</source>
       <translation>Mise à jour...</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="344" />
+      <location filename="../qml/pages/FirstPage.qml" line="371" />
       <source>Status unavailable (%1). Vehicle may be asleep - try Wake Vehicle (Attention), then Refresh Status.</source>
       <translation>État indisponible (%1). Le véhicule dort peut-être - essayez Réveiller le véhicule (Attention), puis Actualiser l'état.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="346" />
+      <location filename="../qml/pages/FirstPage.qml" line="373" />
       <source>Pull down to refresh status</source>
       <translation>Tirez vers le bas pour actualiser l'état</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="348" />
+      <location filename="../qml/pages/FirstPage.qml" line="375" />
       <source>Updated just now</source>
       <translation>Mis à jour à l'instant</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="349" />
+      <location filename="../qml/pages/FirstPage.qml" line="376" />
       <source>Updated %1m ago</source>
       <translation>Mis à jour il y a %1 min</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="403" />
+      <location filename="../qml/pages/FirstPage.qml" line="430" />
       <source>Categories</source>
       <translation>Catégories</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="452" />
+      <location filename="../qml/pages/FirstPage.qml" line="479" />
       <source>Send Destination</source>
       <translation>Envoyer la destination</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="456" />
+      <location filename="../qml/pages/FirstPage.qml" line="483" />
       <source>Pair Vehicle</source>
       <translation>Jumeler le véhicule</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="460" />
+      <location filename="../qml/pages/FirstPage.qml" line="487" />
       <source>Settings</source>
       <translation>Paramètres</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="464" />
-      <location filename="../qml/pages/SettingsPage.qml" line="204" />
+      <location filename="../qml/pages/FirstPage.qml" line="491" />
+      <location filename="../qml/pages/SettingsPage.qml" line="271" />
       <source>Refresh</source>
       <translation>Actualiser</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="468" />
+      <location filename="../qml/pages/FirstPage.qml" line="495" />
       <source>Refresh Status</source>
       <translation>Actualiser l'état</translation>
     </message>
@@ -724,150 +724,273 @@
   <context>
     <name>SettingsPage</name>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="10" />
+      <location filename="../qml/pages/SettingsPage.qml" line="11" />
       <source>Loading current configuration...</source>
       <translation>Chargement de la configuration...</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="56" />
+      <location filename="../qml/pages/SettingsPage.qml" line="99" />
       <source>Key on file</source>
       <translation>Clé présente</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="56" />
+      <location filename="../qml/pages/SettingsPage.qml" line="99" />
       <source>No key yet - use Pair Vehicle from the main menu</source>
       <translation>Pas encore de clé - utilisez Jumeler le véhicule depuis le menu principal</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="64" />
+      <location filename="../qml/pages/SettingsPage.qml" line="107" />
       <source>Saved</source>
       <translation>Enregistré</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="64" />
+      <location filename="../qml/pages/SettingsPage.qml" line="107" />
       <source>Save failed: %1</source>
       <translation>Échec de l'enregistrement : %1</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="81" />
+      <location filename="../qml/pages/SettingsPage.qml" line="133" />
+      <source>Done</source>
+      <translation>Terminé</translation>
+    </message>
+    <message>
+      <location filename="../qml/pages/SettingsPage.qml" line="143" />
       <source>Exported to %1. In Automagic, use States → Import to select this folder, then Reload Daemon.</source>
       <translation>Exporté vers %1. Dans Automagic, utilisez States → Import pour sélectionner ce dossier, puis Reload Daemon.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="82" />
+      <location filename="../qml/pages/SettingsPage.qml" line="144" />
       <source>Automagic export failed: %1</source>
       <translation>Échec de l'exportation Automagic : %1</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="97" />
+      <location filename="../qml/pages/SettingsPage.qml" line="164" />
       <source>Settings</source>
       <translation>Paramètres</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="121" />
+      <location filename="../qml/pages/SettingsPage.qml" line="188" />
       <source>Vehicle VIN</source>
       <translation>VIN du véhicule</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="126" />
+      <location filename="../qml/pages/SettingsPage.qml" line="193" />
       <source>17-character VIN</source>
       <translation>VIN à 17 caractères</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="146" />
+      <location filename="../qml/pages/SettingsPage.qml" line="213" />
       <source>Front-page car model</source>
       <translation>Modèle sur la page d'accueil</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="147" />
+      <location filename="../qml/pages/SettingsPage.qml" line="214" />
       <source>Auto selects the model from the VIN</source>
       <translation>Auto sélectionne le modèle depuis le VIN</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="163" />
+      <location filename="../qml/pages/SettingsPage.qml" line="230" />
       <source>Key name</source>
       <translation>Nom de la clé</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="164" />
+      <location filename="../qml/pages/SettingsPage.qml" line="231" />
       <source>harbour-electric-eel</source>
       <translation>harbour-electric-eel</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="174" />
+      <location filename="../qml/pages/SettingsPage.qml" line="241" />
       <source>Connect timeout</source>
       <translation>Délai de connexion</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="181" />
-      <location filename="../qml/pages/SettingsPage.qml" line="195" />
+      <location filename="../qml/pages/SettingsPage.qml" line="248" />
+      <location filename="../qml/pages/SettingsPage.qml" line="262" />
       <source>%1 s</source>
       <translation>%1 s</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="191" />
+      <location filename="../qml/pages/SettingsPage.qml" line="258" />
       <source>Command timeout</source>
       <translation>Délai de commande</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="212" />
+      <location filename="../qml/pages/SettingsPage.qml" line="279" />
       <source>Cover actions</source>
       <translation>Actions de la couverture</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="217" />
+      <location filename="../qml/pages/SettingsPage.qml" line="284" />
       <source>Left action</source>
       <translation>Action de gauche</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="235" />
+      <location filename="../qml/pages/SettingsPage.qml" line="302" />
       <source>Right action</source>
       <translation>Action de droite</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="250" />
+      <location filename="../qml/pages/SettingsPage.qml" line="317" />
+      <source>Car name</source>
+      <translation>Nom de la voiture</translation>
+    </message>
+    <message>
+      <location filename="../qml/pages/SettingsPage.qml" line="322" />
+      <source>Name shown in the car</source>
+      <translation>Nom affiché dans la voiture</translation>
+    </message>
+    <message>
+      <location filename="../qml/pages/SettingsPage.qml" line="323" />
+      <source>Not read from the car yet</source>
+      <translation>Pas encore lu depuis la voiture</translation>
+    </message>
+    <message>
+      <location filename="../qml/pages/SettingsPage.qml" line="335" />
+      <source>Read from car</source>
+      <translation>Lire depuis la voiture</translation>
+    </message>
+    <message>
+      <location filename="../qml/pages/SettingsPage.qml" line="339" />
+      <source>Reading name...</source>
+      <translation>Lecture du nom...</translation>
+    </message>
+    <message>
+      <location filename="../qml/pages/SettingsPage.qml" line="343" />
+      <source>Rename car</source>
+      <translation>Renommer la voiture</translation>
+    </message>
+    <message>
+      <location filename="../qml/pages/SettingsPage.qml" line="351" />
+      <source>Renaming car...</source>
+      <translation>Renommage de la voiture...</translation>
+    </message>
+    <message>
+      <location filename="../qml/pages/SettingsPage.qml" line="364" />
+      <source>Read over Bluetooth while the car is awake. Renaming changes the name in the car and the Tesla app.</source>
+      <translation>Lu via Bluetooth lorsque la voiture est éveillée. Le renommage modifie le nom dans la voiture et dans l'application Tesla.</translation>
+    </message>
+    <message>
+      <location filename="../qml/pages/SettingsPage.qml" line="367" />
+      <source>Status notification</source>
+      <translation>Notification d'état</translation>
+    </message>
+    <message>
+      <location filename="../qml/pages/SettingsPage.qml" line="371" />
+      <source>Show status notification</source>
+      <translation>Afficher la notification d'état</translation>
+    </message>
+    <message>
+      <location filename="../qml/pages/SettingsPage.qml" line="372" />
+      <source>A silent notification in the Events view with the connection, battery and charging state, plus quick actions. Available while ElectricEel is running.</source>
+      <translation>Une notification silencieuse dans la vue Événements avec l'état de la connexion, de la batterie et de la recharge, ainsi que des actions rapides. Disponible tant qu'ElectricEel est en cours d'exécution.</translation>
+    </message>
+    <message>
+      <location filename="../qml/pages/SettingsPage.qml" line="382" />
+      <source>Quick action %1</source>
+      <translation>Action rapide %1</translation>
+    </message>
+    <message>
+      <location filename="../qml/pages/SettingsPage.qml" line="387" />
+      <source>None</source>
+      <translation>Aucune</translation>
+    </message>
+    <message>
+      <location filename="../qml/pages/SettingsPage.qml" line="396" />
       <source>Automagic</source>
       <translation>Automagic</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="259" />
+      <location filename="../qml/pages/SettingsPage.qml" line="405" />
       <source>Export hotspot flows to Documents, then import them in Automagic. Automagic turns the hotspot on for presence_inside and off for presence_away_confirmed. ElectricEel emits the latter 3 minutes after presence_far unless presence_inside arrives first; repeated presence_far events do not restart the timer. ElectricEel must stay running.</source>
       <translation>Exportez les flux du point d'accès vers Documents, puis importez-les dans Automagic. Automagic active le point d'accès pour presence_inside et le désactive pour presence_away_confirmed. ElectricEel émet ce dernier événement 3 minutes après presence_far, sauf si presence_inside arrive avant ; les événements presence_far répétés ne redémarrent pas le minuteur. ElectricEel doit rester en cours d'exécution.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="264" />
+      <location filename="../qml/pages/SettingsPage.qml" line="410" />
       <source>Export Automagic flows</source>
       <translation>Exporter les flux Automagic</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="267" />
+      <location filename="../qml/pages/SettingsPage.qml" line="413" />
       <source>Exporting Automagic flows...</source>
       <translation>Exportation des flux Automagic...</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="279" />
+      <location filename="../qml/pages/SettingsPage.qml" line="425" />
       <source>If you used Add Automagic flows in an earlier version, disable its old hotspot flows before importing this preset. Automagic lets you resolve matching IDs during import. Extra triggers are included for your own flows, such as launching an app.</source>
       <translation>Si vous avez utilisé Ajouter des flux Automagic dans une version antérieure, désactivez ses anciens flux de point d'accès avant d'importer cette configuration. Automagic permet de résoudre les conflits d'identifiants lors de l'importation. Des déclencheurs supplémentaires sont inclus pour vos propres flux, par exemple pour lancer une application.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="284" />
+      <location filename="../qml/pages/SettingsPage.qml" line="430" />
       <source>Save</source>
       <translation>Enregistrer</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="298" />
+      <location filename="../qml/pages/SettingsPage.qml" line="444" />
       <source>Pairing &amp; Keys</source>
       <translation>Jumelage et clés</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="302" />
+      <location filename="../qml/pages/SettingsPage.qml" line="448" />
       <source>About</source>
       <translation>À propos</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="311" />
+      <location filename="../qml/pages/SettingsPage.qml" line="457" />
       <source>App: ElectricEel %1   |   core: %2</source>
       <translation>Appli : ElectricEel %1   |   cœur : %2</translation>
+    </message>
+  </context>
+  <context>
+    <name>StatusNotification</name>
+    <message>
+      <location filename="../qml/StatusNotification.qml" line="46" />
+      <source>Connected</source>
+      <translation>Connecté</translation>
+    </message>
+    <message>
+      <location filename="../qml/StatusNotification.qml" line="47" />
+      <source>Not connected</source>
+      <translation>Non connecté</translation>
+    </message>
+    <message>
+      <location filename="../qml/StatusNotification.qml" line="48" />
+      <source>Bluetooth off</source>
+      <translation>Bluetooth désactivé</translation>
+    </message>
+    <message>
+      <location filename="../qml/StatusNotification.qml" line="49" />
+      <source>Not paired</source>
+      <translation>Non jumelé</translation>
+    </message>
+    <message>
+      <location filename="../qml/StatusNotification.qml" line="50" />
+      <source>Charging</source>
+      <translation>En charge</translation>
+    </message>
+    <message>
+      <location filename="../qml/StatusNotification.qml" line="51" />
+      <source>Locked</source>
+      <translation>Verrouillé</translation>
+    </message>
+    <message>
+      <location filename="../qml/StatusNotification.qml" line="52" />
+      <source>Unlocked</source>
+      <translation>Déverrouillé</translation>
+    </message>
+    <message>
+      <location filename="../qml/StatusNotification.qml" line="79" />
+      <source>Open ElectricEel</source>
+      <translation>Ouvrir ElectricEel</translation>
+    </message>
+    <message>
+      <location filename="../qml/StatusNotification.qml" line="107" />
+      <source>%1…</source>
+      <translation>%1…</translation>
+    </message>
+    <message>
+      <location filename="../qml/StatusNotification.qml" line="153" />
+      <source>%1 done</source>
+      <translation>%1 : terminé</translation>
     </message>
   </context>
   <context>

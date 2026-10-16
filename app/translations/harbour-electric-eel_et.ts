@@ -430,12 +430,12 @@
   <context>
     <name>CoverActions</name>
     <message>
-      <location filename="../qml/js/CoverActions.js" line="6" />
+      <location filename="../qml/js/CoverActions.js" line="7" />
       <source>Open rear trunk</source>
       <translation>Ava tagumine pakiruum</translation>
     </message>
     <message>
-      <location filename="../qml/js/CoverActions.js" line="7" />
+      <location filename="../qml/js/CoverActions.js" line="6" />
       <source>Open front trunk</source>
       <translation>Ava esimene pakiruum</translation>
     </message>
@@ -463,89 +463,89 @@
   <context>
     <name>FirstPage</name>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="59" />
-      <location filename="../qml/pages/FirstPage.qml" line="250" />
+      <location filename="../qml/pages/FirstPage.qml" line="60" />
+      <location filename="../qml/pages/FirstPage.qml" line="277" />
       <source>No VIN configured</source>
       <translation>VIN-i pole seadistatud</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="55" />
+      <location filename="../qml/pages/FirstPage.qml" line="56" />
       <source>No key: generate and pair a key first</source>
       <translation>Võti puudub: esmalt loo ja seo võti</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="254" />
+      <location filename="../qml/pages/FirstPage.qml" line="281" />
       <source>Key ready</source>
       <translation>Võti valmis</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="254" />
+      <location filename="../qml/pages/FirstPage.qml" line="281" />
       <source>No key - tap for Settings / Pairing</source>
       <translation>Võtit pole - puuduta Seaded / Sidumine</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="308" />
+      <location filename="../qml/pages/FirstPage.qml" line="335" />
       <source> • charging</source>
       <translation> • laeb</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="317" />
+      <location filename="../qml/pages/FirstPage.qml" line="344" />
       <source>• %1°C</source>
       <translation>• %1 °C</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="342" />
+      <location filename="../qml/pages/FirstPage.qml" line="369" />
       <source>Updating...</source>
       <translation>Värskendan...</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="344" />
+      <location filename="../qml/pages/FirstPage.qml" line="371" />
       <source>Status unavailable (%1). Vehicle may be asleep - try Wake Vehicle (Attention), then Refresh Status.</source>
       <translation>Olek pole saadaval (%1). Sõiduk võib magada - proovi Ärata sõiduk (Tähelepanu), seejärel Värskenda olekut.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="346" />
+      <location filename="../qml/pages/FirstPage.qml" line="373" />
       <source>Pull down to refresh status</source>
       <translation>Tõmba oleku värskendamiseks alla</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="348" />
+      <location filename="../qml/pages/FirstPage.qml" line="375" />
       <source>Updated just now</source>
       <translation>Värskendatud just</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="349" />
+      <location filename="../qml/pages/FirstPage.qml" line="376" />
       <source>Updated %1m ago</source>
       <translation>Värskendatud %1 min tagasi</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="403" />
+      <location filename="../qml/pages/FirstPage.qml" line="430" />
       <source>Categories</source>
       <translation>Kategooriad</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="452" />
+      <location filename="../qml/pages/FirstPage.qml" line="479" />
       <source>Send Destination</source>
       <translation>Saada sihtkoht</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="456" />
+      <location filename="../qml/pages/FirstPage.qml" line="483" />
       <source>Pair Vehicle</source>
       <translation>Seo sõiduk</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="460" />
+      <location filename="../qml/pages/FirstPage.qml" line="487" />
       <source>Settings</source>
       <translation>Seaded</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="464" />
-      <location filename="../qml/pages/SettingsPage.qml" line="204" />
+      <location filename="../qml/pages/FirstPage.qml" line="491" />
+      <location filename="../qml/pages/SettingsPage.qml" line="271" />
       <source>Refresh</source>
       <translation>Värskenda</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="468" />
+      <location filename="../qml/pages/FirstPage.qml" line="495" />
       <source>Refresh Status</source>
       <translation>Värskenda olekut</translation>
     </message>
@@ -724,150 +724,273 @@
   <context>
     <name>SettingsPage</name>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="10" />
+      <location filename="../qml/pages/SettingsPage.qml" line="11" />
       <source>Loading current configuration...</source>
       <translation>Laen konfiguratsiooni...</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="56" />
+      <location filename="../qml/pages/SettingsPage.qml" line="99" />
       <source>Key on file</source>
       <translation>Võti on olemas</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="56" />
+      <location filename="../qml/pages/SettingsPage.qml" line="99" />
       <source>No key yet - use Pair Vehicle from the main menu</source>
       <translation>Võtit veel pole - kasuta Seo sõiduk peamenüüs</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="64" />
+      <location filename="../qml/pages/SettingsPage.qml" line="107" />
       <source>Saved</source>
       <translation>Salvestatud</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="64" />
+      <location filename="../qml/pages/SettingsPage.qml" line="107" />
       <source>Save failed: %1</source>
       <translation>Salvestamine ebaõnnestus: %1</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="81" />
+      <location filename="../qml/pages/SettingsPage.qml" line="133" />
+      <source>Done</source>
+      <translation>Valmis</translation>
+    </message>
+    <message>
+      <location filename="../qml/pages/SettingsPage.qml" line="143" />
       <source>Exported to %1. In Automagic, use States → Import to select this folder, then Reload Daemon.</source>
       <translation>Eksporditud asukohta %1. Vali Automagicus see kaust menüüst States → Import ja seejärel Reload Daemon.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="82" />
+      <location filename="../qml/pages/SettingsPage.qml" line="144" />
       <source>Automagic export failed: %1</source>
       <translation>Automagicu eksport ebaõnnestus: %1</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="97" />
+      <location filename="../qml/pages/SettingsPage.qml" line="164" />
       <source>Settings</source>
       <translation>Seaded</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="121" />
+      <location filename="../qml/pages/SettingsPage.qml" line="188" />
       <source>Vehicle VIN</source>
       <translation>Sõiduki VIN</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="126" />
+      <location filename="../qml/pages/SettingsPage.qml" line="193" />
       <source>17-character VIN</source>
       <translation>17-märgiline VIN</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="146" />
+      <location filename="../qml/pages/SettingsPage.qml" line="213" />
       <source>Front-page car model</source>
       <translation>Automudel esilehel</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="147" />
+      <location filename="../qml/pages/SettingsPage.qml" line="214" />
       <source>Auto selects the model from the VIN</source>
       <translation>Auto valib mudeli VIN-i järgi</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="163" />
+      <location filename="../qml/pages/SettingsPage.qml" line="230" />
       <source>Key name</source>
       <translation>Võtme nimi</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="164" />
+      <location filename="../qml/pages/SettingsPage.qml" line="231" />
       <source>harbour-electric-eel</source>
       <translation>harbour-electric-eel</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="174" />
+      <location filename="../qml/pages/SettingsPage.qml" line="241" />
       <source>Connect timeout</source>
       <translation>Ühenduse timeout</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="181" />
-      <location filename="../qml/pages/SettingsPage.qml" line="195" />
+      <location filename="../qml/pages/SettingsPage.qml" line="248" />
+      <location filename="../qml/pages/SettingsPage.qml" line="262" />
       <source>%1 s</source>
       <translation>%1 s</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="191" />
+      <location filename="../qml/pages/SettingsPage.qml" line="258" />
       <source>Command timeout</source>
       <translation>Käsu timeout</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="212" />
+      <location filename="../qml/pages/SettingsPage.qml" line="279" />
       <source>Cover actions</source>
       <translation>Katte toimingud</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="217" />
+      <location filename="../qml/pages/SettingsPage.qml" line="284" />
       <source>Left action</source>
       <translation>Vasak toiming</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="235" />
+      <location filename="../qml/pages/SettingsPage.qml" line="302" />
       <source>Right action</source>
       <translation>Parem toiming</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="250" />
+      <location filename="../qml/pages/SettingsPage.qml" line="317" />
+      <source>Car name</source>
+      <translation>Auto nimi</translation>
+    </message>
+    <message>
+      <location filename="../qml/pages/SettingsPage.qml" line="322" />
+      <source>Name shown in the car</source>
+      <translation>Autos kuvatav nimi</translation>
+    </message>
+    <message>
+      <location filename="../qml/pages/SettingsPage.qml" line="323" />
+      <source>Not read from the car yet</source>
+      <translation>Autost veel lugemata</translation>
+    </message>
+    <message>
+      <location filename="../qml/pages/SettingsPage.qml" line="335" />
+      <source>Read from car</source>
+      <translation>Loe autost</translation>
+    </message>
+    <message>
+      <location filename="../qml/pages/SettingsPage.qml" line="339" />
+      <source>Reading name...</source>
+      <translation>Nime lugemine...</translation>
+    </message>
+    <message>
+      <location filename="../qml/pages/SettingsPage.qml" line="343" />
+      <source>Rename car</source>
+      <translation>Nimeta auto ümber</translation>
+    </message>
+    <message>
+      <location filename="../qml/pages/SettingsPage.qml" line="351" />
+      <source>Renaming car...</source>
+      <translation>Auto ümbernimetamine...</translation>
+    </message>
+    <message>
+      <location filename="../qml/pages/SettingsPage.qml" line="364" />
+      <source>Read over Bluetooth while the car is awake. Renaming changes the name in the car and the Tesla app.</source>
+      <translation>Loetakse Bluetoothi kaudu, kui auto on ärkvel. Ümbernimetamine muudab nime autos ja Tesla rakenduses.</translation>
+    </message>
+    <message>
+      <location filename="../qml/pages/SettingsPage.qml" line="367" />
+      <source>Status notification</source>
+      <translation>Oleku teavitus</translation>
+    </message>
+    <message>
+      <location filename="../qml/pages/SettingsPage.qml" line="371" />
+      <source>Show status notification</source>
+      <translation>Näita oleku teavitust</translation>
+    </message>
+    <message>
+      <location filename="../qml/pages/SettingsPage.qml" line="372" />
+      <source>A silent notification in the Events view with the connection, battery and charging state, plus quick actions. Available while ElectricEel is running.</source>
+      <translation>Vaikne teavitus sündmuste vaates ühenduse, aku ja laadimise olekuga ning kiirtoimingutega. Saadaval, kui ElectricEel töötab.</translation>
+    </message>
+    <message>
+      <location filename="../qml/pages/SettingsPage.qml" line="382" />
+      <source>Quick action %1</source>
+      <translation>Kiirtoiming %1</translation>
+    </message>
+    <message>
+      <location filename="../qml/pages/SettingsPage.qml" line="387" />
+      <source>None</source>
+      <translation>Puudub</translation>
+    </message>
+    <message>
+      <location filename="../qml/pages/SettingsPage.qml" line="396" />
       <source>Automagic</source>
       <translation>Automagic</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="259" />
+      <location filename="../qml/pages/SettingsPage.qml" line="405" />
       <source>Export hotspot flows to Documents, then import them in Automagic. Automagic turns the hotspot on for presence_inside and off for presence_away_confirmed. ElectricEel emits the latter 3 minutes after presence_far unless presence_inside arrives first; repeated presence_far events do not restart the timer. ElectricEel must stay running.</source>
       <translation>Ekspordi pääsupunkti töövood kausta Dokumendid ja impordi need seejärel Automagicusse. Automagic lülitab pääsupunkti sisse sündmusega presence_inside ja välja sündmusega presence_away_confirmed. ElectricEel väljastab viimase 3 minutit pärast sündmust presence_far, kui presence_inside ei saabu varem; korduvad presence_far-sündmused ei taaskäivita taimerit. ElectricEel peab jääma tööle.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="264" />
+      <location filename="../qml/pages/SettingsPage.qml" line="410" />
       <source>Export Automagic flows</source>
       <translation>Ekspordi Automagicu töövood</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="267" />
+      <location filename="../qml/pages/SettingsPage.qml" line="413" />
       <source>Exporting Automagic flows...</source>
       <translation>Automagicu töövoogude eksportimine...</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="279" />
+      <location filename="../qml/pages/SettingsPage.qml" line="425" />
       <source>If you used Add Automagic flows in an earlier version, disable its old hotspot flows before importing this preset. Automagic lets you resolve matching IDs during import. Extra triggers are included for your own flows, such as launching an app.</source>
       <translation>Kui kasutasid varasemas versioonis funktsiooni Lisa Automagicu töövood, keela selle vanad pääsupunkti töövood enne selle eelseadistuse importimist. Automagic võimaldab importimisel lahendada kattuvate ID-de konfliktid. Kaasas on lisapäästikud sinu enda töövoogude jaoks, näiteks rakenduse käivitamiseks.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="284" />
+      <location filename="../qml/pages/SettingsPage.qml" line="430" />
       <source>Save</source>
       <translation>Salvesta</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="298" />
+      <location filename="../qml/pages/SettingsPage.qml" line="444" />
       <source>Pairing &amp; Keys</source>
       <translation>Sidumine ja võtmed</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="302" />
+      <location filename="../qml/pages/SettingsPage.qml" line="448" />
       <source>About</source>
       <translation>Teave</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="311" />
+      <location filename="../qml/pages/SettingsPage.qml" line="457" />
       <source>App: ElectricEel %1   |   core: %2</source>
       <translation>Rakendus: ElectricEel %1   |   tuum: %2</translation>
+    </message>
+  </context>
+  <context>
+    <name>StatusNotification</name>
+    <message>
+      <location filename="../qml/StatusNotification.qml" line="46" />
+      <source>Connected</source>
+      <translation>Ühendatud</translation>
+    </message>
+    <message>
+      <location filename="../qml/StatusNotification.qml" line="47" />
+      <source>Not connected</source>
+      <translation>Pole ühendatud</translation>
+    </message>
+    <message>
+      <location filename="../qml/StatusNotification.qml" line="48" />
+      <source>Bluetooth off</source>
+      <translation>Bluetooth väljas</translation>
+    </message>
+    <message>
+      <location filename="../qml/StatusNotification.qml" line="49" />
+      <source>Not paired</source>
+      <translation>Pole seotud</translation>
+    </message>
+    <message>
+      <location filename="../qml/StatusNotification.qml" line="50" />
+      <source>Charging</source>
+      <translation>Laadimine</translation>
+    </message>
+    <message>
+      <location filename="../qml/StatusNotification.qml" line="51" />
+      <source>Locked</source>
+      <translation>Lukus</translation>
+    </message>
+    <message>
+      <location filename="../qml/StatusNotification.qml" line="52" />
+      <source>Unlocked</source>
+      <translation>Lukust lahti</translation>
+    </message>
+    <message>
+      <location filename="../qml/StatusNotification.qml" line="79" />
+      <source>Open ElectricEel</source>
+      <translation>Ava ElectricEel</translation>
+    </message>
+    <message>
+      <location filename="../qml/StatusNotification.qml" line="107" />
+      <source>%1…</source>
+      <translation>%1…</translation>
+    </message>
+    <message>
+      <location filename="../qml/StatusNotification.qml" line="153" />
+      <source>%1 done</source>
+      <translation>%1 tehtud</translation>
     </message>
   </context>
   <context>

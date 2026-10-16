@@ -430,12 +430,12 @@
   <context>
     <name>CoverActions</name>
     <message>
-      <location filename="../qml/js/CoverActions.js" line="6" />
+      <location filename="../qml/js/CoverActions.js" line="7" />
       <source>Open rear trunk</source>
       <translation>Öppna bakluckan</translation>
     </message>
     <message>
-      <location filename="../qml/js/CoverActions.js" line="7" />
+      <location filename="../qml/js/CoverActions.js" line="6" />
       <source>Open front trunk</source>
       <translation>Öppna frunken</translation>
     </message>
@@ -463,89 +463,89 @@
   <context>
     <name>FirstPage</name>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="59" />
-      <location filename="../qml/pages/FirstPage.qml" line="250" />
+      <location filename="../qml/pages/FirstPage.qml" line="60" />
+      <location filename="../qml/pages/FirstPage.qml" line="277" />
       <source>No VIN configured</source>
       <translation>Ingen VIN konfigurerad</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="55" />
+      <location filename="../qml/pages/FirstPage.qml" line="56" />
       <source>No key: generate and pair a key first</source>
       <translation>Ingen nyckel: Skapa och parkoppla först en nyckel</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="254" />
+      <location filename="../qml/pages/FirstPage.qml" line="281" />
       <source>Key ready</source>
       <translation>Nyckel klar</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="254" />
+      <location filename="../qml/pages/FirstPage.qml" line="281" />
       <source>No key - tap for Settings / Pairing</source>
       <translation>Ingen nyckel - tryck för Inställningar / Parkoppla</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="308" />
+      <location filename="../qml/pages/FirstPage.qml" line="335" />
       <source> • charging</source>
       <translation> • laddar</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="317" />
+      <location filename="../qml/pages/FirstPage.qml" line="344" />
       <source>• %1°C</source>
       <translation>• %1 °C</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="342" />
+      <location filename="../qml/pages/FirstPage.qml" line="369" />
       <source>Updating...</source>
       <translation>Uppdaterar...</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="344" />
+      <location filename="../qml/pages/FirstPage.qml" line="371" />
       <source>Status unavailable (%1). Vehicle may be asleep - try Wake Vehicle (Attention), then Refresh Status.</source>
       <translation>Status otillgänglig (%1). Fordonet sover kanske - prova Väck fordonet (Uppmärksamhet) och sedan Uppdatera status.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="346" />
+      <location filename="../qml/pages/FirstPage.qml" line="373" />
       <source>Pull down to refresh status</source>
       <translation>Dra nedåt för att uppdatera statusen</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="348" />
+      <location filename="../qml/pages/FirstPage.qml" line="375" />
       <source>Updated just now</source>
       <translation>Uppdaterad just nu</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="349" />
+      <location filename="../qml/pages/FirstPage.qml" line="376" />
       <source>Updated %1m ago</source>
       <translation>Uppdaterad för %1 min sedan</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="403" />
+      <location filename="../qml/pages/FirstPage.qml" line="430" />
       <source>Categories</source>
       <translation>Kategorier</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="452" />
+      <location filename="../qml/pages/FirstPage.qml" line="479" />
       <source>Send Destination</source>
       <translation>Skicka destination</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="456" />
+      <location filename="../qml/pages/FirstPage.qml" line="483" />
       <source>Pair Vehicle</source>
       <translation>Parkoppla fordon</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="460" />
+      <location filename="../qml/pages/FirstPage.qml" line="487" />
       <source>Settings</source>
       <translation>Inställningar</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="464" />
-      <location filename="../qml/pages/SettingsPage.qml" line="204" />
+      <location filename="../qml/pages/FirstPage.qml" line="491" />
+      <location filename="../qml/pages/SettingsPage.qml" line="271" />
       <source>Refresh</source>
       <translation>Uppdatera</translation>
     </message>
     <message>
-      <location filename="../qml/pages/FirstPage.qml" line="468" />
+      <location filename="../qml/pages/FirstPage.qml" line="495" />
       <source>Refresh Status</source>
       <translation>Uppdatera status</translation>
     </message>
@@ -724,150 +724,273 @@
   <context>
     <name>SettingsPage</name>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="10" />
+      <location filename="../qml/pages/SettingsPage.qml" line="11" />
       <source>Loading current configuration...</source>
       <translation>Läser in konfiguration...</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="56" />
+      <location filename="../qml/pages/SettingsPage.qml" line="99" />
       <source>Key on file</source>
       <translation>Nyckel finns</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="56" />
+      <location filename="../qml/pages/SettingsPage.qml" line="99" />
       <source>No key yet - use Pair Vehicle from the main menu</source>
       <translation>Ingen nyckel ännu - använd Parkoppla fordon i huvudmenyn</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="64" />
+      <location filename="../qml/pages/SettingsPage.qml" line="107" />
       <source>Saved</source>
       <translation>Sparad</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="64" />
+      <location filename="../qml/pages/SettingsPage.qml" line="107" />
       <source>Save failed: %1</source>
       <translation>Sparande misslyckades: %1</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="81" />
+      <location filename="../qml/pages/SettingsPage.qml" line="133" />
+      <source>Done</source>
+      <translation>Klart</translation>
+    </message>
+    <message>
+      <location filename="../qml/pages/SettingsPage.qml" line="143" />
       <source>Exported to %1. In Automagic, use States → Import to select this folder, then Reload Daemon.</source>
       <translation>Exporterat till %1. Använd States → Import i Automagic för att välja den här mappen och sedan Reload Daemon.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="82" />
+      <location filename="../qml/pages/SettingsPage.qml" line="144" />
       <source>Automagic export failed: %1</source>
       <translation>Automagic-exporten misslyckades: %1</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="97" />
+      <location filename="../qml/pages/SettingsPage.qml" line="164" />
       <source>Settings</source>
       <translation>Inställningar</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="121" />
+      <location filename="../qml/pages/SettingsPage.qml" line="188" />
       <source>Vehicle VIN</source>
       <translation>Fordonets VIN</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="126" />
+      <location filename="../qml/pages/SettingsPage.qml" line="193" />
       <source>17-character VIN</source>
       <translation>17-teckens VIN</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="146" />
+      <location filename="../qml/pages/SettingsPage.qml" line="213" />
       <source>Front-page car model</source>
       <translation>Bilmodell på förstasidan</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="147" />
+      <location filename="../qml/pages/SettingsPage.qml" line="214" />
       <source>Auto selects the model from the VIN</source>
       <translation>Auto väljer modellen från VIN</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="163" />
+      <location filename="../qml/pages/SettingsPage.qml" line="230" />
       <source>Key name</source>
       <translation>Nyckelnamn</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="164" />
+      <location filename="../qml/pages/SettingsPage.qml" line="231" />
       <source>harbour-electric-eel</source>
       <translation>harbour-electric-eel</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="174" />
+      <location filename="../qml/pages/SettingsPage.qml" line="241" />
       <source>Connect timeout</source>
       <translation>Anslutningstimeout</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="181" />
-      <location filename="../qml/pages/SettingsPage.qml" line="195" />
+      <location filename="../qml/pages/SettingsPage.qml" line="248" />
+      <location filename="../qml/pages/SettingsPage.qml" line="262" />
       <source>%1 s</source>
       <translation>%1 s</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="191" />
+      <location filename="../qml/pages/SettingsPage.qml" line="258" />
       <source>Command timeout</source>
       <translation>Kommandotimeout</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="212" />
+      <location filename="../qml/pages/SettingsPage.qml" line="279" />
       <source>Cover actions</source>
       <translation>Omslagsåtgärder</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="217" />
+      <location filename="../qml/pages/SettingsPage.qml" line="284" />
       <source>Left action</source>
       <translation>Vänster åtgärd</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="235" />
+      <location filename="../qml/pages/SettingsPage.qml" line="302" />
       <source>Right action</source>
       <translation>Höger åtgärd</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="250" />
+      <location filename="../qml/pages/SettingsPage.qml" line="317" />
+      <source>Car name</source>
+      <translation>Bilens namn</translation>
+    </message>
+    <message>
+      <location filename="../qml/pages/SettingsPage.qml" line="322" />
+      <source>Name shown in the car</source>
+      <translation>Namn som visas i bilen</translation>
+    </message>
+    <message>
+      <location filename="../qml/pages/SettingsPage.qml" line="323" />
+      <source>Not read from the car yet</source>
+      <translation>Ännu inte läst från bilen</translation>
+    </message>
+    <message>
+      <location filename="../qml/pages/SettingsPage.qml" line="335" />
+      <source>Read from car</source>
+      <translation>Läs från bilen</translation>
+    </message>
+    <message>
+      <location filename="../qml/pages/SettingsPage.qml" line="339" />
+      <source>Reading name...</source>
+      <translation>Läser namn...</translation>
+    </message>
+    <message>
+      <location filename="../qml/pages/SettingsPage.qml" line="343" />
+      <source>Rename car</source>
+      <translation>Byt namn på bilen</translation>
+    </message>
+    <message>
+      <location filename="../qml/pages/SettingsPage.qml" line="351" />
+      <source>Renaming car...</source>
+      <translation>Byter namn på bilen...</translation>
+    </message>
+    <message>
+      <location filename="../qml/pages/SettingsPage.qml" line="364" />
+      <source>Read over Bluetooth while the car is awake. Renaming changes the name in the car and the Tesla app.</source>
+      <translation>Läses via Bluetooth medan bilen är vaken. Namnbyte ändrar namnet i bilen och i Tesla-appen.</translation>
+    </message>
+    <message>
+      <location filename="../qml/pages/SettingsPage.qml" line="367" />
+      <source>Status notification</source>
+      <translation>Statusavisering</translation>
+    </message>
+    <message>
+      <location filename="../qml/pages/SettingsPage.qml" line="371" />
+      <source>Show status notification</source>
+      <translation>Visa statusavisering</translation>
+    </message>
+    <message>
+      <location filename="../qml/pages/SettingsPage.qml" line="372" />
+      <source>A silent notification in the Events view with the connection, battery and charging state, plus quick actions. Available while ElectricEel is running.</source>
+      <translation>En tyst avisering i Händelsevyn med anslutnings-, batteri- och laddningsstatus samt snabbåtgärder. Tillgänglig medan ElectricEel körs.</translation>
+    </message>
+    <message>
+      <location filename="../qml/pages/SettingsPage.qml" line="382" />
+      <source>Quick action %1</source>
+      <translation>Snabbåtgärd %1</translation>
+    </message>
+    <message>
+      <location filename="../qml/pages/SettingsPage.qml" line="387" />
+      <source>None</source>
+      <translation>Ingen</translation>
+    </message>
+    <message>
+      <location filename="../qml/pages/SettingsPage.qml" line="396" />
       <source>Automagic</source>
       <translation>Automagic</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="259" />
+      <location filename="../qml/pages/SettingsPage.qml" line="405" />
       <source>Export hotspot flows to Documents, then import them in Automagic. Automagic turns the hotspot on for presence_inside and off for presence_away_confirmed. ElectricEel emits the latter 3 minutes after presence_far unless presence_inside arrives first; repeated presence_far events do not restart the timer. ElectricEel must stay running.</source>
       <translation>Exportera hotspotflöden till Dokument och importera dem sedan i Automagic. Automagic aktiverar hotspoten vid presence_inside och stänger av den vid presence_away_confirmed. ElectricEel skickar den senare händelsen 3 minuter efter presence_far, om inte presence_inside kommer först; upprepade presence_far-händelser startar inte om timern. ElectricEel måste fortsätta köras.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="264" />
+      <location filename="../qml/pages/SettingsPage.qml" line="410" />
       <source>Export Automagic flows</source>
       <translation>Exportera Automagic-flöden</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="267" />
+      <location filename="../qml/pages/SettingsPage.qml" line="413" />
       <source>Exporting Automagic flows...</source>
       <translation>Exporterar Automagic-flöden...</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="279" />
+      <location filename="../qml/pages/SettingsPage.qml" line="425" />
       <source>If you used Add Automagic flows in an earlier version, disable its old hotspot flows before importing this preset. Automagic lets you resolve matching IDs during import. Extra triggers are included for your own flows, such as launching an app.</source>
       <translation>Om du använde Lägg till Automagic-flöden i en tidigare version ska du inaktivera de gamla hotspotflödena innan du importerar den här förinställningen. Automagic låter dig lösa konflikter mellan likadana ID:n vid importen. Extra utlösare för dina egna flöden, till exempel för att starta en app, ingår.</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="284" />
+      <location filename="../qml/pages/SettingsPage.qml" line="430" />
       <source>Save</source>
       <translation>Spara</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="298" />
+      <location filename="../qml/pages/SettingsPage.qml" line="444" />
       <source>Pairing &amp; Keys</source>
       <translation>Parkoppling &amp; nycklar</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="302" />
+      <location filename="../qml/pages/SettingsPage.qml" line="448" />
       <source>About</source>
       <translation>Om</translation>
     </message>
     <message>
-      <location filename="../qml/pages/SettingsPage.qml" line="311" />
+      <location filename="../qml/pages/SettingsPage.qml" line="457" />
       <source>App: ElectricEel %1   |   core: %2</source>
       <translation>App: ElectricEel %1   |   kärna: %2</translation>
+    </message>
+  </context>
+  <context>
+    <name>StatusNotification</name>
+    <message>
+      <location filename="../qml/StatusNotification.qml" line="46" />
+      <source>Connected</source>
+      <translation>Ansluten</translation>
+    </message>
+    <message>
+      <location filename="../qml/StatusNotification.qml" line="47" />
+      <source>Not connected</source>
+      <translation>Inte ansluten</translation>
+    </message>
+    <message>
+      <location filename="../qml/StatusNotification.qml" line="48" />
+      <source>Bluetooth off</source>
+      <translation>Bluetooth av</translation>
+    </message>
+    <message>
+      <location filename="../qml/StatusNotification.qml" line="49" />
+      <source>Not paired</source>
+      <translation>Inte parkopplad</translation>
+    </message>
+    <message>
+      <location filename="../qml/StatusNotification.qml" line="50" />
+      <source>Charging</source>
+      <translation>Laddar</translation>
+    </message>
+    <message>
+      <location filename="../qml/StatusNotification.qml" line="51" />
+      <source>Locked</source>
+      <translation>Låst</translation>
+    </message>
+    <message>
+      <location filename="../qml/StatusNotification.qml" line="52" />
+      <source>Unlocked</source>
+      <translation>Upplåst</translation>
+    </message>
+    <message>
+      <location filename="../qml/StatusNotification.qml" line="79" />
+      <source>Open ElectricEel</source>
+      <translation>Öppna ElectricEel</translation>
+    </message>
+    <message>
+      <location filename="../qml/StatusNotification.qml" line="107" />
+      <source>%1…</source>
+      <translation>%1…</translation>
+    </message>
+    <message>
+      <location filename="../qml/StatusNotification.qml" line="153" />
+      <source>%1 done</source>
+      <translation>%1 klart</translation>
     </message>
   </context>
   <context>

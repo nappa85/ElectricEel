@@ -319,6 +319,11 @@ pub(crate) fn parse(cmd: Command, args: &[String]) -> Result<Operation, String> 
             arity(args, 1, 1)?;
             vec![Value::Bytes(args[0].as_bytes().to_vec())]
         }
+        Command::SetVehicleName => {
+            arity(args, 1, 1)?;
+            let name = crate::config::validate_vehicle_name(&args[0])?;
+            vec![Value::Bytes(name.as_bytes().to_vec())]
+        }
         Command::ClimateSetTemp => {
             arity(args, 1, 1)?;
             vec![temperature(&args[0])?]

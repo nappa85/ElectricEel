@@ -127,7 +127,7 @@ jobs:
         run: |
           export PATH="$PATH:/usr/lib/qt5/bin:/usr/lib/x86_64-linux-gnu/qt5/bin"
           command -v qmllint
-          qmllint app/qml/harbour-electric-eel.qml app/qml/PhoneKeyEvents.qml app/qml/cover/*.qml app/qml/pages/*.qml
+          qmllint app/qml/harbour-electric-eel.qml app/qml/PhoneKeyEvents.qml app/qml/StatusNotification.qml app/qml/cover/*.qml app/qml/pages/*.qml
       - name: Qt command argument regression tests
         run: |
           g++ -std=c++11 -fPIC $(pkg-config --cflags Qt5Core) \

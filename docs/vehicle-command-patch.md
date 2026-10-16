@@ -34,6 +34,17 @@ ElectricEel additions on top (same "minimum copy" principle):
   BLE by their client). Hand-encoded with `protowire` (no protoc
   needed); byte-exact tests included. Field-106 and other Teslemetry
   extensions are NOT copied — nothing in this app needs them.
+- `pkg/vehicle/vehicle_name_ee.go` + `vehicle_name_ee_test.go` — reads the
+  owner-given vehicle name over BLE. The published `car_server.proto`
+  reserves/omits the needed `GetVehicleData` tags; Teslemetry's extended
+  protos define `getVehicleState = 18` (reply `VehicleData.vehicle_state`
+  = 18, `vehicle_name` = 118, current firmware) and
+  `getVehicleDetailState = 13` (reply tag 22, `vehicle_name` = 2), both
+  read over BLE by their python client. Requests are hand-encoded with
+  `protowire` and the reply walked field by field; tag 18 is tried first,
+  then 13. `navigation_ee.go`'s raw send now shares its
+  `rawCarServerResponse` helper. Renaming uses upstream's existing
+  `SetVehicleName` (`setVehicleNameAction = 54`).
 - `pkg/vehicle/vehicle.go` — `SessionInfo` closes its response receiver on
   every return path. Pairing polls session information while awaiting NFC
   approval, so retaining those dispatcher registrations would leak state.

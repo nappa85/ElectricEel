@@ -23,8 +23,8 @@ test("cover catalogue matches the Rust enum and all custom icons exist", () => {
         if (!action.icon.startsWith("image://"))
             assert.ok(fs.existsSync(path.resolve(__dirname, "../qml/cover", action.icon)));
     }
-    assert.equal(actions.action(null, 0).id, "trunk-open");
-    assert.equal(actions.action("unknown", 1).id, "frunk-open");
+    assert.equal(actions.action(null, 0).id, "frunk-open");
+    assert.equal(actions.action("unknown", 1).id, "trunk-open");
 });
 
 test("native cover actions use loaded choices and serialize commands while busy", () => {

@@ -154,8 +154,13 @@ void TeslaClient::applyConfig(const QJsonObject &event)
     const QString model = event.value("model").toString();
     const bool hasKey = event.value("has_key").toBool();
     const QString pem = hasKey ? event.value("pem").toString() : QString();
-    const QString left = event.value("cover_left_action").toString(QStringLiteral("trunk-open"));
-    const QString right = event.value("cover_right_action").toString(QStringLiteral("frunk-open"));
+    const QString left = event.value("cover_left_action").toString(QStringLiteral("frunk-open"));
+    const QString right = event.value("cover_right_action").toString(QStringLiteral("trunk-open"));
+    const QString vehicleName = event.value("vehicle_name").toString();
+    const bool notificationEnabled = event.value("notification_enabled").toBool();
+    QStringList notificationActions;
+    for (const QJsonValue &action : event.value("notification_actions").toArray())
+        notificationActions.append(action.toString());
     const bool vinChanged = m_vin != vin;
     const bool modelChanged = m_model != model;
     const bool hasKeyChanged = m_hasKey != hasKey;
@@ -163,6 +168,9 @@ void TeslaClient::applyConfig(const QJsonObject &event)
     const bool readyChanged = !m_configReady;
     const bool errorChanged = !m_configError.isEmpty();
     const bool coverChanged = m_coverLeftAction != left || m_coverRightAction != right;
+    const bool vehicleNameChanged = m_vehicleName != vehicleName;
+    const bool notificationChanged = m_notificationEnabled != notificationEnabled
+        || m_notificationActions != notificationActions;
     m_vin = vin;
     m_model = model;
     m_hasKey = hasKey;
@@ -171,11 +179,16 @@ void TeslaClient::applyConfig(const QJsonObject &event)
     m_configError.clear();
     m_coverLeftAction = left;
     m_coverRightAction = right;
+    m_vehicleName = vehicleName;
+    m_notificationEnabled = notificationEnabled;
+    m_notificationActions = notificationActions;
     if (vinChanged) emit this->vinChanged();
     if (modelChanged) emit this->modelChanged();
     if (hasKeyChanged) emit this->hasKeyChanged();
     if (pemChanged) emit publicKeyPemChanged();
     if (coverChanged) emit coverActionsChanged();
+    if (vehicleNameChanged) emit this->vehicleNameChanged();
+    if (notificationChanged) emit notificationSettingsChanged();
     if (errorChanged) emit configErrorChanged();
     if (readyChanged) emit configReadyChanged();
 }
@@ -216,6 +229,12 @@ void TeslaClient::setConfig(const QString &vin, const QString &model, const QStr
     submit({{"op", "set_config"}, {"vin", vin}, {"model", model}, {"key_name", keyName},
             {"connect_timeout_sec", connectTimeoutSec}, {"command_timeout_sec", commandTimeoutSec},
             {"cover_left_action", coverLeftAction}, {"cover_right_action", coverRightAction}});
+}
+
+void TeslaClient::setNotificationSettings(bool enabled, const QStringList &actions)
+{
+    submit({{"op", "set_notification"}, {"enabled", enabled},
+            {"actions", QJsonArray::fromStringList(actions)}});
 }
 
 void TeslaClient::refreshConfig() { submit({{"op", "get_config"}}); }

@@ -77,6 +77,8 @@ pub(crate) enum Command {
     PreconditionScheduleRemove,
     ProductInfo,
     State,
+    VehicleName,
+    SetVehicleName,
 }
 
 impl Command {

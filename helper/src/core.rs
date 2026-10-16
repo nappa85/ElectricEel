@@ -175,9 +175,34 @@ impl Core {
         } else {
             eprintln!("Core: run({cmd}, {args:?})");
         }
-        self.library()?
+        let result = self
+            .library()?
             .run(cmd, operation, &vin, &self.key_string(), connect, command)
-            .map_err(|e| HelperError::SessionUnavailable(format!("{cmd}: {e}")))
+            .map_err(|e| HelperError::SessionUnavailable(format!("{cmd}: {e}")));
+        if let Ok(outcome) = &result {
+            if outcome.ok {
+                match cmd {
+                    Command::VehicleName => self.remember_vehicle_name(&outcome.stdout),
+                    Command::SetVehicleName => self.remember_vehicle_name(&args[0]),
+                    _ => (),
+                }
+            }
+        }
+        // Failures reach the UI only as transient text; keep them in the
+        // phone-key log too. Never log arguments (PINs, coordinates).
+        match &result {
+            Ok(outcome) if !outcome.ok => crate::keylog::log(
+                "core",
+                &format!(
+                    "command {cmd} failed exit={}: {}",
+                    outcome.exit_code,
+                    outcome.stderr.trim()
+                ),
+            ),
+            Err(error) => crate::keylog::log("core", &format!("command failed: {error}")),
+            Ok(_) => (),
+        }
+        result
     }
 
     /// Creates (or, without `force`, reuses) the local private key and returns
@@ -538,6 +563,8 @@ impl Core {
         }
         if vin_changed {
             candidate.vin_state = VinState::Unpaired;
+            // A different car: its name has to be read again.
+            candidate.vehicle_name.clear();
         }
         // The gate serializes writers, so the save needs no cfg lock.
         candidate
@@ -646,12 +673,61 @@ impl Core {
         )
     }
 
+    /// Persists the status-notification settings alone; a cosmetic change
+    /// that never touches the phone-key session.
+    pub(crate) fn set_notification(
+        &self,
+        enabled: bool,
+        actions: &[CoverAction],
+    ) -> Result<(), OperationError> {
+        let _gate = lock(&self.phone_key_gate);
+        let mut candidate = lock(&self.cfg).clone();
+        candidate.notification_enabled = enabled;
+        candidate.notification_actions = crate::config::normalize_notification_actions(actions);
+        candidate
+            .save(&self.config_path())
+            .map_err(OperationError::Persist)?;
+        *lock(&self.cfg) = candidate;
+        Ok(())
+    }
+
+    /// Caches the car's own name in the config. Best effort: an unchanged
+    /// or invalid name, or a failed save, keeps the previous one.
+    fn remember_vehicle_name(&self, name: &str) {
+        let Ok(name) = crate::config::validate_vehicle_name(name) else {
+            return;
+        };
+        let _gate = lock(&self.phone_key_gate);
+        let mut candidate = lock(&self.cfg).clone();
+        if candidate.vehicle_name == name {
+            return;
+        }
+        candidate.vehicle_name = name.to_string();
+        match candidate.save(&self.config_path()) {
+            Ok(()) => *lock(&self.cfg) = candidate,
+            Err(error) => {
+                crate::keylog::log("core", &format!("vehicle name not saved: {error}"));
+            }
+        }
+    }
+
+    #[cfg(feature = "runtime")]
+    pub(crate) fn vehicle_name(&self) -> String {
+        lock(&self.cfg).vehicle_name.clone()
+    }
+
+    #[cfg(feature = "runtime")]
+    pub(crate) fn notification_settings(&self) -> (bool, Vec<CoverAction>) {
+        let cfg = lock(&self.cfg);
+        (cfg.notification_enabled, cfg.notification_actions.clone())
+    }
+
     #[cfg(feature = "runtime")]
     pub(crate) fn cover_actions(&self) -> (CoverAction, CoverAction) {
         let cfg = lock(&self.cfg);
         (
-            cfg.cover_left_action.unwrap_or(CoverAction::TrunkOpen),
-            cfg.cover_right_action.unwrap_or(CoverAction::FrunkOpen),
+            cfg.cover_left_action.unwrap_or(CoverAction::FrunkOpen),
+            cfg.cover_right_action.unwrap_or(CoverAction::TrunkOpen),
         )
     }
 }
@@ -696,6 +772,25 @@ mod tests {
         )
         .unwrap();
         Core::new(dir, Some(ProtocolClient::with_library(fake::library()))).unwrap()
+    }
+
+    #[test]
+    fn renaming_the_car_caches_the_trimmed_name_and_rejects_bad_names() {
+        let dir = tempfile::tempdir().unwrap();
+        let vin = "5YJ3E1EA0PF100009";
+        let core = fake_core(dir.path(), vin, VinState::Paired);
+        let outcome = core.run("set-vehicle-name", &["  Eel  ".into()]).unwrap();
+        assert!(outcome.ok, "{outcome:?}");
+        assert_eq!(core.cfg.lock().unwrap().vehicle_name, "Eel");
+        assert_eq!(
+            Config::load(&dir.path().join("config.json"))
+                .unwrap()
+                .vehicle_name,
+            "Eel"
+        );
+        // Invalid names never reach the car or the config.
+        assert!(core.run("set-vehicle-name", &["   ".into()]).is_err());
+        assert_eq!(core.cfg.lock().unwrap().vehicle_name, "Eel");
     }
 
     fn failing_watch(vin: &str) {

@@ -3,6 +3,7 @@
 
 #include <QElapsedTimer>
 #include <QObject>
+#include <QStringList>
 #include <QVariantList>
 #include <QJsonObject>
 
@@ -30,6 +31,10 @@ class TeslaClient : public QObject
     Q_PROPERTY(QString configError READ configError NOTIFY configErrorChanged)
     Q_PROPERTY(QString coverLeftAction READ coverLeftAction NOTIFY coverActionsChanged)
     Q_PROPERTY(QString coverRightAction READ coverRightAction NOTIFY coverActionsChanged)
+    // The car's own name as last read from / written to the vehicle.
+    Q_PROPERTY(QString vehicleName READ vehicleName NOTIFY vehicleNameChanged)
+    Q_PROPERTY(bool notificationEnabled READ notificationEnabled NOTIFY notificationSettingsChanged)
+    Q_PROPERTY(QStringList notificationActions READ notificationActions NOTIFY notificationSettingsChanged)
     Q_PROPERTY(QString phoneKeyStatus READ phoneKeyStatus NOTIFY phoneKeyStatusChanged)
     Q_PROPERTY(bool phoneKeyActive READ phoneKeyActive NOTIFY phoneKeyActiveChanged)
     Q_PROPERTY(QString phoneKeyLink READ phoneKeyLink NOTIFY phoneKeyLinkChanged)
@@ -49,6 +54,9 @@ public:
     QString configError() const { return m_configError; }
     QString coverLeftAction() const { return m_coverLeftAction; }
     QString coverRightAction() const { return m_coverRightAction; }
+    QString vehicleName() const { return m_vehicleName; }
+    bool notificationEnabled() const { return m_notificationEnabled; }
+    QStringList notificationActions() const { return m_notificationActions; }
     QString phoneKeyStatus() const;
     bool phoneKeyActive() const { return m_phoneKeyActive; }
     QString phoneKeyLink() const { return m_phoneKeyLink; }
@@ -67,6 +75,8 @@ public slots:
     void setConfig(const QString &vin, const QString &model, const QString &keyName,
                    int connectTimeoutSec, int commandTimeoutSec,
                    const QString &coverLeftAction, const QString &coverRightAction);
+    // Applies the status-notification settings immediately and on their own.
+    void setNotificationSettings(bool enabled, const QStringList &actions);
     void refreshConfig();
     void logPowerState(const QString &state);
     void exportAutomagicFlows();
@@ -90,6 +100,8 @@ signals:
     void configReadyChanged();
     void configErrorChanged();
     void coverActionsChanged();
+    void vehicleNameChanged();
+    void notificationSettingsChanged();
     void phoneKeyStatusChanged();
     void phoneKeyActiveChanged();
     void phoneKeyLinkChanged();
@@ -122,8 +134,11 @@ private:
     QString m_publicKeyPem;
     bool m_configReady = false;
     QString m_configError;
-    QString m_coverLeftAction = QStringLiteral("trunk-open");
-    QString m_coverRightAction = QStringLiteral("frunk-open");
+    QString m_coverLeftAction = QStringLiteral("frunk-open");
+    QString m_coverRightAction = QStringLiteral("trunk-open");
+    QString m_vehicleName;
+    bool m_notificationEnabled = false;
+    QStringList m_notificationActions = {QStringLiteral("lock"), QStringLiteral("unlock")};
     // Detects system suspend between application-state changes: the
     // monotonic clock stops during suspend while wall time keeps running.
     QElapsedTimer m_monotonic;

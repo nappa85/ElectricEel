@@ -2,6 +2,7 @@ import QtQuick 2.6
 import Sailfish.Silica 1.0
 import "../js/VehicleState.js" as VState
 import "../js/CoverActions.js" as CoverActions
+import "../js/CommandText.js" as CommandText
 
 Page {
     id: page
@@ -29,6 +30,48 @@ Page {
     property bool commandTimeoutDirty: false
     property bool coverLeftDirty: false
     property bool coverRightDirty: false
+    property bool vehicleNameDirty: false
+    // Read/rename requests for the car name, and their outcome.
+    property string nameRequestId: ""
+    property string nameStatus: ""
+    readonly property bool paired: teslaClient.hasKey && teslaClient.vin.length > 0
+
+    function loadNotificationSettings() {
+        var wasLoading = page.loadingConfig
+        page.loadingConfig = true
+        notificationSwitch.checked = teslaClient.notificationEnabled
+        var actions = teslaClient.notificationActions
+        for (var i = 0; i < notificationActionFields.count; i++) {
+            var field = notificationActionFields.itemAt(i)
+            if (field)
+                field.currentIndex = i < actions.length ? CoverActions.indexOf(actions[i], -1) + 1 : 0
+        }
+        page.loadingConfig = wasLoading
+    }
+
+    // Notification settings take effect at once, like any Sailfish switch;
+    // Rust echoes the saved state back through notificationSettingsChanged.
+    function applyNotificationSettings() {
+        if (page.loadingConfig)
+            return
+        teslaClient.setNotificationSettings(notificationSwitch.checked, page.chosenNotificationActions())
+    }
+
+    function chosenNotificationActions() {
+        var actions = []
+        for (var i = 0; i < notificationActionFields.count; i++) {
+            var field = notificationActionFields.itemAt(i)
+            if (field && field.currentIndex > 0)
+                actions.push(CoverActions.ACTIONS[field.currentIndex - 1].id)
+        }
+        return actions
+    }
+
+    function runNameCommand(cmd, args, pendingText) {
+        page.nameStatus = pendingText
+        page.nameRequestId = teslaClient.newRequestId("settings:" + cmd, teslaClient.vin)
+        teslaClient.runCommand(page.nameRequestId, cmd, args, false)
+    }
 
     Connections {
         target: teslaClient
@@ -76,6 +119,25 @@ Page {
             page.coverRightDirty = false
             teslaClient.refreshConfig()
         }
+        onVehicleNameChanged: {
+            if (!vehicleNameField.activeFocus) {
+                vehicleNameField.text = teslaClient.vehicleName
+                page.vehicleNameDirty = false
+            }
+        }
+        onNotificationSettingsChanged: page.loadNotificationSettings()
+        onCommandFinished: {
+            if (requestId !== page.nameRequestId)
+                return
+            page.nameRequestId = ""
+            page.nameStatus = ok ? qsTr("Done") : CommandText.failure(stdErr, exitCode)
+        }
+        onCommandError: {
+            if (requestId !== page.nameRequestId)
+                return
+            page.nameRequestId = ""
+            page.nameStatus = message
+        }
         onAutomagicExportFinished: {
             page.statusText = ok
                 ? qsTr("Exported to %1. In Automagic, use States → Import to select this folder, then Reload Daemon.").arg(path)
@@ -83,7 +145,12 @@ Page {
         }
     }
 
-    Component.onCompleted: teslaClient.refreshConfig()
+    Component.onCompleted: {
+        // TeslaClient already holds the last configuration: show it at once.
+        page.loadNotificationSettings()
+        vehicleNameField.text = teslaClient.vehicleName
+        teslaClient.refreshConfig()
+    }
 
     SilicaFlickable {
         anchors.fill: parent
@@ -243,6 +310,85 @@ Page {
                     Repeater {
                         model: CoverActions.ACTIONS
                         MenuItem { text: modelData.title }
+                    }
+                }
+            }
+
+            SectionHeader { text: qsTr("Car name") }
+
+            TextField {
+                id: vehicleNameField
+                width: parent.width
+                label: qsTr("Name shown in the car")
+                placeholderText: qsTr("Not read from the car yet")
+                enabled: page.configReady
+                EnterKey.iconSource: "image://theme/icon-m-enter-close"
+                EnterKey.onClicked: focus = false
+                onTextChanged: {
+                    if (!page.loadingConfig && activeFocus)
+                        page.vehicleNameDirty = true
+                }
+            }
+
+            ButtonLayout {
+                Button {
+                    text: qsTr("Read from car")
+                    enabled: page.paired && page.nameRequestId.length === 0
+                    onClicked: {
+                        page.vehicleNameDirty = false
+                        page.runNameCommand("vehicle-name", [], qsTr("Reading name..."))
+                    }
+                }
+                Button {
+                    text: qsTr("Rename car")
+                    enabled: page.paired && page.nameRequestId.length === 0
+                             && vehicleNameField.text.trim().length > 0
+                             && vehicleNameField.text.trim() !== teslaClient.vehicleName
+                    onClicked: {
+                        vehicleNameField.focus = false
+                        page.vehicleNameDirty = false
+                        page.runNameCommand("set-vehicle-name", [vehicleNameField.text.trim()],
+                                            qsTr("Renaming car..."))
+                    }
+                }
+            }
+
+            Label {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.margins: Theme.horizontalPageMargin
+                wrapMode: Text.Wrap
+                color: Theme.secondaryColor
+                font.pixelSize: Theme.fontSizeExtraSmall
+                text: page.nameStatus.length > 0 ? page.nameStatus
+                      : qsTr("Read over Bluetooth while the car is awake. Renaming changes the name in the car and the Tesla app.")
+            }
+
+            SectionHeader { text: qsTr("Status notification") }
+
+            TextSwitch {
+                id: notificationSwitch
+                text: qsTr("Show status notification")
+                description: qsTr("A silent notification in the Events view with the connection, battery and charging state, plus quick actions. Available while ElectricEel is running.")
+                enabled: page.configReady
+                onCheckedChanged: page.applyNotificationSettings()
+            }
+
+            Repeater {
+                id: notificationActionFields
+                model: 3
+                ComboBox {
+                    width: column.width
+                    label: qsTr("Quick action %1").arg(index + 1)
+                    currentIndex: 0
+                    enabled: page.configReady && notificationSwitch.checked
+                    onCurrentIndexChanged: page.applyNotificationSettings()
+                    menu: ContextMenu {
+                        MenuItem { text: qsTr("None") }
+                        Repeater {
+                            model: CoverActions.ACTIONS
+                            MenuItem { text: modelData.title }
+                        }
                     }
                 }
             }

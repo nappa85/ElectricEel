@@ -121,6 +121,12 @@ pub(crate) enum Request {
         cover_left_action: Option<crate::cover_action::CoverAction>,
         cover_right_action: Option<crate::cover_action::CoverAction>,
     },
+    /// Applies the status-notification settings on their own (Settings
+    /// switches take effect immediately, without the page's Save).
+    SetNotification {
+        enabled: bool,
+        actions: Vec<crate::cover_action::CoverAction>,
+    },
     GetConfig,
     ExportAutomagic {
         documents_dir: String,
@@ -775,13 +781,25 @@ fn dispatch(core: &Core, request: Request, sink: &Notifications, phone: &mut Pho
             args,
             ..
         } => match core.run(&cmd, &args) {
-            Ok(outcome) => sink.send(&Notification::CommandFinished {
-                request_id,
-                ok: outcome.ok,
-                stdout: outcome.stdout,
-                stderr: outcome.stderr,
-                exit_code: outcome.exit_code,
-            }),
+            Ok(outcome) => {
+                let renamed = outcome.ok
+                    && matches!(
+                        cmd.parse(),
+                        Ok(crate::commands::Command::VehicleName
+                            | crate::commands::Command::SetVehicleName)
+                    );
+                sink.send(&Notification::CommandFinished {
+                    request_id,
+                    ok: outcome.ok,
+                    stdout: outcome.stdout,
+                    stderr: outcome.stderr,
+                    exit_code: outcome.exit_code,
+                });
+                // The cached car name changed: push it to every view.
+                if renamed {
+                    dispatch(core, Request::GetConfig, sink, phone);
+                }
+            }
             Err(e) => sink.send(&Notification::CommandError {
                 request_id,
                 error: e.to_string(),
@@ -829,10 +847,18 @@ fn dispatch(core: &Core, request: Request, sink: &Notifications, phone: &mut Pho
                 phone.start(core, sink);
             }
         }
+        Request::SetNotification { enabled, actions } => {
+            if let Err(error) = core.set_notification(enabled, &actions) {
+                crate::keylog::log("core", &format!("notification settings not saved: {error}"));
+            }
+            // Success or not, show what is actually saved.
+            dispatch(core, Request::GetConfig, sink, phone);
+        }
         Request::GetConfig => {
             let (vin, model, key_name, connect_timeout_sec, command_timeout_sec, has_key, pem) =
                 core.get_config();
             let (cover_left_action, cover_right_action) = core.cover_actions();
+            let (notification_enabled, notification_actions) = core.notification_settings();
             sink.send(&Notification::ConfigLoaded {
                 vin,
                 model,
@@ -843,6 +869,9 @@ fn dispatch(core: &Core, request: Request, sink: &Notifications, phone: &mut Pho
                 pem,
                 cover_left_action,
                 cover_right_action,
+                vehicle_name: core.vehicle_name(),
+                notification_enabled,
+                notification_actions,
             });
         }
         Request::PreviewDestination { request_id, text } => {
@@ -930,6 +959,32 @@ mod tests {
             assert!(Instant::now() < deadline, "condition not reached");
             thread::sleep(Duration::from_millis(5));
         }
+    }
+
+    #[test]
+    fn set_notification_accepts_the_qt_client_payload_and_persists() {
+        // Exactly what TeslaClient::setNotificationSettings submits.
+        let request: Request = serde_json::from_str(
+            r#"{"op":"set_notification","enabled":true,"actions":["honk","lock","honk"]}"#,
+        )
+        .unwrap();
+        let Request::SetNotification { enabled, actions } = request else {
+            panic!("set_notification")
+        };
+        let dir = tempfile::tempdir().unwrap();
+        let core = Core::new(dir.path(), None).unwrap();
+        core.set_notification(enabled, &actions).unwrap();
+        let reloaded = Core::new(dir.path(), None).unwrap();
+        assert_eq!(
+            reloaded.notification_settings(),
+            (
+                true,
+                vec![
+                    crate::cover_action::CoverAction::Honk,
+                    crate::cover_action::CoverAction::Lock
+                ]
+            )
+        );
     }
 
     #[test]
@@ -1208,14 +1263,14 @@ mod tests {
             assert_eq!(
                 loaded["cover_left_action"],
                 if first_start {
-                    "trunk-open"
+                    "frunk-open"
                 } else {
                     "flash-lights"
                 }
             );
             assert_eq!(
                 loaded["cover_right_action"],
-                if first_start { "frunk-open" } else { "honk" }
+                if first_start { "trunk-open" } else { "honk" }
             );
             if first_start {
                 assert!(runtime.submit(r#"{"op":"set_config","vin":"","model":"","key_name":"phone","connect_timeout_sec":20,"command_timeout_sec":5,"cover_left_action":"flash-lights","cover_right_action":"honk"}"#));

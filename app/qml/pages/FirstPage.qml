@@ -12,6 +12,7 @@ Page {
     readonly property string vin: teslaClient ? teslaClient.vin : ""
     readonly property string model: teslaClient ? teslaClient.model : ""
     readonly property bool hasKey: teslaClient ? teslaClient.hasKey : false
+    readonly property string vehicleName: teslaClient ? teslaClient.vehicleName : ""
 
     // Live dashboard state. refreshStatus() runs VState.STATUS_LEGS in order
     // (body-controller-state over VCSEC, then the infotainment categories),
@@ -62,6 +63,21 @@ Page {
         page.statusError = ""
         var leg = VState.STATUS_LEGS[0]
         runStatus(leg.stage, leg.command, leg.args)
+    }
+
+    // The car's name rarely changes: read it once per run while unknown,
+    // after a refresh proved the infotainment link answers. Rust caches it.
+    property bool vehicleNameRequested: false
+    onStatusStageChanged: {
+        if (page.statusStage.length === 0 && !page.refreshPending)
+            page.readVehicleNameOnce()
+    }
+    function readVehicleNameOnce() {
+        if (page.vehicleNameRequested || page.statusError.length > 0
+                || !page.hasKey || page.vin.length === 0 || page.vehicleName.length > 0)
+            return
+        page.vehicleNameRequested = true
+        teslaClient.runCommand(teslaClient.newRequestId("name", page.vin), "vehicle-name", [], false)
     }
 
     function runStatus(stage, command, args, refresh) {
@@ -153,6 +169,7 @@ Page {
         page.statusStage = ""
         page.statusRequestId = ""
         page.statusError = ""
+        page.vehicleNameRequested = false
         page.refreshStatus()
     }
 
@@ -221,8 +238,16 @@ Page {
         anchors.fill: parent
         model: Catalog.CATEGORIES
 
+        // The header grows after the first layout (config, banners, status
+        // rows arrive asynchronously) and ListView keeps the first category
+        // in place, which would open the page scrolled past the header and
+        // the pull-down menu. Stay at the top until the user scrolls.
+        property bool userScrolled: false
+        onMovementStarted: userScrolled = true
+
         header: Column {
             width: listView.width
+            onHeightChanged: if (!listView.userScrolled) listView.positionViewAtBeginning()
 
             PageHeader {
                 title: "ElectricEel"
@@ -247,7 +272,9 @@ Page {
                     anchors.rightMargin: Theme.horizontalPageMargin
 
                     Label {
-                        text: page.vin.length > 0 ? page.vin : qsTr("No VIN configured")
+                        // The car's own name once read, else the VIN.
+                        text: page.vehicleName.length > 0 ? page.vehicleName
+                              : page.vin.length > 0 ? page.vin : qsTr("No VIN configured")
                         color: page.vin.length > 0 ? Theme.primaryColor : Theme.secondaryColor
                     }
                     Label {

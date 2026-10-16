@@ -34,11 +34,6 @@ import (
 	"math"
 
 	"google.golang.org/protobuf/encoding/protowire"
-	"google.golang.org/protobuf/proto"
-
-	"github.com/teslamotors/vehicle-command/pkg/protocol"
-	carserver "github.com/teslamotors/vehicle-command/pkg/protocol/protobuf/carserver"
-	universal "github.com/teslamotors/vehicle-command/pkg/protocol/protobuf/universalmessage"
 )
 
 // Remote-nav trip order, mirroring NavigationGpsRequest.RemoteNavTripOrder.
@@ -92,22 +87,8 @@ func encodeNavigationRequest(destination string) []byte {
 // executeRawCarServerAction is getCarServerResponse for pre-encoded
 // payloads: same infotainment-domain session send, same response check.
 func (v *Vehicle) executeRawCarServerAction(ctx context.Context, payload []byte) error {
-	responsePayload, err := v.Send(ctx, universal.Domain_DOMAIN_INFOTAINMENT, payload, v.authMethod)
-	if err != nil {
-		return err
-	}
-	var response carserver.Response
-	if err := proto.Unmarshal(responsePayload, &response); err != nil {
-		return &protocol.CommandError{Err: fmt.Errorf("unable to parse vehicle response: %w", err), PossibleSuccess: true, PossibleTemporary: false}
-	}
-	if response.GetActionStatus().GetResult() == carserver.OperationStatus_E_OPERATIONSTATUS_ERROR {
-		description := response.GetActionStatus().GetResultReason().GetPlainText()
-		if description == "" {
-			description = "unspecified error"
-		}
-		return &protocol.NominalError{Details: protocol.NewError("car could not execute command: "+description, false, false)}
-	}
-	return nil
+	_, err := v.rawCarServerResponse(ctx, payload)
+	return err
 }
 
 // NavigateToGPS starts navigation to exact coordinates over the live

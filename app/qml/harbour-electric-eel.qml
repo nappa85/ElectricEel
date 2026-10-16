@@ -18,6 +18,9 @@ ApplicationWindow
     // outer id gets shadowed by the not-yet-set property on the object
     // being constructed, silently binding it to itself (undefined).
     property var teslaClientInstance: electricEelClient
+    // The dashboard's latest vehicle telemetry, mirrored for the status
+    // notification (FirstPage owns the refresh chain).
+    property var vehicleStatus: null
     Connections {
         target: DisplayBlanking
         onStatusChanged: teslaClientInstance.logPowerState("display status=" + DisplayBlanking.status)
@@ -30,6 +33,12 @@ ApplicationWindow
     }
 
     PhoneKeyEvents { client: teslaClientInstance }
+
+    StatusNotification {
+        client: teslaClientInstance
+        vehicleStatus: appWindow.vehicleStatus
+        activateApp: function() { appWindow.activate() }
+    }
 
     // Single helper for both share entry points (ShareProvider and the
     // Browser-quirk DBusAdaptor): same resource priority (data, then
@@ -98,6 +107,7 @@ ApplicationWindow
     initialPage: Component {
         FirstPage {
             teslaClient: teslaClientInstance
+            onVehicleStatusChanged: appWindow.vehicleStatus = vehicleStatus
         }
     }
     cover: CoverDir.CoverPage {

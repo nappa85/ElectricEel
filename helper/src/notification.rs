@@ -75,6 +75,9 @@ pub(crate) enum Notification {
         pem: String,
         cover_left_action: crate::cover_action::CoverAction,
         cover_right_action: crate::cover_action::CoverAction,
+        vehicle_name: String,
+        notification_enabled: bool,
+        notification_actions: Vec<crate::cover_action::CoverAction>,
     },
     DestinationPreviewed {
         request_id: String,

@@ -1,5 +1,6 @@
 #include "../src/teslaclient.h"
 #include <QGuiApplication>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <cassert>
 
@@ -52,6 +53,10 @@ int main(int argc, char **argv)
     assert(submitted.value("op").toString() == "set_config");
     assert(submitted.value("cover_left_action").toString() == "flash-lights");
     assert(submitted.value("cover_right_action").toString() == "honk");
+    client.setNotificationSettings(true, {"lock", "honk"});
+    assert(submitted.value("op").toString() == "set_notification");
+    assert(submitted.value("enabled").toBool());
+    assert(submitted.value("actions").toArray() == QJsonArray({"lock", "honk"}));
 
     QString leftAction, rightAction;
     QObject::connect(&client, &TeslaClient::configLoaded,
@@ -60,7 +65,11 @@ int main(int argc, char **argv)
         leftAction = left;
         rightAction = right;
     });
-    const QByteArray notification = R"({"type":"config_loaded","cover_left_action":"flash-lights","cover_right_action":"honk"})";
+    int vehicleNameChanges = 0, notificationChanges = 0;
+    QObject::connect(&client, &TeslaClient::vehicleNameChanged, [&] { ++vehicleNameChanges; });
+    QObject::connect(&client, &TeslaClient::notificationSettingsChanged,
+                     [&] { ++notificationChanges; });
+    const QByteArray notification = R"({"type":"config_loaded","cover_left_action":"flash-lights","cover_right_action":"honk","vehicle_name":"Eel","notification_enabled":true,"notification_actions":["honk","lock"]})";
     const bool delivered = QMetaObject::invokeMethod(&client, "deliverNotification",
         Qt::DirectConnection, Q_ARG(QByteArray, notification));
     assert(delivered);
@@ -72,6 +81,9 @@ int main(int argc, char **argv)
     assert(client.configReady());
     assert(client.configError().isEmpty());
     assert(client.coverLeftAction() == "flash-lights");
+    assert(client.vehicleName() == "Eel" && vehicleNameChanges == 1);
+    assert(client.notificationEnabled() && notificationChanges == 1);
+    assert(client.notificationActions() == QStringList({"honk", "lock"}));
 
     int vinChanges = 0, keyChanges = 0, pemChanges = 0;
     QObject::connect(&client, &TeslaClient::vinChanged, [&] { ++vinChanges; });

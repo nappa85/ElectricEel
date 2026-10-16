@@ -7,12 +7,81 @@ use serde::{de, Deserialize, Deserializer, Serialize};
 #[serde(rename_all = "kebab-case")]
 #[strum(serialize_all = "kebab-case")]
 pub(crate) enum CoverAction {
-    TrunkOpen,
     FrunkOpen,
+    TrunkOpen,
     Lock,
     Unlock,
     FlashLights,
     Honk,
+}
+
+/// A list of actions where invalid entries are dropped; anything other than
+/// a list (or null) reads as absent.
+pub(crate) fn deserialize_list<'de, D>(
+    deserializer: D,
+) -> Result<Option<Vec<CoverAction>>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    struct Item(Option<CoverAction>);
+
+    impl<'de> Deserialize<'de> for Item {
+        fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+            deserialize_optional(deserializer).map(Item)
+        }
+    }
+
+    struct List;
+
+    impl<'de> de::Visitor<'de> for List {
+        type Value = Option<Vec<CoverAction>>;
+
+        fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+            formatter.write_str("a list of cover actions")
+        }
+
+        fn visit_seq<A: de::SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
+            let mut actions = Vec::new();
+            while let Some(Item(action)) = seq.next_element()? {
+                actions.extend(action);
+            }
+            Ok(Some(actions))
+        }
+
+        fn visit_unit<E: de::Error>(self) -> Result<Self::Value, E> {
+            Ok(None)
+        }
+
+        fn visit_bool<E: de::Error>(self, _: bool) -> Result<Self::Value, E> {
+            Ok(None)
+        }
+
+        fn visit_i64<E: de::Error>(self, _: i64) -> Result<Self::Value, E> {
+            Ok(None)
+        }
+
+        fn visit_u64<E: de::Error>(self, _: u64) -> Result<Self::Value, E> {
+            Ok(None)
+        }
+
+        fn visit_f64<E: de::Error>(self, _: f64) -> Result<Self::Value, E> {
+            Ok(None)
+        }
+
+        fn visit_str<E: de::Error>(self, _: &str) -> Result<Self::Value, E> {
+            Ok(None)
+        }
+
+        fn visit_map<A: de::MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
+            while map
+                .next_entry::<de::IgnoredAny, de::IgnoredAny>()?
+                .is_some()
+            {}
+            Ok(None)
+        }
+    }
+
+    deserializer.deserialize_any(List)
 }
 
 /// Parse strings directly from the deserializer's borrowed/transient buffer.

@@ -32,7 +32,12 @@ var commandNames = [...]string{
 	"autosecure-modelx", "session-info", "seat-heater", "steering-wheel-heater", "auto-seat-and-climate",
 	"windows-vent", "windows-close", "body-controller-state", "guest-mode-on", "guest-mode-off",
 	"erase-guest-data", "precondition-schedule-add", "precondition-schedule-remove", "product-info", "state",
+	"vehicle-name", "set-vehicle-name",
 }
+
+// Upper bound on a vehicle name accepted across the ABI (Rust enforces the
+// user-facing limit in characters).
+const maxVehicleNameBytes = 256
 
 // Types: i integer/enum, f finite float, b byte string. Rust handles defaults,
 // user parsing, schedule IDs and optional fields before crossing the ABI.
@@ -41,6 +46,7 @@ var commandSchema = [...]string{
 	"i", "i", "i", "i", "", "", "i", "", "iiiiiiffii", "ii", "f", "", "", "", "", "", "", "",
 	"i", "", "i", "", "", "", "", "", "", "", "", "", "", "", "bi", "ii", "i", "ii", "", "", "", "", "", "",
 	"iiiiffii", "ii", "", "i",
+	"", "b",
 }
 
 func validateCommand(req Request) (string, error) {
@@ -96,6 +102,8 @@ func validateCommand(req Request) (string, error) {
 		valid = i(0) <= 11
 	case "session-info":
 		valid = i(1) == 1 || i(1) == 2
+	case "set-vehicle-name":
+		valid = len(req.Values[0].Bytes) > 0 && len(req.Values[0].Bytes) <= maxVehicleNameBytes
 	case "add-key", "add-key-request":
 		_, role := keys.Role_name[int32(i(1))]
 		_, form := vcsec.KeyFormFactor_name[int32(i(2))]
@@ -318,6 +326,12 @@ func (t *Tesla) command(ctx context.Context, req Request) Result {
 		if err == nil {
 			payload, err = protojson.Marshal(state)
 		}
+	case "vehicle-name":
+		name, e := car.GetVehicleName(ctx)
+		err = e
+		payload = []byte(name)
+	case "set-vehicle-name":
+		err = car.SetVehicleName(ctx, string(b(0)))
 	default:
 		return Result{Status: Invalid, Error: "unsupported command"}
 	}

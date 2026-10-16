@@ -12,6 +12,38 @@ use tempfile::NamedTempFile;
 
 pub(crate) const MAX_TIMEOUT_SEC: i32 = 300;
 pub(crate) const MAX_KEY_NAME_LEN: usize = 64;
+/// Longest accepted vehicle name, in characters.
+pub(crate) const MAX_VEHICLE_NAME_LEN: usize = 64;
+/// Most quick actions the status notification offers.
+pub(crate) const MAX_NOTIFICATION_ACTIONS: usize = 3;
+/// Notification quick actions before the user chooses any.
+pub(crate) const DEFAULT_NOTIFICATION_ACTIONS: [CoverAction; 2] =
+    [CoverAction::Lock, CoverAction::Unlock];
+
+/// Keeps the first occurrence of each action, at most
+/// `MAX_NOTIFICATION_ACTIONS` of them.
+pub(crate) fn normalize_notification_actions(actions: &[CoverAction]) -> Vec<CoverAction> {
+    let mut unique = Vec::new();
+    for action in actions {
+        if !unique.contains(action) && unique.len() < MAX_NOTIFICATION_ACTIONS {
+            unique.push(*action);
+        }
+    }
+    unique
+}
+
+/// Trims a vehicle name and checks it is 1..=`MAX_VEHICLE_NAME_LEN`
+/// characters without control characters.
+pub(crate) fn validate_vehicle_name(name: &str) -> Result<&str, String> {
+    let name = name.trim();
+    if name.is_empty() || name.chars().count() > MAX_VEHICLE_NAME_LEN {
+        return Err(format!("name must be 1..{MAX_VEHICLE_NAME_LEN} characters"));
+    }
+    if name.chars().any(char::is_control) {
+        return Err("name must not contain control characters".into());
+    }
+    Ok(name)
+}
 
 /// The accepted values of Config.model. `Auto` ("") is "Auto (from VIN)":
 /// the QML client guesses the model from the VIN's WMI prefix and nothing is
@@ -183,6 +215,16 @@ pub(crate) struct Config {
     /// this field are migrated by `Core::new`.
     #[serde(default)]
     pub vin_state: VinState,
+    /// The name the owner gave the car, as last read from (or written to)
+    /// the vehicle. Empty until the car reported one.
+    #[serde(default)]
+    pub vehicle_name: String,
+    /// Whether the persistent status notification is shown.
+    #[serde(default)]
+    pub notification_enabled: bool,
+    /// Quick actions offered on the status notification, in order.
+    #[serde(default)]
+    pub notification_actions: Vec<CoverAction>,
 }
 
 impl Default for Config {
@@ -197,6 +239,9 @@ impl Default for Config {
             cover_left_action: None,
             cover_right_action: None,
             vin_state: VinState::Unpaired,
+            vehicle_name: String::new(),
+            notification_enabled: false,
+            notification_actions: DEFAULT_NOTIFICATION_ACTIONS.to_vec(),
         }
     }
 }
@@ -249,6 +294,12 @@ impl<'de> Deserialize<'de> for Config {
             vin_state: EnrollmentField<VinState>,
             #[serde(default, deserialize_with = "present_optional")]
             paired_vin: EnrollmentField<String>,
+            #[serde(default)]
+            vehicle_name: String,
+            #[serde(default)]
+            notification_enabled: bool,
+            #[serde(default, deserialize_with = "cover_action::deserialize_list")]
+            notification_actions: Option<Vec<CoverAction>>,
         }
 
         let raw = LegacyConfig::deserialize(deserializer)?;
@@ -277,6 +328,12 @@ impl<'de> Deserialize<'de> for Config {
             cover_left_action: raw.cover_left_action,
             cover_right_action: raw.cover_right_action,
             vin_state,
+            vehicle_name: raw.vehicle_name,
+            notification_enabled: raw.notification_enabled,
+            notification_actions: raw.notification_actions.map_or_else(
+                || DEFAULT_NOTIFICATION_ACTIONS.to_vec(),
+                |actions| normalize_notification_actions(&actions),
+            ),
         })
     }
 }
@@ -526,6 +583,36 @@ pub(crate) fn validate_config(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn notification_actions_load_leniently_and_default_when_absent() {
+        let base =
+            r#""vin":"","key_name":"phone","connect_timeout_sec":20,"command_timeout_sec":5"#;
+        let cfg: Config = serde_json::from_str(&format!("{{{base}}}")).unwrap();
+        assert!(!cfg.notification_enabled);
+        assert_eq!(cfg.notification_actions, DEFAULT_NOTIFICATION_ACTIONS);
+        assert_eq!(cfg.vehicle_name, "");
+        let cfg: Config = serde_json::from_str(&format!(
+            r#"{{{base},"notification_actions":["honk","bogus",7,"honk","lock","unlock","trunk-open"]}}"#
+        ))
+        .unwrap();
+        assert_eq!(
+            cfg.notification_actions,
+            [CoverAction::Honk, CoverAction::Lock, CoverAction::Unlock]
+        );
+        let cfg: Config =
+            serde_json::from_str(&format!(r#"{{{base},"notification_actions":"honk"}}"#)).unwrap();
+        assert_eq!(cfg.notification_actions, DEFAULT_NOTIFICATION_ACTIONS);
+    }
+
+    #[test]
+    fn vehicle_names_are_trimmed_and_bounded() {
+        assert_eq!(validate_vehicle_name("  Eel  "), Ok("Eel"));
+        assert!(validate_vehicle_name("   ").is_err());
+        assert!(validate_vehicle_name("a\nb").is_err());
+        assert!(validate_vehicle_name(&"é".repeat(MAX_VEHICLE_NAME_LEN)).is_ok());
+        assert!(validate_vehicle_name(&"é".repeat(MAX_VEHICLE_NAME_LEN + 1)).is_err());
+    }
 
     #[test]
     fn model_parses_case_insensitively_and_serializes_lowercase() {
@@ -800,11 +887,17 @@ mod tests {
             vin_state: VinState::Paired,
             cover_left_action: Some(CoverAction::FlashLights),
             cover_right_action: Some(CoverAction::Unlock),
+            vehicle_name: "Eel".to_string(),
+            notification_enabled: true,
+            notification_actions: vec![CoverAction::Honk, CoverAction::Lock],
         };
         cfg.save(&path).expect("save");
         let restored = Config::load(&path).unwrap();
         assert_eq!(restored.cover_left_action, cfg.cover_left_action);
         assert_eq!(restored.cover_right_action, cfg.cover_right_action);
+        assert_eq!(restored.vehicle_name, "Eel");
+        assert!(restored.notification_enabled);
+        assert_eq!(restored.notification_actions, cfg.notification_actions);
 
         let data = fs::read_to_string(&path).expect("config file not written");
         assert!(!data.is_empty(), "config file is empty");

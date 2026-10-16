@@ -1,6 +1,6 @@
 Name:       harbour-electric-eel
 Summary:    Control your Tesla over Bluetooth
-Version:    0.3.7
+Version:    0.3.8
 Release:    1
 License:    ASL 2.0
 URL:        https://github.com/nappa85/ElectricEel
@@ -53,6 +53,12 @@ desktop-file-install --delete-original \
 %{_datadir}/icons/hicolor/*/apps/%{name}.png
 
 %changelog
+* Fri Oct 16 2026 Marco Napetti <marco.napetti@proton.me> - 0.3.8-1
+- Read the car's name over Bluetooth, show it instead of the VIN and allow renaming it from Settings
+- Optional silent status notification with configurable quick actions
+- Cover defaults: front trunk left, rear trunk right
+- Open the dashboard scrolled to the top
+- Log command failures to the phone-key log
 * Fri Oct 16 2026 Marco Napetti <marco.napetti@proton.me> - 0.3.7-1
 - Fix phone-key proximity detection missing typical car approaches
 - Log presence events and near RSSI to the phone-key log

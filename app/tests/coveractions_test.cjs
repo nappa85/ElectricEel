@@ -3,7 +3,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
 const vm = require("node:vm");
-const { loadFunctions, runHandler } = require("./qml_helpers.cjs");
+const { loadFunctions, loadLibrary, runHandler } = require("./qml_helpers.cjs");
 
 function catalogue() {
     const context = vm.createContext({ qsTr: text => text });
@@ -39,23 +39,31 @@ test("native cover actions use loaded choices and serialize commands while busy"
         },
         ok: true,
     });
-    loadFunctions(source, ["runCoverCommand"], context);
+    context.TapConfirm = loadLibrary("TapConfirm.js");
+    context.armTimer = { restart() {}, stop() {} };
+    context.cover.armedAction = "";
+    loadFunctions(source, ["runCoverCommand", "tapCoverAction"], context);
     context.cover.runCoverCommand = context.runCoverCommand;
+    context.cover.tapCoverAction = context.tapCoverAction;
     // The cover binds its actions to TeslaClient's configuration properties.
     for (const side of ["leftAction", "rightAction"]) {
         const binding = source.match(new RegExp(`property string ${side}:\\s*([^\\n]+)`));
         assert.ok(binding, `${side} binding must be discoverable`);
         context.cover[side] = vm.runInContext(binding[1], context);
     }
-    const triggers = Array.from(source.matchAll(/onTriggered:\s*([^\n]+)/g), match => match[1]);
+    const triggers = Array.from(source.matchAll(/onTriggered:\s*(cover\.tapCoverAction[^\n]+)/g), match => match[1]);
     assert.equal(triggers.length, 2);
+    // Every quick action needs a confirming second tap.
+    const tapTwice = (trigger) => { vm.runInContext(trigger, context); vm.runInContext(trigger, context); };
     vm.runInContext(triggers[0], context);
-    vm.runInContext(triggers[1], context);
+    assert.equal(requests.length, 0, "a single tap only arms");
+    vm.runInContext(triggers[0], context);
+    tapTwice(triggers[1]);
     assert.equal(requests.length, 1);
     assert.equal(requests[0][1], "flash-lights");
     context.requestId = requests[0][0];
     runHandler(source, "onCommandFinished", context);
-    vm.runInContext(triggers[1], context);
+    tapTwice(triggers[1]);
     assert.equal(requests[1][1], "unlock");
 });
 

@@ -421,7 +421,7 @@
   <context>
     <name>ConfigErrorBanner</name>
     <message>
-      <location filename="../qml/cover/CoverPage.qml" line="134" />
+      <location filename="../qml/cover/CoverPage.qml" line="157" />
       <location filename="../qml/pages/ConfigErrorBanner.qml" line="22" />
       <source>Retry</source>
       <translation>மீண்டும் முயற்சிக்கவும்</translation>
@@ -458,6 +458,14 @@
       <location filename="../qml/js/CoverActions.js" line="11" />
       <source>Honk horn</source>
       <translation>ஒலிப்பான்</translation>
+    </message>
+  </context>
+  <context>
+    <name>CoverPage</name>
+    <message>
+      <location filename="../qml/cover/CoverPage.qml" line="255" />
+      <source>Tap again: %1</source>
+      <translation>மீண்டும் தட்டவும்: %1</translation>
     </message>
   </context>
   <context>
@@ -943,52 +951,52 @@
   <context>
     <name>StatusNotification</name>
     <message>
-      <location filename="../qml/StatusNotification.qml" line="46" />
+      <location filename="../qml/StatusNotification.qml" line="49" />
       <source>Connected</source>
       <translation>இணைக்கப்பட்டது</translation>
     </message>
     <message>
-      <location filename="../qml/StatusNotification.qml" line="47" />
+      <location filename="../qml/StatusNotification.qml" line="50" />
       <source>Not connected</source>
       <translation>இணைக்கப்படவில்லை</translation>
     </message>
     <message>
-      <location filename="../qml/StatusNotification.qml" line="48" />
+      <location filename="../qml/StatusNotification.qml" line="51" />
       <source>Bluetooth off</source>
       <translation>Bluetooth அணைக்கப்பட்டது</translation>
     </message>
     <message>
-      <location filename="../qml/StatusNotification.qml" line="49" />
+      <location filename="../qml/StatusNotification.qml" line="52" />
       <source>Not paired</source>
       <translation>இணைக்கப்படாதது</translation>
     </message>
     <message>
-      <location filename="../qml/StatusNotification.qml" line="50" />
+      <location filename="../qml/StatusNotification.qml" line="53" />
       <source>Charging</source>
       <translation>மின்னேற்றம்</translation>
     </message>
     <message>
-      <location filename="../qml/StatusNotification.qml" line="51" />
+      <location filename="../qml/StatusNotification.qml" line="54" />
       <source>Locked</source>
       <translation>பூட்டப்பட்டது</translation>
     </message>
     <message>
-      <location filename="../qml/StatusNotification.qml" line="52" />
+      <location filename="../qml/StatusNotification.qml" line="55" />
       <source>Unlocked</source>
       <translation>திறக்கப்பட்டது</translation>
     </message>
     <message>
-      <location filename="../qml/StatusNotification.qml" line="79" />
+      <location filename="../qml/StatusNotification.qml" line="82" />
       <source>Open ElectricEel</source>
       <translation>ElectricEel-ஐத் திற</translation>
     </message>
     <message>
-      <location filename="../qml/StatusNotification.qml" line="107" />
+      <location filename="../qml/StatusNotification.qml" line="113" />
       <source>%1…</source>
       <translation>%1…</translation>
     </message>
     <message>
-      <location filename="../qml/StatusNotification.qml" line="153" />
+      <location filename="../qml/StatusNotification.qml" line="161" />
       <source>%1 done</source>
       <translation>%1 முடிந்தது</translation>
     </message>

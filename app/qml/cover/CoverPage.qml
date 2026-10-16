@@ -5,6 +5,7 @@ import "../js/CommandText.js" as CommandText
 import "../js/VehicleState.js" as VState
 import "../js/PhoneKeyState.js" as PhoneKey
 import "../js/CoverActions.js" as CoverActions
+import "../js/TapConfirm.js" as TapConfirm
 
 CoverBackground {
     id: cover
@@ -21,6 +22,27 @@ CoverBackground {
     property string pendingAction: ""
     // Last cover command failure, shown until the next command.
     property string commandFailure: ""
+    // Action armed by a first tap; a second tap on it runs it.
+    property string armedAction: ""
+
+    function tapCoverAction(cmd) {
+        if (!cover.canCommand || cover.commandBusy)
+            return
+        var next = TapConfirm.tap(cover.armedAction, cmd)
+        cover.armedAction = next.armed
+        if (next.armed.length > 0)
+            armTimer.restart()
+        else
+            armTimer.stop()
+        if (next.run.length > 0)
+            cover.runCoverCommand(next.run)
+    }
+
+    Timer {
+        id: armTimer
+        interval: TapConfirm.ARM_MS
+        onTriggered: cover.armedAction = ""
+    }
 
     readonly property bool isPaired: cover.hasKey && cover.vin.length > 0
 
@@ -45,6 +67,7 @@ CoverBackground {
 
     // A pending reply belongs to the previous car.
     onVinChanged: {
+        cover.armedAction = ""
         cover.pendingCmd = ""
         cover.commandBusy = false
         cover.commandFailure = ""
@@ -75,12 +98,12 @@ CoverBackground {
 
         CoverAction {
             iconSource: Qt.resolvedUrl(CoverActions.action(cover.leftAction, 0).icon)
-            onTriggered: cover.runCoverCommand(cover.leftAction)
+            onTriggered: cover.tapCoverAction(cover.leftAction)
         }
 
         CoverAction {
             iconSource: Qt.resolvedUrl(CoverActions.action(cover.rightAction, 1).icon)
-            onTriggered: cover.runCoverCommand(cover.rightAction)
+            onTriggered: cover.tapCoverAction(cover.rightAction)
         }
     }
 
@@ -201,6 +224,36 @@ CoverBackground {
                 source: "file:///usr/share/icons/hicolor/128x128/apps/harbour-electric-eel.png"
                 visible: !cover.isPaired
             }
+        }
+    }
+
+    // Confirmation prompt while an action is armed: drawn over the car so
+    // the layout never moves, on the same dark disc style as the status
+    // badge so it reads against the watermark and any ambience.
+    Rectangle {
+        anchors.centerIn: parent
+        anchors.verticalCenterOffset: cover.canCommand ? -cover.coverActionArea.height / 2 : 0
+        width: parent.width - Theme.paddingMedium * 2
+        height: armedLabel.implicitHeight + Theme.paddingMedium * 2
+        radius: Theme.paddingMedium
+        color: Theme.rgba("#000000", 0.75)
+        visible: cover.armedAction.length > 0
+        z: 2
+
+        Label {
+            id: armedLabel
+            anchors.centerIn: parent
+            width: parent.width - Theme.paddingMedium * 2
+            horizontalAlignment: Text.AlignHCenter
+            wrapMode: Text.Wrap
+            maximumLineCount: 3
+            elide: Text.ElideRight
+            font.pixelSize: Theme.fontSizeSmall
+            font.bold: true
+            color: "#FFFFFF"
+            text: cover.armedAction.length > 0
+                  ? qsTr("Tap again: %1").arg(CoverActions.action(cover.armedAction, 0).title)
+                  : ""
         }
     }
 }

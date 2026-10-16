@@ -421,7 +421,7 @@
   <context>
     <name>ConfigErrorBanner</name>
     <message>
-      <location filename="../qml/cover/CoverPage.qml" line="134" />
+      <location filename="../qml/cover/CoverPage.qml" line="157" />
       <location filename="../qml/pages/ConfigErrorBanner.qml" line="22" />
       <source>Retry</source>
       <translation>重試</translation>
@@ -458,6 +458,14 @@
       <location filename="../qml/js/CoverActions.js" line="11" />
       <source>Honk horn</source>
       <translation>響按</translation>
+    </message>
+  </context>
+  <context>
+    <name>CoverPage</name>
+    <message>
+      <location filename="../qml/cover/CoverPage.qml" line="255" />
+      <source>Tap again: %1</source>
+      <translation>再撳一次：%1</translation>
     </message>
   </context>
   <context>
@@ -943,52 +951,52 @@
   <context>
     <name>StatusNotification</name>
     <message>
-      <location filename="../qml/StatusNotification.qml" line="46" />
+      <location filename="../qml/StatusNotification.qml" line="49" />
       <source>Connected</source>
       <translation>已連線</translation>
     </message>
     <message>
-      <location filename="../qml/StatusNotification.qml" line="47" />
+      <location filename="../qml/StatusNotification.qml" line="50" />
       <source>Not connected</source>
       <translation>未連線</translation>
     </message>
     <message>
-      <location filename="../qml/StatusNotification.qml" line="48" />
+      <location filename="../qml/StatusNotification.qml" line="51" />
       <source>Bluetooth off</source>
       <translation>藍牙已關</translation>
     </message>
     <message>
-      <location filename="../qml/StatusNotification.qml" line="49" />
+      <location filename="../qml/StatusNotification.qml" line="52" />
       <source>Not paired</source>
       <translation>未配對</translation>
     </message>
     <message>
-      <location filename="../qml/StatusNotification.qml" line="50" />
+      <location filename="../qml/StatusNotification.qml" line="53" />
       <source>Charging</source>
       <translation>充電緊</translation>
     </message>
     <message>
-      <location filename="../qml/StatusNotification.qml" line="51" />
+      <location filename="../qml/StatusNotification.qml" line="54" />
       <source>Locked</source>
       <translation>已鎖</translation>
     </message>
     <message>
-      <location filename="../qml/StatusNotification.qml" line="52" />
+      <location filename="../qml/StatusNotification.qml" line="55" />
       <source>Unlocked</source>
       <translation>已解鎖</translation>
     </message>
     <message>
-      <location filename="../qml/StatusNotification.qml" line="79" />
+      <location filename="../qml/StatusNotification.qml" line="82" />
       <source>Open ElectricEel</source>
       <translation>開 ElectricEel</translation>
     </message>
     <message>
-      <location filename="../qml/StatusNotification.qml" line="107" />
+      <location filename="../qml/StatusNotification.qml" line="113" />
       <source>%1…</source>
       <translation>%1…</translation>
     </message>
     <message>
-      <location filename="../qml/StatusNotification.qml" line="153" />
+      <location filename="../qml/StatusNotification.qml" line="161" />
       <source>%1 done</source>
       <translation>%1 完成</translation>
     </message>

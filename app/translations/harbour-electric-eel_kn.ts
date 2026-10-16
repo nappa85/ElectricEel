@@ -421,7 +421,7 @@
   <context>
     <name>ConfigErrorBanner</name>
     <message>
-      <location filename="../qml/cover/CoverPage.qml" line="134" />
+      <location filename="../qml/cover/CoverPage.qml" line="157" />
       <location filename="../qml/pages/ConfigErrorBanner.qml" line="22" />
       <source>Retry</source>
       <translation>ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ</translation>
@@ -458,6 +458,14 @@
       <location filename="../qml/js/CoverActions.js" line="11" />
       <source>Honk horn</source>
       <translation>ಹಾರ್ನ್</translation>
+    </message>
+  </context>
+  <context>
+    <name>CoverPage</name>
+    <message>
+      <location filename="../qml/cover/CoverPage.qml" line="255" />
+      <source>Tap again: %1</source>
+      <translation>ಮತ್ತೆ ಟ್ಯಾಪ್ ಮಾಡಿ: %1</translation>
     </message>
   </context>
   <context>
@@ -943,52 +951,52 @@
   <context>
     <name>StatusNotification</name>
     <message>
-      <location filename="../qml/StatusNotification.qml" line="46" />
+      <location filename="../qml/StatusNotification.qml" line="49" />
       <source>Connected</source>
       <translation>ಸಂಪರ್ಕಗೊಂಡಿದೆ</translation>
     </message>
     <message>
-      <location filename="../qml/StatusNotification.qml" line="47" />
+      <location filename="../qml/StatusNotification.qml" line="50" />
       <source>Not connected</source>
       <translation>ಸಂಪರ್ಕಗೊಂಡಿಲ್ಲ</translation>
     </message>
     <message>
-      <location filename="../qml/StatusNotification.qml" line="48" />
+      <location filename="../qml/StatusNotification.qml" line="51" />
       <source>Bluetooth off</source>
       <translation>ಬ್ಲೂಟೂತ್ ಆಫ್</translation>
     </message>
     <message>
-      <location filename="../qml/StatusNotification.qml" line="49" />
+      <location filename="../qml/StatusNotification.qml" line="52" />
       <source>Not paired</source>
       <translation>ಜೋಡಿಸಲಾಗಿಲ್ಲ</translation>
     </message>
     <message>
-      <location filename="../qml/StatusNotification.qml" line="50" />
+      <location filename="../qml/StatusNotification.qml" line="53" />
       <source>Charging</source>
       <translation>ಚಾರ್ಜ್ ಆಗುತ್ತಿದೆ</translation>
     </message>
     <message>
-      <location filename="../qml/StatusNotification.qml" line="51" />
+      <location filename="../qml/StatusNotification.qml" line="54" />
       <source>Locked</source>
       <translation>ಲಾಕ್ ಆಗಿದೆ</translation>
     </message>
     <message>
-      <location filename="../qml/StatusNotification.qml" line="52" />
+      <location filename="../qml/StatusNotification.qml" line="55" />
       <source>Unlocked</source>
       <translation>ಅನ್‌ಲಾಕ್ ಆಗಿದೆ</translation>
     </message>
     <message>
-      <location filename="../qml/StatusNotification.qml" line="79" />
+      <location filename="../qml/StatusNotification.qml" line="82" />
       <source>Open ElectricEel</source>
       <translation>ElectricEel ತೆರೆಯಿರಿ</translation>
     </message>
     <message>
-      <location filename="../qml/StatusNotification.qml" line="107" />
+      <location filename="../qml/StatusNotification.qml" line="113" />
       <source>%1…</source>
       <translation>%1…</translation>
     </message>
     <message>
-      <location filename="../qml/StatusNotification.qml" line="153" />
+      <location filename="../qml/StatusNotification.qml" line="161" />
       <source>%1 done</source>
       <translation>%1: ಮುಗಿದಿದೆ</translation>
     </message>

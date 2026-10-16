@@ -32,6 +32,9 @@ Item {
     property string actionText: ""
     property string pendingRequestId: ""
     property string pendingAction: ""
+    // When a notification button last called us: lipstick may close the
+    // notification as part of invoking an action, which is not a dismissal.
+    property real lastActionAt: 0
     // Dismissed by the user: stay away until the settings change or restart.
     property bool dismissed: false
     property string publishedKey: ""
@@ -96,10 +99,13 @@ Item {
     }
 
     function runAction(id) {
+        lastActionAt = Date.now()
         if (!enabled || !paired || pendingRequestId.length > 0)
             return
         // Only the actions offered on the notification: the D-Bus method is
         // reachable by any session process.
+        // No second tap here: the buttons only appear after expanding the
+        // notification, which already guards against stray touches.
         if (actionIds.indexOf(id) < 0)
             return
         pendingAction = id
@@ -121,7 +127,8 @@ Item {
         onClosed: {
             // 2: dismissed by the user. Other reasons (our own close,
             // expiry) are not a request to stay hidden.
-            if (reason === 2 && root.publishedKey.length > 0) {
+            if (reason === 2 && root.publishedKey.length > 0
+                    && Date.now() - root.lastActionAt > 2000) {
                 root.dismissed = true
                 root.publishedKey = ""
             }
@@ -139,6 +146,7 @@ Item {
 
         function runAction(action) { root.runAction(String(action)) }
         function openApp() {
+            root.lastActionAt = Date.now()
             if (root.activateApp)
                 root.activateApp()
         }
@@ -173,7 +181,11 @@ Item {
     onSummaryTextChanged: sync()
     onBodyTextChanged: sync()
     onActionIdsChanged: sync()
-    Component.onCompleted: sync()
+    Component.onCompleted: {
+        // Lipstick deletes non-resident notifications after any action.
+        notification.setHintValue("resident", true)
+        sync()
+    }
     Component.onDestruction: {
         if (publishedKey.length > 0)
             notification.close()

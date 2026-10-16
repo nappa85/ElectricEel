@@ -25,7 +25,11 @@ impl serde::Serialize for PresenceEvent {
 }
 
 /// RSSI at or above which an advertisement counts toward entering "near".
-pub(crate) const ENTER_RSSI: i32 = -88;
+/// Field logs show an approaching car mostly between -91 and -85 dBm.
+pub(crate) const ENTER_RSSI: i32 = -90;
+/// RSSI at or above which a single advertisement enters "near" at once: the
+/// phone is next to the car, so waiting for a streak only delays unlocking.
+pub(crate) const IMMEDIATE_RSSI: i32 = -80;
 /// RSSI below which an advertisement is "far": it resets the confirmation
 /// streak and never refreshes presence. Between the two thresholds a sample
 /// only keeps an already-near vehicle near (hysteresis), so a beacon hovering
@@ -34,8 +38,9 @@ pub(crate) const EXIT_RSSI: i32 = -95;
 /// Consecutive strong samples needed to enter "near"; a single reflection
 /// spike must not trigger a connection attempt.
 pub(crate) const ENTER_CONFIRMATIONS: u32 = 2;
-/// A strong sample older than this no longer counts toward the streak.
-pub(crate) const CONFIRMATION_WINDOW: Duration = Duration::from_secs(5);
+/// A strong sample older than this no longer counts toward the streak. The
+/// car advertises every ~4.5-7 s, so this must span more than one interval.
+pub(crate) const CONFIRMATION_WINDOW: Duration = Duration::from_secs(15);
 
 pub(crate) struct Proximity {
     pub near: bool,
@@ -75,7 +80,7 @@ impl Proximity {
                 1
             };
             self.last_strong = Some(now);
-            if self.confirmations >= ENTER_CONFIRMATIONS {
+            if self.confirmations >= ENTER_CONFIRMATIONS || rssi >= IMMEDIATE_RSSI {
                 self.near = true;
             }
         } else if rssi < EXIT_RSSI {
@@ -256,6 +261,22 @@ mod tests {
         state.advertisement(now, 1, EXIT_RSSI - 1);
         state.advertisement(now, 1, ENTER_RSSI);
         assert!(!state.near);
+    }
+
+    #[test]
+    fn field_advertising_cadence_enters_near() {
+        // Recorded arrivals: strong samples ~5.2 s apart, the second only
+        // just above the band, and a lone sample right next to the car.
+        let now = Instant::now();
+        let mut state = Proximity::default();
+        state.advertisement(now, 1, -90);
+        assert!(!state.near);
+        state.advertisement(now + Duration::from_millis(5226), 1, -89);
+        assert!(state.near);
+        let mut state = Proximity::default();
+        state.advertisement(now, 1, -53);
+        assert!(state.near);
+        assert!(state.can_connect(now));
     }
 
     #[test]

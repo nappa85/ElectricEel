@@ -424,6 +424,14 @@ impl PhoneState {
                 stopped.fetch_max(event.generation, Ordering::SeqCst);
                 stop_seen = true;
             }
+            crate::keylog::log(
+                "presence",
+                &if event.error.is_empty() {
+                    event.kind.to_string()
+                } else {
+                    format!("{} error={}", event.kind, event.error)
+                },
+            );
             self.away
                 .observe(event.kind, &event.vin, event.generation, Instant::now());
             let (active, link, status) = match event.kind {

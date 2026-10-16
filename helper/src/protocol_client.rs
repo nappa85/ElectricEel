@@ -698,11 +698,17 @@ fn controller(
         }
         while let Some(event) = session.poll_observation() {
             match event.kind {
-                ObservationKind::Advertisement => inner
-                    .proximity
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner)
-                    .advertisement(Instant::now(), event.target, event.rssi),
+                ObservationKind::Advertisement => {
+                    let mut proximity = inner
+                        .proximity
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner);
+                    let was_near = proximity.near;
+                    proximity.advertisement(Instant::now(), event.target, event.rssi);
+                    if proximity.near && !was_near {
+                        crate::keylog::log("presence", &format!("near rssi={}", event.rssi));
+                    }
+                }
                 ObservationKind::Disconnected => {
                     inner.connected.store(false, Ordering::SeqCst);
                     connected_at = None;

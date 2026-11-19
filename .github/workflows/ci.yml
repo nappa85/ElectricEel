@@ -199,7 +199,10 @@ jobs:
       - name: Build RPM, run Harbour validation and the SDK-target Qt tests
         run: |
           set -euxo pipefail
-          docker create --name electric-eel-build "$SAILFISH_SDK_IMAGE" sleep infinity
+          # seccomp: see helper/build-go-library-sdk.sh (sb2d needs socketcall).
+          docker create --name electric-eel-build \
+            --security-opt seccomp=tools/sailfish-sdk-seccomp.json \
+            "$SAILFISH_SDK_IMAGE" sleep infinity
           trap 'docker rm -f electric-eel-build >/dev/null 2>&1 || true' EXIT
           docker start electric-eel-build
 

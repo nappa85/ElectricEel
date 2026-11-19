@@ -39,7 +39,13 @@ echo "Building $RPM_NAME"
 
 if ! docker inspect "$CONTAINER" >/dev/null 2>&1; then
     echo "Creating SDK container $CONTAINER from $SAILFISH_SDK_IMAGE"
-    docker create --name "$CONTAINER" "$SAILFISH_SDK_IMAGE" sleep infinity
+    # The SDK's sb2d is a 32-bit i386 binary that opens its sockets via
+    # socketcall(2); Docker 29.4.x's builtin seccomp profile makes socketcall
+    # return ENOSYS, so sb2 (and every cgo/mb2 compile) fails. Pin Docker's own
+    # upstream default profile (moby docker-v29.9.3, socketcall allowed again).
+    docker create --name "$CONTAINER" \
+        --security-opt "seccomp=$ROOT/tools/sailfish-sdk-seccomp.json" \
+        "$SAILFISH_SDK_IMAGE" sleep infinity
 fi
 
 docker start "$CONTAINER" >/dev/null

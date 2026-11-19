@@ -11,7 +11,12 @@ module_cache="$(go env GOMODCACHE)"
 (cd "$repo_root/helper/session" && go mod download)
 mkdir -p "$repo_root/app/lib"
 trap 'docker rm -f "$container" >/dev/null 2>&1 || true' EXIT
+# The SDK's sb2d is a 32-bit i386 binary that opens its sockets via
+# socketcall(2); Docker 29.4.x's builtin seccomp profile makes socketcall
+# return ENOSYS, so sb2 (and every cgo/mb2 compile) fails. Pin Docker's own
+# upstream default profile (moby docker-v29.9.3, socketcall allowed again).
 docker create --name "$container" \
+  --security-opt "seccomp=$repo_root/tools/sailfish-sdk-seccomp.json" \
   --volume "$repo_root:/home/mersdk/ee-src:ro" \
   --volume "$go_root:/home/mersdk/ee-go:ro" \
   --volume "$module_cache:/home/mersdk/ee-mod:ro" \
